@@ -22,6 +22,10 @@ export default defineConfig({
 				// no signal.
 				'src/**/types.ts',
 				'src/**/index.ts',
+				// Generated data: the compiled font tables, rebuilt and compared
+				// byte for byte by tests/text/build-fonts.test.ts. The loader that
+				// reads them is src/text/compiled.ts, which is held to 100 below.
+				'src/fonts/**',
 			],
 			// Every threshold sits just under what the suite actually reaches, so a
 			// real regression trips it. A lower one gates nothing; a higher one is a
@@ -47,7 +51,9 @@ export default defineConfig({
 				'src/own-link/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
 				// Geometry and render: every line and branch is reached. Branches sit
 				// one point under so a change in how v8 counts a ternary does not
-				// fail a clean tree.
+				// fail a clean tree. The render gate covers the print writers (pdf*,
+				// eps*, impose*, sheets*), which reach 100 without Ghostscript or
+				// Poppler installed: the renderer comparisons add evidence, not lines.
 				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/render/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				// The bitstream, the symbology and the encoder. Every line and every
@@ -75,6 +81,11 @@ export default defineConfig({
 				// equations are singular, and a plain reader's module coming out under
 				// a pixel. Branches sit just under what the suite reaches.
 				'src/decode/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
+				// The TrueType parser reads files a person chose, so every refusal
+				// is reached by a file built to provoke it (tests/text/ttf.ts).
+				// Every line and branch is reached; branches are gated at 99 with
+				// the other layers.
+				'src/text/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},
