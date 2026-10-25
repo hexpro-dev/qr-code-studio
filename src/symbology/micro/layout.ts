@@ -15,7 +15,8 @@
  * zint (through zxing-wasm's writer) module for module.
  */
 
-import type { EcLevel, SymbolLayout } from './contract-types.js';
+import type { SymbolLayout } from '../types.js';
+import type { EcLevel } from '../../segment/types.js';
 import { FunctionGrid, makeGeometry, makeLayout, mapDataBits } from './modules.js';
 import type { Geometry } from './modules.js';
 import { microBlocks, microSpec } from './tables.js';

@@ -1,5 +1,6 @@
 /**
  * The malformed-input contract for the rMQR reader: only 'decode/unreadable'
+ * (or 'decode/unsupported', for a character set this runtime lacks)
  * escapes and every call finishes, over valid symbols of every size damaged
  * by seeded functions, noise at every size, and grids of no rMQR size at all.
  * The seed is in every label.
@@ -8,14 +9,23 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BitMatrix, isQrStudioError } from '../../../src/core/index.js';
 import { dataCodewordCount } from '../../../src/symbology/micro/blocks.js';
-import { buildRmqr, readRmqrCodewords } from '../../../src/symbology/rmqr/entry.js';
+import { encode } from '../../../src/encode/index.js';
+import { buildRmqr, readRmqr } from '../../../src/symbology/rmqr/entry.js';
 import { rmqrSpecs } from '../../../src/symbology/rmqr/tables.js';
 import type { Watchdog } from '../../fuzz/watchdog.js';
 import { startWatchdog } from '../../fuzz/watchdog.js';
 import { seeded } from '../micro/helpers.js';
 import type { Seeded } from '../micro/helpers.js';
 
-const BUDGET_MS = 200;
+/**
+ * A smoke alarm, not a stopwatch. A read takes well under a millisecond on
+ * its own, and the whole suite under coverage on a loaded machine has been
+ * seen to stall one for a quarter of a second, which is not what this is
+ * looking for: a loop with no exit never comes back at all.
+ */
+const BUDGET_MS = 1000;
+/** Damage past repair, or a bitstream in a character set this runtime cannot decode. */
+const ALLOWED = new Set(['decode/unreadable', 'decode/unsupported']);
 
 interface Input {
 	readonly label: string;
@@ -82,14 +92,26 @@ function buildCorpus(): Input[] {
 	for (const spec of rmqrSpecs()) {
 		for (const level of spec.levels) {
 			const data = random.bytes(dataCodewordCount(level.blocks));
-			const built = buildRmqr(data, spec.version, level.ecLevel, 0).matrix;
-			corpus.push({ label: `${spec.version}-${level.ecLevel} clean`, matrix: built });
-			for (let i = 0; i < 25; i += 1) {
-				corpus.push({
-					label: `${spec.version}-${level.ecLevel} damage ${i}`,
-					...damage(random, built),
-				});
-			}
+			// Random codewords for the bitstream reader, and real content so that
+			// damage within reach reads through to text.
+			const sources = [
+				buildRmqr(data, spec.version, level.ecLevel, 0).matrix,
+				encode('42', {
+					symbology: 'rmqr',
+					ecLevel: level.ecLevel,
+					minVersion: spec.version,
+					maxVersion: spec.version,
+				}).matrix,
+			];
+			sources.forEach((built, s) => {
+				corpus.push({ label: `${spec.version}-${level.ecLevel}/${s} clean`, matrix: built });
+				for (let i = 0; i < 20; i += 1) {
+					corpus.push({
+						label: `${spec.version}-${level.ecLevel}/${s} damage ${i}`,
+						...damage(random, built),
+					});
+				}
+			});
 		}
 		for (let i = 0; i < 10; i += 1) {
 			corpus.push({
@@ -122,25 +144,28 @@ describe('the rMQR reader on malformed input', () => {
 		expect(corpus.length).toBeGreaterThan(2000);
 	});
 
-	it('lets nothing but decode/unreadable escape, and finishes every call', () => {
+	it('lets nothing but decode/unreadable and decode/unsupported escape, and finishes every call', () => {
 		const problems: string[] = [];
 		let refused = 0;
 		let read = 0;
+		let pastReedSolomon = 0;
 		for (const input of corpus) {
 			for (const strict of [false, true]) {
 				const label = `${input.label} ${strict ? 'strict' : 'lenient'}`;
 				watchdog.beat(label);
 				const started = performance.now();
 				try {
-					readRmqrCodewords(input.matrix, { strict, erasures: input.erasures });
+					readRmqr(input.matrix, { strict, erasures: input.erasures });
 					read += 1;
+					pastReedSolomon += 1;
 				} catch (error) {
 					refused += 1;
+					if (isQrStudioError(error) && error.params.stage === 'segments') pastReedSolomon += 1;
 					if (!isQrStudioError(error)) {
 						problems.push(
 							`${label} threw ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
 						);
-					} else if (error.code !== 'decode/unreadable') {
+					} else if (!ALLOWED.has(error.code)) {
 						problems.push(`${label} threw code ${error.code}`);
 					}
 				}
@@ -149,7 +174,8 @@ describe('the rMQR reader on malformed input', () => {
 			}
 		}
 		expect(problems).toEqual([]);
-		expect(read).toBeGreaterThan(corpus.length / 4);
+		expect(read).toBeGreaterThan(corpus.length / 10);
+		expect(pastReedSolomon).toBeGreaterThan(corpus.length / 4);
 		expect(refused).toBeGreaterThan(corpus.length / 2);
 	});
 });

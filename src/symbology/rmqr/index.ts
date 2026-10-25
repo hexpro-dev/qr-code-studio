@@ -4,6 +4,7 @@ export {
 	RMQR_MASK_IDS,
 	RMQR_MESSAGE_KEYS,
 	buildRmqr,
+	readRmqr,
 	readRmqrCodewords,
 } from './entry.js';
 export { rmqrLayout } from './layout.js';

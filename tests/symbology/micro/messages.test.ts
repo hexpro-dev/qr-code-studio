@@ -10,7 +10,8 @@
 import { describe, expect, it } from 'vitest';
 import { MICRO_MESSAGES } from '../../../src/messages/en/micro.js';
 import { MICRO_MESSAGE_KEYS, createMicroQrSymbology } from '../../../src/symbology/micro/entry.js';
-import { checkRegister, keysInSource } from './helpers.js';
+import { checkRegister } from '../../encode/register.js';
+import { keysInSource } from './helpers.js';
 
 const MICRO_QR = createMicroQrSymbology();
 
@@ -34,7 +35,7 @@ describe('Micro QR messages', () => {
 	});
 
 	it('is written in the house register and frozen', () => {
-		expect(checkRegister(MICRO_MESSAGES)).toEqual([]);
+		checkRegister(MICRO_MESSAGES);
 		expect(Object.isFrozen(MICRO_MESSAGES)).toBe(true);
 	});
 });

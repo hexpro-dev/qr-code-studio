@@ -12,8 +12,8 @@
 
 import { BitMatrix } from '../../core/index.js';
 import { dataCodewordCount } from './blocks.js';
-import { ROLE_CODES } from './contract-types.js';
-import type { BlockLayout, ModuleRole, StyleableRegion, SymbolLayout } from './contract-types.js';
+import { ROLE_CODES } from '../roles.js';
+import type { BlockLayout, ModuleRole, StyleableRegion, SymbolLayout } from '../types.js';
 
 /** Function patterns as they are drawn, before any data or format bits. */
 export class FunctionGrid {

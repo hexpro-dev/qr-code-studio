@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { RMQR_MESSAGES } from '../../../src/messages/en/rmqr.js';
 import { createRmqrSymbology, RMQR_MESSAGE_KEYS } from '../../../src/symbology/rmqr/entry.js';
-import { checkRegister, keysInSource } from '../micro/helpers.js';
+import { checkRegister } from '../../encode/register.js';
+import { keysInSource } from '../micro/helpers.js';
 
 const RMQR = createRmqrSymbology();
 
@@ -27,7 +28,7 @@ describe('rMQR messages', () => {
 	});
 
 	it('is written in the house register and frozen', () => {
-		expect(checkRegister(RMQR_MESSAGES)).toEqual([]);
+		checkRegister(RMQR_MESSAGES);
 		expect(Object.isFrozen(RMQR_MESSAGES)).toBe(true);
 	});
 });

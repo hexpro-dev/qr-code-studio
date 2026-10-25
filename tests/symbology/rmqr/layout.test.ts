@@ -4,8 +4,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ROLE_CODES } from '../../../src/symbology/micro/contract-types.js';
-import type { ModuleRole, SymbolLayout } from '../../../src/symbology/micro/contract-types.js';
+import { ROLE_CODES } from '../../../src/symbology/roles.js';
+import type { ModuleRole, SymbolLayout } from '../../../src/symbology/types.js';
 import {
 	rmqrFormatModulesNearFinder,
 	rmqrFormatModulesNearSubFinder,

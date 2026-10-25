@@ -4,9 +4,10 @@ export {
 	MICRO_MESSAGE_KEYS,
 	createMicroQrSymbology,
 	buildMicro,
+	readMicro,
 	readMicroCodewords,
 } from './entry.js';
-export type { CodewordRead, ReadOptions } from './entry.js';
+export type { CodewordRead } from './entry.js';
 export { microLayout } from './layout.js';
 export { microProfile } from './profile.js';
 export { MICRO_VERSIONS, microBlocks } from './tables.js';

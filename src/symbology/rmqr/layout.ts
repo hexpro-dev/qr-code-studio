@@ -24,7 +24,7 @@
  * the overlaps above are not one implementation's reading.
  */
 
-import type { BlockLayout, StyleableRegion, SymbolLayout } from '../micro/contract-types.js';
+import type { BlockLayout, StyleableRegion, SymbolLayout } from '../types.js';
 import { FunctionGrid, makeGeometry, makeLayout, mapDataBits } from '../micro/modules.js';
 import type { Geometry } from '../micro/modules.js';
 import { rmqrSpec } from './tables.js';

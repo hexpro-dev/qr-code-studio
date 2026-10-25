@@ -6,8 +6,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { BitMatrix, QrStudioError } from '../../../src/core/index.js';
-import { correctCodewords, encodeCodewords } from '../../../src/symbology/micro/blocks.js';
-import type { EcLevel } from '../../../src/symbology/micro/contract-types.js';
+import { decodeCodewords } from '../../../src/symbology/micro/blocks.js';
+import { interleaveBlocks } from '../../../src/symbology/qr/blocks.js';
+import type { EcLevel } from '../../../src/segment/types.js';
 import { buildMicro, readMicroCodewords } from '../../../src/symbology/micro/entry.js';
 import { microFormatWord, writeMicroFormat } from '../../../src/symbology/micro/format.js';
 import { readEitherWay } from '../../../src/symbology/micro/read-helpers.js';
@@ -176,7 +177,7 @@ describe('reading Micro QR', () => {
 		const data = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0x0b]);
 		// A valid block, but only because its last data codeword has low bits
 		// no Micro QR symbol can carry.
-		expect(() => correctCodewords(blocks, encodeCodewords(blocks, data))).toThrow(QrStudioError);
+		expect(() => decodeCodewords(blocks, interleaveBlocks(data, blocks))).toThrow(QrStudioError);
 	});
 
 	it('trusts three bits of format damage leniently and one strictly', () => {
@@ -199,7 +200,7 @@ describe('reading Micro QR', () => {
 		const lying = built.matrix.clone();
 		writeMicroFormat(lying, microFormatWord(5, 0));
 		expect(stage(() => readMicroCodewords(lying, { strict: false }))).toBe(
-			'decode/unreadable format',
+			'decode/unreadable version',
 		);
 	});
 
@@ -246,20 +247,23 @@ describe('reading Micro QR', () => {
 			[1, 1],
 		] as const) {
 			expect(stage(() => readMicroCodewords(new BitMatrix(width, height), { strict: false }))).toBe(
-				'decode/unreadable size',
+				'decode/unreadable version',
 			);
 		}
 	});
 
-	it('refuses an all-light or all-dark grid at the format', () => {
+	it('refuses an all-light or all-dark grid before its codewords', () => {
+		// Either the format is past repair, or the nearest word names another
+		// version: both are refusals before Reed-Solomon is reached.
 		const dark = new BitMatrix(15, 15);
 		dark.setRegion(0, 0, 15, 15, true);
-		expect(stage(() => readMicroCodewords(dark, { strict: false }))).toBe(
-			'decode/unreadable format',
-		);
-		expect(stage(() => readMicroCodewords(new BitMatrix(15, 15), { strict: false }))).toBe(
-			'decode/unreadable format',
-		);
+		for (const grid of [dark, new BitMatrix(15, 15)]) {
+			for (const strict of [false, true]) {
+				expect(stage(() => readMicroCodewords(grid, { strict }))).toMatch(
+					/^decode\/unreadable (format|version)$/,
+				);
+			}
+		}
 	});
 
 	it('throws TypeError for a caller mistake', () => {

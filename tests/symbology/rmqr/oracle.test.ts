@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRmqr } from '../../../src/symbology/rmqr/entry.js';
 import { rmqrSpecs } from '../../../src/symbology/rmqr/tables.js';
-import type { Mode } from '../../../src/symbology/micro/contract-types.js';
+import type { Mode } from '../../../src/segment/types.js';
 import { dataCodewordCount } from '../../../src/symbology/micro/blocks.js';
 import {
 	bwipMatrix,

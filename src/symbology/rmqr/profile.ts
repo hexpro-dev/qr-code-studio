@@ -11,7 +11,7 @@
  * them; structured append is not part of rMQR.
  */
 
-import type { BitstreamProfile, Mode } from '../micro/contract-types.js';
+import type { BitstreamProfile, Mode } from '../../segment/types.js';
 import { rmqrSpec } from './tables.js';
 
 const MODES: readonly Mode[] = Object.freeze(['numeric', 'alphanumeric', 'byte', 'kanji']);

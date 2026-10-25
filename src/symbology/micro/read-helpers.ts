@@ -6,20 +6,39 @@
 
 import { BitMatrix, QrStudioError } from '../../core/index.js';
 
-export type ReadStage = 'size' | 'format';
+/**
+ * Why a grid was refused before its codewords were read. 'size' and
+ * 'mismatch' are both stage 'version', as in the QR reader: the grid is not
+ * a size this symbology comes in, or its format names a different version
+ * from its size.
+ */
+export type Refusal = 'size' | 'mismatch' | 'format';
 
-const SENTENCES: Readonly<Record<ReadStage, string>> = Object.freeze({
-	size: 'This grid is not the size of any code of this kind.',
+const SENTENCES: Readonly<Record<Refusal, string>> = Object.freeze({
+	size: 'This grid is not a size this kind of code comes in.',
+	mismatch: 'The size of this code and the version it says it is do not match.',
 	format: 'The part of this code that says how it was made is too damaged to read.',
 });
 
 /** A sampled matrix that is not this symbology, or not legibly. */
-export function unreadable(stage: ReadStage): QrStudioError {
-	return new QrStudioError('decode/unreadable', SENTENCES[stage], { stage });
+export function unreadable(why: Refusal): QrStudioError {
+	return new QrStudioError('decode/unreadable', SENTENCES[why], {
+		stage: why === 'format' ? 'format' : 'version',
+	});
+}
+
+/** Throws TypeError for options that are not `{ strict: boolean, erasures? }` over this matrix. */
+export function checkReadOptions(
+	matrix: BitMatrix,
+	options: { readonly strict: boolean; readonly erasures?: Uint8Array },
+): void {
+	if (!(matrix instanceof BitMatrix)) throw new TypeError('read takes a BitMatrix');
+	if (typeof options?.strict !== 'boolean') throw new TypeError('read needs { strict: boolean }');
+	checkErasures(matrix, options.erasures);
 }
 
 /** Throws TypeError unless `erasures` has one entry per module: a caller's mistake, not damage. */
-export function checkErasures(matrix: BitMatrix, erasures: Uint8Array | undefined): void {
+function checkErasures(matrix: BitMatrix, erasures: Uint8Array | undefined): void {
 	if (erasures === undefined) return;
 	if (!(erasures instanceof Uint8Array) || erasures.length !== matrix.width * matrix.height) {
 		throw new TypeError('erasures is a Uint8Array with one entry per module of the matrix');

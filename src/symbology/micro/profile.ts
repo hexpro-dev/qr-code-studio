@@ -12,7 +12,7 @@
  * `qrcode.termlens`; zxing-cpp QRCodecMode.cpp).
  */
 
-import type { BitstreamProfile, Mode } from './contract-types.js';
+import type { BitstreamProfile, Mode } from '../../segment/types.js';
 import { microSpec } from './tables.js';
 
 let profiles: Map<string, BitstreamProfile> | undefined;

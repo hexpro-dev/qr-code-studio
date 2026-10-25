@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildMicro } from '../../../src/symbology/micro/entry.js';
 import { MICRO_VERSIONS, microBlocks, microSpec } from '../../../src/symbology/micro/tables.js';
-import type { EcLevel, Mode } from '../../../src/symbology/micro/contract-types.js';
+import type { EcLevel, Mode } from '../../../src/segment/types.js';
 import { MICRO_FIELDS } from './fields.js';
 import { bwipMatrix, dataCodewords, maxChars, randomPayload, rows, seeded } from './helpers.js';
 import type { Payload } from './helpers.js';

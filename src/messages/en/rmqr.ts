@@ -7,7 +7,7 @@
  */
 
 export const RMQR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-	'symbology.rmqr.label': 'Rectangular Micro QR (rMQR)',
+	'symbology.rmqr.label': 'Rectangular Micro QR',
 	'symbology.rmqr.not-phone-readable':
 		'Most phone cameras cannot read rectangular Micro QR codes. Use one only where you know the scanner that will read it supports rMQR, and test it with that scanner before printing.',
 });

@@ -1,14 +1,16 @@
 /**
  * What the Micro QR and rMQR tests share: an independent bitstream writer for
- * single-mode content, the two oracles, and drawing a matrix for a reader.
+ * single-mode content, the two oracles, drawing a matrix for a reader, and
+ * mixed content with the means to compare two segmentations of it.
  *
  * The bitstream writer is written out here, from the specification's field
- * widths, rather than taken from src/segment. Until that layer is merged
- * there is nothing to take; after it is, the oracle tests still want content
+ * widths, rather than taken from src/segment: the oracle tests want content
  * whose codewords do not depend on the code under test, so a disagreement
  * with bwip-js points at the symbology and nothing else. It handles one mode
  * per symbol, which is also what keeps BWIPP's own mode optimisation from
- * choosing differently: a run of digits is numeric to every encoder.
+ * choosing differently: a run of digits is numeric to every encoder. The end
+ * to end tests (encode.test.ts) go through src/segment and src/encode
+ * instead, with mixed content.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -19,7 +21,14 @@ import bwipjs from 'bwip-js';
 import { prepareZXingModule, readBarcodes, writeBarcode } from 'zxing-wasm/full';
 import type { ReadResult } from 'zxing-wasm/full';
 import { BitBuffer, BitMatrix } from '../../../src/core/index.js';
-import type { BuiltSymbol, Mode } from '../../../src/symbology/micro/contract-types.js';
+import type { BuiltSymbol } from '../../../src/symbology/types.js';
+import { dataBitLength } from '../../../src/segment/write.js';
+import type {
+	BitstreamProfile,
+	DecodedBitstream,
+	Mode,
+	Segment,
+} from '../../../src/segment/types.js';
 import type { Seeded } from '../../core/helpers.js';
 
 export { seeded } from '../../core/helpers.js';
@@ -326,16 +335,53 @@ export function keysInSource(directory: string, prefix: string): string[] {
 	return [...found].sort();
 }
 
-/** Dashes, curly quotes, the marketing register and stray whitespace, by key. */
-export function checkRegister(sentences: Readonly<Record<string, string>>): string[] {
-	const problems: string[] = [];
-	for (const [key, sentence] of Object.entries(sentences)) {
-		if (/[\u2013\u2014\u2018\u2019\u201c\u201d]/.test(sentence))
-			problems.push(`${key}: a dash or curly quote`);
-		if (/\b(unlock|seamless|robust|empower|effortless|leverage)/i.test(sentence)) {
-			problems.push(`${key}: marketing register`);
-		}
-		if (sentence.trim() !== sentence || sentence.length === 0) problems.push(`${key}: whitespace`);
+/* ── mixed content, for the end to end tests ─────────────────────────────── */
+
+const MIXED_POOLS = [
+	'0123456789',
+	'ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:',
+	'abcdefghijklmnopqrstuvwxyz!?@#',
+];
+
+/**
+ * ASCII text in runs of digits, alphanumeric characters and lowercase, so
+ * that an encoder has real mode choices to make: where a run of digits is
+ * worth a numeric segment, and where it is cheaper to stay in byte mode.
+ */
+export function mixedText(random: Seeded, length: number): string {
+	let text = '';
+	while (text.length < length) {
+		const pool = MIXED_POOLS[random.int(MIXED_POOLS.length)] as string;
+		const run = 1 + random.int(8);
+		for (let i = 0; i < run; i += 1) text += pool[random.int(pool.length)];
 	}
-	return problems;
+	return text.slice(0, length);
+}
+
+/** The bits a read bitstream used: indicator, count and data for each segment, headers left out. */
+export function decodedBits(bitstream: DecodedBitstream, profile: BitstreamProfile): number {
+	let bits = 0;
+	for (const segment of bitstream.segments) {
+		bits +=
+			profile.modeIndicatorBits +
+			profile.charCountBits(segment.mode) +
+			dataBitLength(segment.mode, segment.length);
+	}
+	return bits;
+}
+
+/** The segments a read bitstream was written from, rebuilt from its bytes. */
+export function segmentsOf(bitstream: DecodedBitstream): Segment[] {
+	const out: Segment[] = [];
+	let offset = 0;
+	for (const segment of bitstream.segments) {
+		const size = segment.mode === 'kanji' ? segment.length * 2 : segment.length;
+		out.push({
+			mode: segment.mode,
+			chars: segment.length,
+			data: bitstream.bytes.slice(offset, offset + size),
+		});
+		offset += size;
+	}
+	return out;
 }

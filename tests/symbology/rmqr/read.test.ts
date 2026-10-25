@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { BitMatrix, QrStudioError } from '../../../src/core/index.js';
 import { dataCodewordCount } from '../../../src/symbology/micro/blocks.js';
-import type { EcLevel } from '../../../src/symbology/micro/contract-types.js';
+import type { EcLevel } from '../../../src/segment/types.js';
 import { buildRmqr, readRmqrCodewords } from '../../../src/symbology/rmqr/entry.js';
 import { writeRmqrFormat } from '../../../src/symbology/rmqr/format.js';
 import {
@@ -176,7 +176,7 @@ describe('reading rMQR', () => {
 			3,
 		);
 		expect(stage(() => readRmqrCodewords(lying, { strict: false }))).toBe(
-			'decode/unreadable format',
+			'decode/unreadable version',
 		);
 	});
 
@@ -204,7 +204,7 @@ describe('reading rMQR', () => {
 			[11, 11],
 		] as const) {
 			expect(stage(() => readRmqrCodewords(new BitMatrix(width, height), { strict: false }))).toBe(
-				'decode/unreadable size',
+				'decode/unreadable version',
 			);
 		}
 	});

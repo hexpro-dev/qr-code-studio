@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { blockCapacity } from '../../../src/symbology/micro/blocks.js';
+import { blockCapacity } from '../../../src/symbology/qr/blocks.js';
 import { microLayout } from '../../../src/symbology/micro/layout.js';
 import { microProfile } from '../../../src/symbology/micro/profile.js';
 import {
@@ -20,8 +20,8 @@ import {
 	microLevel,
 	microSpec,
 } from '../../../src/symbology/micro/tables.js';
-import type { EcLevel, Mode } from '../../../src/symbology/micro/contract-types.js';
-import { ROLE_CODES } from '../../../src/symbology/micro/contract-types.js';
+import type { EcLevel, Mode } from '../../../src/segment/types.js';
+import { ROLE_CODES } from '../../../src/symbology/roles.js';
 import { MICRO_FIELDS } from './fields.js';
 
 /** zxing-cpp's Micro QR ECBlocks: check symbols per block, blocks, data codewords. */
@@ -90,7 +90,7 @@ describe('Micro QR tables', () => {
 			expect(blocks.totalCodewords).toBe(c);
 			expect(blocks.blocks[0]!.dataCount).toBe(k);
 			expect(blocks.p).toBe(c - k - 2 * r);
-			expect(blockCapacity(blocks, blocks.blocks[0]!.ecCount)).toBe(r);
+			expect(blockCapacity(blocks.blocks[0]!.ecCount, blocks.p)).toBe(r);
 			expect(microLevel(version, ec).p).toBe(blocks.p);
 		}
 	});

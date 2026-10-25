@@ -12,16 +12,18 @@
  * wherever the symbology is offered.
  */
 
-import { BitMatrix, QrStudioError } from '../../core/index.js';
-import { correctCodewords, dataCodewordCount, encodeCodewords } from './blocks.js';
+import type { BitMatrix } from '../../core/index.js';
+import { readSegments } from '../../segment/read.js';
+import type { EcLevel } from '../../segment/types.js';
+import { interleaveBlocks } from '../qr/blocks.js';
 import type {
 	BlockLayout,
 	BuiltSymbol,
-	DecodedBitstream,
-	EcLevel,
 	MatrixRead,
+	ReadOptions,
 	SymbologyEntry,
-} from './contract-types.js';
+} from '../types.js';
+import { dataCodewordCount, decodeCodewords } from './blocks.js';
 import {
 	decodeMicroFormat,
 	microFormatWord,
@@ -32,7 +34,7 @@ import { microGeometry, microLayout } from './layout.js';
 import { MICRO_MASKS, microMaskScore } from './mask.js';
 import { applyMask, placeCodewords, readCodewordStream } from './modules.js';
 import { microProfile } from './profile.js';
-import { checkErasures, readEitherWay, unreadable } from './read-helpers.js';
+import { checkReadOptions, readEitherWay, unreadable } from './read-helpers.js';
 import { MICRO_VERSIONS, microBlocks, microBySize, microLevel, microSpec } from './tables.js';
 
 export const MICRO_ID = 'micro';
@@ -86,7 +88,7 @@ export function buildMicro(
 		throw new TypeError(`the last data codeword of ${spec.version} is 4 bits, in the high nibble`);
 	}
 	checkMask(mask);
-	const all = encodeCodewords(blocks, codewords);
+	const all = interleaveBlocks(codewords, blocks);
 	const geometry = microGeometry(version);
 	const layout = microLayout(version, ec);
 	const unmasked = placeCodewords(geometry, layout, all);
@@ -115,11 +117,6 @@ export function buildMicro(
 	});
 }
 
-export interface ReadOptions {
-	readonly strict: boolean;
-	readonly erasures?: Uint8Array;
-}
-
 /** A read as far as the corrected data codewords: everything in MatrixRead except the bitstream. */
 export interface CodewordRead {
 	readonly version: string;
@@ -146,10 +143,11 @@ function readOnce(
 	// Strict is the scan check's profile: one bit of format damage at most,
 	// because a phone reader that is any less sure gives up.
 	const format = decodeMicroFormat(readMicroFormatWord(matrix), strict ? 1 : 3);
+	if (format === undefined) throw unreadable('format');
 	// A symbol number that names another version means the grid was sampled
 	// at the wrong size, or the format is damaged past what it can say.
-	const level = spec.levels.find((candidate) => candidate.symbolNumber === format?.symbolNumber);
-	if (format === undefined || level === undefined) throw unreadable('format');
+	const level = spec.levels.find((candidate) => candidate.symbolNumber === format.symbolNumber);
+	if (level === undefined) throw unreadable('mismatch');
 	const blocks = microBlocks(spec.version, level.ecLevel);
 	const stream = readCodewordStream(
 		matrix,
@@ -159,7 +157,7 @@ function readOnce(
 		MICRO_MASKS[format.mask] as (typeof MICRO_MASKS)[number],
 		erasures,
 	);
-	const corrected = correctCodewords(blocks, stream.codewords, erasures && stream.erased);
+	const corrected = decodeCodewords(blocks, stream.codewords, erasures && stream.erased);
 	return Object.freeze({
 		version: spec.version,
 		ecLevel: level.ecLevel,
@@ -176,13 +174,12 @@ function readOnce(
 
 /**
  * Read a sampled matrix as far as its corrected data codewords. Pure: throws
- * QrStudioError 'decode/unreadable' with params { stage } ('size', 'format' or
- * 'reed-solomon'). Strict reads take no erasures and no reflection.
+ * QrStudioError 'decode/unreadable' with params { stage } ('version', 'format'
+ * or 'reed-solomon'). Strict reads take no erasures and no reflection.
  */
 export function readMicroCodewords(matrix: BitMatrix, options: ReadOptions): CodewordRead {
-	if (!(matrix instanceof BitMatrix)) throw new TypeError('read takes a BitMatrix');
-	checkErasures(matrix, options.erasures);
-	const strict = options.strict === true;
+	checkReadOptions(matrix, options);
+	const { strict } = options;
 	return readEitherWay(
 		matrix,
 		strict,
@@ -192,15 +189,24 @@ export function readMicroCodewords(matrix: BitMatrix, options: ReadOptions): Cod
 }
 
 /**
- * The bitstream stage, waiting on src/segment. Until it is merged a read
- * stops at the codewords, and says so with a code a caller can recognise.
+ * Read a sampled matrix all the way to its content. The bitstream is read
+ * once Reed-Solomon has accepted the codewords, and a failure there is final:
+ * a reading that got past Reed-Solomon is the right way round, so it is never
+ * a cue to try the reflection.
  */
-function decodeBitstream(): DecodedBitstream {
-	throw new QrStudioError(
-		'decode/unsupported',
-		'Reading the content of this kind of code is not available in this version.',
-		{ stage: 'segments' },
-	);
+export function readMicro(matrix: BitMatrix, options: ReadOptions): MatrixRead {
+	const read = readMicroCodewords(matrix, options);
+	return Object.freeze({
+		version: read.version,
+		ecLevel: read.ecLevel,
+		mask: read.mask,
+		bitstream: readSegments(read.data, read.blocks.dataBits, microProfile(read.version)),
+		errorsPerBlock: read.errorsPerBlock,
+		capacityPerBlock: read.capacityPerBlock,
+		erasuresUsed: read.erasuresUsed,
+		formatErrors: read.formatErrors,
+		mirrored: read.mirrored,
+	});
 }
 
 /**
@@ -229,19 +235,6 @@ export function createMicroQrSymbology(): SymbologyEntry {
 			return MICRO_MASK_IDS;
 		},
 		build: buildMicro,
-		read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
-			const read = readMicroCodewords(matrix, options);
-			return Object.freeze({
-				version: read.version,
-				ecLevel: read.ecLevel,
-				mask: read.mask,
-				bitstream: decodeBitstream(),
-				errorsPerBlock: read.errorsPerBlock,
-				capacityPerBlock: read.capacityPerBlock,
-				erasuresUsed: read.erasuresUsed,
-				formatErrors: read.formatErrors,
-				mirrored: read.mirrored,
-			});
-		},
+		read: readMicro,
 	});
 }

@@ -4,9 +4,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { blockCapacity } from '../../../src/symbology/micro/blocks.js';
-import { ROLE_CODES } from '../../../src/symbology/micro/contract-types.js';
-import type { Mode } from '../../../src/symbology/micro/contract-types.js';
+import { blockCapacity } from '../../../src/symbology/qr/blocks.js';
+import { ROLE_CODES } from '../../../src/symbology/roles.js';
+import type { Mode } from '../../../src/segment/types.js';
 import { rmqrLayout } from '../../../src/symbology/rmqr/layout.js';
 import { rmqrProfile } from '../../../src/symbology/rmqr/profile.js';
 import {
@@ -100,7 +100,7 @@ describe('rMQR tables', () => {
 		for (const spec of rmqrSpecs()) {
 			for (const level of spec.levels) {
 				const block = level.blocks.blocks[0]!;
-				expect(blockCapacity(level.blocks, block.ecCount)).toBe(Math.floor(block.ecCount / 2));
+				expect(blockCapacity(block.ecCount, level.blocks.p)).toBe(Math.floor(block.ecCount / 2));
 			}
 		}
 	});

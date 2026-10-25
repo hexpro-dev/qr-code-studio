@@ -2,9 +2,10 @@
  * The malformed-input contract for the Micro QR reader, which reads grids a
  * sampler made from somebody's photograph.
  *
- *   1. Only QrStudioError escapes, and only 'decode/unreadable'. A RangeError
- *      is a reader that walked off its matrix; a TypeError is a reader that
- *      blamed its caller for the picture.
+ *   1. Only QrStudioError escapes, and only 'decode/unreadable' or, for a
+ *      bitstream in a character set this runtime lacks, 'decode/unsupported'.
+ *      A RangeError is a reader that walked off its matrix; a TypeError is a
+ *      reader that blamed its caller for the picture.
  *   2. Every call finishes, quickly. The watchdog in tests/fuzz/watchdog.ts
  *      names the input if one ever stalls.
  *
@@ -16,14 +17,23 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BitMatrix, isQrStudioError } from '../../../src/core/index.js';
-import { buildMicro, readMicroCodewords } from '../../../src/symbology/micro/entry.js';
+import { encode } from '../../../src/encode/index.js';
+import { buildMicro, readMicro } from '../../../src/symbology/micro/entry.js';
 import { MICRO_VERSIONS, microBlocks, microSpec } from '../../../src/symbology/micro/tables.js';
 import type { Watchdog } from '../../fuzz/watchdog.js';
 import { startWatchdog } from '../../fuzz/watchdog.js';
 import { seeded } from './helpers.js';
 import type { Seeded } from './helpers.js';
 
-const BUDGET_MS = 200;
+/**
+ * A smoke alarm, not a stopwatch. A read takes well under a millisecond on
+ * its own, and the whole suite under coverage on a loaded machine has been
+ * seen to stall one for a quarter of a second, which is not what this is
+ * looking for: a loop with no exit never comes back at all.
+ */
+const BUDGET_MS = 1000;
+/** Damage past repair, or a bitstream in a character set this runtime cannot decode. */
+const ALLOWED = new Set(['decode/unreadable', 'decode/unsupported']);
 
 interface Input {
 	readonly label: string;
@@ -89,10 +99,22 @@ function buildCorpus(): Input[] {
 	for (const version of MICRO_VERSIONS) {
 		for (const level of microSpec(version).levels) {
 			for (const mask of [0, 1, 2, 3]) {
+				// Half the sources are real content, so damage within reach reads
+				// through to text; half are random codewords, so the bitstream
+				// reader sees every kind of nonsense Reed-Solomon lets through.
 				const blocks = microBlocks(version, level.ecLevel);
 				const data = random.bytes(blocks.blocks[0]!.dataCount);
 				if (blocks.lastDataCodewordBits === 4) data[data.length - 1]! &= 0xf0;
-				const built = buildMicro(data, version, level.ecLevel, mask).matrix;
+				const built =
+					mask % 2 === 1
+						? encode(version === 'M1' ? '9' : 'A1', {
+								symbology: 'micro',
+								ecLevel: level.ecLevel,
+								minVersion: version,
+								maxVersion: version,
+								mask,
+							}).matrix
+						: buildMicro(data, version, level.ecLevel, mask).matrix;
 				corpus.push({ label: `${version}-${level.ecLevel}/${mask} clean`, matrix: built });
 				for (let i = 0; i < 60; i += 1) {
 					corpus.push({
@@ -131,25 +153,28 @@ describe('the Micro QR reader on malformed input', () => {
 		expect(corpus.length).toBeGreaterThan(2000);
 	});
 
-	it('lets nothing but decode/unreadable escape, and finishes every call', () => {
+	it('lets nothing but decode/unreadable and decode/unsupported escape, and finishes every call', () => {
 		const problems: string[] = [];
 		let refused = 0;
 		let read = 0;
+		let pastReedSolomon = 0;
 		for (const input of corpus) {
 			for (const strict of [false, true]) {
 				const label = `${input.label} ${strict ? 'strict' : 'lenient'}`;
 				watchdog.beat(label);
 				const started = performance.now();
 				try {
-					readMicroCodewords(input.matrix, { strict, erasures: input.erasures });
+					readMicro(input.matrix, { strict, erasures: input.erasures });
 					read += 1;
+					pastReedSolomon += 1;
 				} catch (error) {
 					refused += 1;
+					if (isQrStudioError(error) && error.params.stage === 'segments') pastReedSolomon += 1;
 					if (!isQrStudioError(error)) {
 						problems.push(
 							`${label} threw ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
 						);
-					} else if (error.code !== 'decode/unreadable') {
+					} else if (!ALLOWED.has(error.code)) {
 						problems.push(`${label} threw code ${error.code}`);
 					}
 				}
@@ -160,7 +185,8 @@ describe('the Micro QR reader on malformed input', () => {
 		expect(problems).toEqual([]);
 		// Both outcomes happen: a corpus read wholesale, or refused wholesale,
 		// would be testing nothing.
-		expect(read).toBeGreaterThan(corpus.length / 4);
+		expect(read).toBeGreaterThan(corpus.length / 10);
+		expect(pastReedSolomon).toBeGreaterThan(corpus.length / 4);
 		expect(refused).toBeGreaterThan(corpus.length / 2);
 	});
 });

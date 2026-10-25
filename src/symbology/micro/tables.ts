@@ -22,7 +22,8 @@
  */
 
 import { makeBlockLayout } from './blocks.js';
-import type { BlockLayout, EcLevel, Mode } from './contract-types.js';
+import type { BlockLayout } from '../types.js';
+import type { EcLevel, Mode } from '../../segment/types.js';
 
 export type MicroVersion = 'M1' | 'M2' | 'M3' | 'M4';
 

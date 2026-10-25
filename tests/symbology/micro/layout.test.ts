@@ -10,8 +10,8 @@ import {
 	microGeometry,
 	microLayout,
 } from '../../../src/symbology/micro/layout.js';
-import { ROLE_CODES } from '../../../src/symbology/micro/contract-types.js';
-import type { ModuleRole, SymbolLayout } from '../../../src/symbology/micro/contract-types.js';
+import { ROLE_CODES } from '../../../src/symbology/roles.js';
+import type { ModuleRole, SymbolLayout } from '../../../src/symbology/types.js';
 
 function roleAt(layout: SymbolLayout, x: number, y: number): ModuleRole {
 	const code = layout.roles[y * layout.width + x];

@@ -23,7 +23,8 @@
  */
 
 import { makeBlockLayout } from '../micro/blocks.js';
-import type { BlockLayout, EcLevel, Mode } from '../micro/contract-types.js';
+import type { BlockLayout } from '../types.js';
+import type { EcLevel, Mode } from '../../segment/types.js';
 
 export type RmqrLevel = 'M' | 'H';
 

@@ -13,19 +13,16 @@
  * symbology is offered.
  */
 
-import { BitMatrix, QrStudioError } from '../../core/index.js';
-import { correctCodewords, dataCodewordCount, encodeCodewords } from '../micro/blocks.js';
-import type {
-	BuiltSymbol,
-	DecodedBitstream,
-	EcLevel,
-	MatrixRead,
-	SymbologyEntry,
-} from '../micro/contract-types.js';
-import type { CodewordRead, ReadOptions } from '../micro/entry.js';
+import type { BitMatrix } from '../../core/index.js';
+import { readSegments } from '../../segment/read.js';
+import type { EcLevel } from '../../segment/types.js';
+import { dataCodewordCount, decodeCodewords } from '../micro/blocks.js';
+import type { CodewordRead } from '../micro/entry.js';
+import { interleaveBlocks } from '../qr/blocks.js';
+import type { BuiltSymbol, MatrixRead, ReadOptions, SymbologyEntry } from '../types.js';
 import { applyMask, placeCodewords, readCodewordStream } from '../micro/modules.js';
 import type { MaskPredicate } from '../micro/modules.js';
-import { checkErasures, readEitherWay, unreadable } from '../micro/read-helpers.js';
+import { checkReadOptions, readEitherWay, unreadable } from '../micro/read-helpers.js';
 import { decodeRmqrFormat, readRmqrFormatWord, writeRmqrFormat } from './format.js';
 import {
 	rmqrFormatModulesNearFinder,
@@ -82,7 +79,7 @@ export function buildRmqr(
 		throw new TypeError(`${spec.version}-${ec} takes ${dataCodewordCount(blocks)} data codewords`);
 	}
 	if (mask !== 'auto' && mask !== 0) throw new TypeError("rMQR has one mask: 0, or 'auto'");
-	const all = encodeCodewords(blocks, codewords);
+	const all = interleaveBlocks(codewords, blocks);
 	const geometry = rmqrGeometry(version);
 	const layout = rmqrLayout(version);
 	const matrix = placeCodewords(geometry, layout, all);
@@ -113,9 +110,10 @@ function readOnce(
 		[readRmqrFormatWord(matrix, nearFinder), readRmqrFormatWord(matrix, nearSubFinder)],
 		strict,
 	);
+	if (format === undefined) throw unreadable('format');
 	// A format naming another size means a grid sampled at the wrong
 	// dimensions, or damage past what the format can say.
-	if (format === undefined || (format.data & 31) !== spec.indicator) throw unreadable('format');
+	if ((format.data & 31) !== spec.indicator) throw unreadable('mismatch');
 	const ecLevel: EcLevel = format.data >= 32 ? 'H' : 'M';
 	const blocks = rmqrBlocks(spec.version, ecLevel);
 	const stream = readCodewordStream(
@@ -126,7 +124,7 @@ function readOnce(
 		RMQR_MASK,
 		erasures,
 	);
-	const corrected = correctCodewords(blocks, stream.codewords, erasures && stream.erased);
+	const corrected = decodeCodewords(blocks, stream.codewords, erasures && stream.erased);
 	return Object.freeze({
 		version: spec.version,
 		ecLevel,
@@ -143,13 +141,12 @@ function readOnce(
 
 /**
  * Read a sampled matrix as far as its corrected data codewords. Pure: throws
- * QrStudioError 'decode/unreadable' with params { stage } ('size', 'format' or
- * 'reed-solomon'). Strict reads take no erasures and no reflection.
+ * QrStudioError 'decode/unreadable' with params { stage } ('version', 'format'
+ * or 'reed-solomon'). Strict reads take no erasures and no reflection.
  */
 export function readRmqrCodewords(matrix: BitMatrix, options: ReadOptions): CodewordRead {
-	if (!(matrix instanceof BitMatrix)) throw new TypeError('read takes a BitMatrix');
-	checkErasures(matrix, options.erasures);
-	const strict = options.strict === true;
+	checkReadOptions(matrix, options);
+	const { strict } = options;
 	return readEitherWay(
 		matrix,
 		strict,
@@ -158,13 +155,24 @@ export function readRmqrCodewords(matrix: BitMatrix, options: ReadOptions): Code
 	);
 }
 
-/** The bitstream stage, waiting on src/segment. */
-function decodeBitstream(): DecodedBitstream {
-	throw new QrStudioError(
-		'decode/unsupported',
-		'Reading the content of this kind of code is not available in this version.',
-		{ stage: 'segments' },
-	);
+/**
+ * Read a sampled matrix all the way to its content. A bitstream failure is
+ * final, as for Micro QR: past Reed-Solomon the reading is the right way
+ * round.
+ */
+export function readRmqr(matrix: BitMatrix, options: ReadOptions): MatrixRead {
+	const read = readRmqrCodewords(matrix, options);
+	return Object.freeze({
+		version: read.version,
+		ecLevel: read.ecLevel,
+		mask: read.mask,
+		bitstream: readSegments(read.data, read.blocks.dataBits, rmqrProfile(read.version)),
+		errorsPerBlock: read.errorsPerBlock,
+		capacityPerBlock: read.capacityPerBlock,
+		erasuresUsed: read.erasuresUsed,
+		formatErrors: read.formatErrors,
+		mirrored: read.mirrored,
+	});
 }
 
 /**
@@ -196,19 +204,6 @@ export function createRmqrSymbology(): SymbologyEntry {
 			return RMQR_MASK_IDS;
 		},
 		build: buildRmqr,
-		read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
-			const read = readRmqrCodewords(matrix, options);
-			return Object.freeze({
-				version: read.version,
-				ecLevel: read.ecLevel,
-				mask: read.mask,
-				bitstream: decodeBitstream(),
-				errorsPerBlock: read.errorsPerBlock,
-				capacityPerBlock: read.capacityPerBlock,
-				erasuresUsed: read.erasuresUsed,
-				formatErrors: read.formatErrors,
-				mirrored: read.mirrored,
-			});
-		},
+		read: readRmqr,
 	});
 }
