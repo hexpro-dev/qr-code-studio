@@ -100,6 +100,12 @@ export default defineConfig({
 				// Branches sit one point under, as for the layers above.
 				'src/studio/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/dom/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// The two libraries: the only code that keeps anything, so every refusal
+				// and every storage failure is reached, the IndexedDB one through
+				// fake-indexeddb and stand-ins for the failures a real disk has. Branches
+				// sit one point under, as for the layers above.
+				'src/dom/library/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/dom/file-library.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/registries.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/messages/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},

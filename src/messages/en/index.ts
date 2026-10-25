@@ -15,6 +15,7 @@ import { DECODE_MESSAGES } from './decode.js';
 import { DESIGN_MESSAGES } from './design.js';
 import { DOM_MESSAGES } from './dom.js';
 import { ENCODE_MESSAGES } from './encode.js';
+import { LIBRARY_MESSAGES } from './library.js';
 import { MICRO_MESSAGES } from './micro.js';
 import { OWN_LINK_MESSAGES } from './own-link.js';
 import { PAYLOAD_MESSAGES } from './payload.js';
@@ -31,6 +32,7 @@ export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, stri
 		design: DESIGN_MESSAGES,
 		dom: DOM_MESSAGES,
 		encode: ENCODE_MESSAGES,
+		library: LIBRARY_MESSAGES,
 		micro: MICRO_MESSAGES,
 		'own-link': OWN_LINK_MESSAGES,
 		payload: PAYLOAD_MESSAGES,
@@ -69,6 +71,7 @@ export {
 	DESIGN_MESSAGES,
 	DOM_MESSAGES,
 	ENCODE_MESSAGES,
+	LIBRARY_MESSAGES,
 	MICRO_MESSAGES,
 	OWN_LINK_MESSAGES,
 	PAYLOAD_MESSAGES,

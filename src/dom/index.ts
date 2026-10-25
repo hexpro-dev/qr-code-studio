@@ -42,3 +42,35 @@ export { canvasRasterEncoder, flattenOnWhite, looksLike } from './raster-encoder
 export type { EncodingCanvas, RasterEncoderDeps } from './raster-encoder.js';
 export { PRINT_CLEANUP_MS, printDocument, printScene } from './print.js';
 export type { PrintDeps } from './print.js';
+export {
+	LIBRARY_EXTENSION,
+	LIBRARY_KEYS,
+	LIBRARY_LIMITS,
+	LIBRARY_MIME,
+	LIBRARY_SCHEMA,
+	LIBRARY_VERSION,
+	cleanName,
+	createFileLibrary,
+	libraryErrorKey,
+	parseLibraryFile,
+	serialiseLibrary,
+} from './file-library.js';
+export type {
+	BrandKit,
+	DesignEntry,
+	DesignLibrary,
+	FileLibrary,
+	FileLibraryDeps,
+	KitEntry,
+	KitItem,
+	KitSummary,
+	LibraryContents,
+	LibraryDownload,
+	LibraryFileOpened,
+	LibraryFileParse,
+	LibraryFileV1,
+	LibraryInk,
+	LibraryProbe,
+	LibraryProbeState,
+	RecordRules,
+} from './file-library.js';
