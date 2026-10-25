@@ -39,9 +39,13 @@ export default defineConfig({
 				// and zlib's TOO_FAR cut-off, which a four-byte hash reaches only
 				// through a collision.
 				'src/core/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
-				// The bitstream. Every line and every branch is reached today; branches
-				// are gated at 99, the figure set for this layer when it was written.
+				// The bitstream, the symbology and the encoder. Every line and every
+				// branch is reached today; branches are gated at 99, the figure set for
+				// these layers when they were written.
 				'src/segment/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/symbology/qr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/symbology/*.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/encode/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

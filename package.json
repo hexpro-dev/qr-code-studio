@@ -32,6 +32,14 @@
 			"types": "./dist/segment/index.d.ts",
 			"import": "./dist/segment/index.js"
 		},
+		"./symbology": {
+			"types": "./dist/symbology/index.d.ts",
+			"import": "./dist/symbology/index.js"
+		},
+		"./encode": {
+			"types": "./dist/encode/index.d.ts",
+			"import": "./dist/encode/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
