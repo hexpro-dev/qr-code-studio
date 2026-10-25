@@ -1,7 +1,7 @@
 /**
  * The public shape of a content type, as docs/CONTRACTS.md (`payload`) gives it.
  *
- * Two additions to the contract, both listed in the branch report:
+ * Three additions to the contract, all listed in the branch report:
  *
  * - `FieldSchema.multiple` and `maxItems`. A contact card has several phone
  *   numbers and an email has several recipients, and `FieldValue` already
@@ -12,6 +12,9 @@
  *   but not made honestly here: phase 2 codes carry a signature over the
  *   invoice made with the seller's own certificate. `generate: false` tells a
  *   view to offer the type in the inspector only. Absent means true.
+ * - The safety code 'payload/service-code', for a tel: link that dials a
+ *   star or hash code (call forwarding, settings), which the contract's
+ *   union had no code for.
  */
 
 import type { Issue, MessageKey } from '../core/issue.js';
