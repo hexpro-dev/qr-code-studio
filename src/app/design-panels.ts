@@ -288,7 +288,7 @@ function isStandard(design: QrDesignV1): boolean {
 const matchCache = new WeakMap<QrDesignV1, string | null>();
 
 /** The preset this design is, if it is one: its look, leaving out what a preset never sets. */
-function matchPreset(ctx: AppContext, design: QrDesignV1): string | null {
+export function matchPreset(ctx: AppContext, design: QrDesignV1): string | null {
 	const cached = matchCache.get(design);
 	if (cached !== undefined) return cached;
 	const look = (d: QrDesignV1, withLogo: boolean): string =>

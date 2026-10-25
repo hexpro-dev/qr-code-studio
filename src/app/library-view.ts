@@ -1,24 +1,32 @@
 /**
- * The library, as the offline file has it: codes saved in this tab, kept by
- * saving a library file and brought back by opening one. Also a single
- * design, saved to a file or opened from one, which is the way to share a
- * look without its content.
+ * The library, as the offline file has it: saved designs and brand kits held
+ * in this page, kept by saving a library file and brought back by opening
+ * one. A library holds the look of a code and never what the code says, so a
+ * library file is safe to pass to a colleague.
  *
- * Everything here goes through the studio's library commands, so when the
- * file store from the library milestone replaces the stand-in, this view does
- * not change.
+ * The store is the dom layer's file library (src/dom/file-library.ts), the
+ * same one the studio was given. Designs go through the studio's library
+ * commands. SEAM(library): brand kits, saving and opening the file, and the
+ * unsaved mark go to the store directly until the studio grows commands and a
+ * snapshot state for them; applying a saved design reads its record and
+ * replaces the design, rather than `library/load`, which until then replaces
+ * the whole document and would wipe what the person typed.
  */
 
+import type { Issue } from '../core/issue.js';
+import { LIBRARY_EXTENSION, libraryErrorKey } from '../dom/file-library.js';
+import type { BrandKit, KitSummary, LibraryInk } from '../dom/file-library.js';
 import { downloadBytes } from '../dom/output.js';
-import { studioError } from '../studio/index.js';
-import type { LibraryItemSummary, StudioSnapshot } from '../studio/index.js';
-import { button, field } from './controls.js';
+import type { DesignPaint, QrDesignV1 } from '../design/types.js';
+import { LOGO_ASSET_ID, logoPatches, studioError } from '../studio/index.js';
+import type { DesignPatch, LibraryItemSummary, StudioSnapshot } from '../studio/index.js';
+import type { QrStudioError } from '../core/errors.js';
+import { button, field, issueList } from './controls.js';
 import type { AppContext } from './context.js';
 import type { Panel } from './design-panels.js';
-import { fileBytes, fileText, h, replace, setText } from './dom.js';
-import { LIBRARY_SUFFIX } from './library-file.js';
+import { fileText, h, replace, setText } from './dom.js';
 import { keepNativeUndo } from './shortcuts.js';
-import { errorText, t, when } from './text.js';
+import { t, when } from './text.js';
 
 export interface LibraryView extends Panel {
 	/** Open a library file the person dropped on the page. */
@@ -27,7 +35,41 @@ export interface LibraryView extends Panel {
 	openDesign(file: Blob): Promise<void>;
 }
 
-export function createLibrary(ctx: AppContext): LibraryView {
+/** The solid inks a design uses, for a brand kit's palette. */
+function paletteOf(design: QrDesignV1): LibraryInk[] {
+	const inks: LibraryInk[] = [];
+	const add = (paint: DesignPaint | null | undefined): void => {
+		if (paint === null || paint === undefined) return;
+		if (paint.kind === 'solid') inks.push(paint.ink);
+		else if (paint.kind !== 'entry') for (const stop of paint.stops) inks.push(stop.ink);
+	};
+	add(design.modules.paint);
+	add(design.regions.finder?.outerPaint);
+	add(design.regions.finder?.innerPaint);
+	add(design.background);
+	const seen = new Set<string>();
+	return inks.filter((ink) => {
+		const key = JSON.stringify(ink);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
+function inkCss(ink: LibraryInk): string {
+	return typeof ink === 'string' ? ink : ink.srgb;
+}
+
+export function createLibrary(
+	ctx: AppContext,
+	presetOf: (design: QrDesignV1) => string | null,
+): LibraryView {
+	const store = ctx.library;
+	const fail = (error: QrStudioError): void => {
+		const shown = studioError(error);
+		ctx.announce(t(libraryErrorKey(error), shown.params));
+	};
+
 	const nameInput = h('input', {
 		className: 'input',
 		attrs: {
@@ -38,44 +80,89 @@ export function createLibrary(ctx: AppContext): LibraryView {
 		},
 	});
 	keepNativeUndo(nameInput);
-	const name = field(t('app.library.name'), nameInput);
-	const saveCode = button(t('app.library.save-code'), {
+	const name = field(t('app.library.name'), nameInput, t('app.library.name-hint'));
+	const chosenName = (): string =>
+		nameInput.value.trim() === '' ? t('app.library.untitled') : nameInput.value.trim();
+
+	const saveDesign = button(t('app.library.save-design'), {
 		icon: 'save',
 		primary: true,
 		onClick: async () => {
-			const result = await ctx.studio.run({
-				type: 'library/save',
-				name: nameInput.value.trim() === '' ? t('app.library.untitled') : nameInput.value.trim(),
-			});
+			const result = await ctx.studio.run({ type: 'library/save', name: chosenName() });
 			if (!result.ok) {
-				ctx.announce(errorText(studioError(result.error)));
+				fail(result.error);
 				return;
 			}
 			nameInput.value = '';
 			ctx.announce(t('app.library.saved'));
+			update(ctx.snapshot());
 		},
 	});
-	const list = h('ul', { className: 'library__list' });
+	const saveKit = button(t('app.library.save-kit'), {
+		icon: 'save',
+		onClick: async () => {
+			const design = ctx.snapshot().document.design;
+			const preset = presetOf(design);
+			const kit: BrandKit = {
+				palette: paletteOf(design).slice(0, 32),
+				logo:
+					design.logo?.source.kind === 'asset' ? (design.assets?.[LOGO_ASSET_ID] ?? null) : null,
+				presets: preset === null ? [] : [preset],
+			};
+			const saved = await store.saveKit({ name: chosenName(), kit });
+			if (!saved.ok) {
+				fail(saved.error);
+				return;
+			}
+			nameInput.value = '';
+			ctx.announce(t('app.library.kit-saved'));
+			await refreshKits();
+		},
+	});
+
+	const designList = h('ul', { className: 'library__list' });
+	const kitList = h('ul', { className: 'library__list' });
 	const empty = h('p', { className: 'field__hint', text: t('app.library.empty') });
-	const dirty = h('p', { className: 'note note--warning', text: t('app.library.unsaved') });
-	dirty.hidden = true;
+	const unsaved = h('p', { className: 'note note--warning', text: t('app.library.unsaved') });
+	unsaved.hidden = true;
+	const skipped = h('ul', { className: 'field__issues' });
+	skipped.hidden = true;
+	const kitsTitle = h('h3', { className: 'notes__title', text: t('app.library.kits') });
+	const designsTitle = h('h3', { className: 'notes__title', text: t('app.library.designs') });
 
 	const libraryInput = h('input', {
-		attrs: { type: 'file', accept: `${LIBRARY_SUFFIX},application/json` },
+		attrs: { type: 'file', accept: `${LIBRARY_EXTENSION},application/json` },
 	});
 	libraryInput.hidden = true;
 	const designInput = h('input', { attrs: { type: 'file', accept: '.json,application/json' } });
 	designInput.hidden = true;
 
+	let kits: readonly KitSummary[] = [];
+
+	async function refreshKits(): Promise<void> {
+		const listed = await store.listKits();
+		kits = listed.ok ? listed.value : [];
+		drawKits();
+		update(ctx.snapshot());
+	}
+
 	async function openFile(file: Blob): Promise<void> {
-		const added = await ctx.library.fromFile(await fileBytes(file));
-		if (!added.ok) {
-			ctx.announce(errorText(studioError(added.error)));
+		const opened = await store.openFile(file);
+		issueList(skipped, opened.issues as readonly Issue[]);
+		if (!opened.opened) {
+			ctx.announce(opened.issues.map((found) => t(found.code, found.params ?? {})).join(' '));
 			return;
 		}
-		// The studio learns of the new items by asking the store again.
+		// The studio learns of the new designs by asking the store again.
 		await ctx.studio.run({ type: 'library/enable' });
-		ctx.announce(t('app.library.opened', { count: added.value }));
+		await refreshKits();
+		const count = ctx.snapshot().library;
+		ctx.announce(
+			t('app.library.opened', {
+				designs: count.status === 'on' ? count.items.length : 0,
+				kits: kits.length,
+			}),
+		);
 	}
 
 	async function openDesign(file: Blob): Promise<void> {
@@ -104,10 +191,9 @@ export function createLibrary(ctx: AppContext): LibraryView {
 	const saveFile = button(t('app.library.save-file'), {
 		icon: 'download',
 		onClick: () => {
-			const file = ctx.library.toFile();
-			const saved = downloadBytes(file.bytes, file.filename, 'application/json');
-			if (saved.ok) ctx.announce(t('app.export.saved', { filename: file.filename }));
-			else ctx.announce(errorText(studioError(saved.error)));
+			const saved = store.saveFile();
+			if (saved.ok) ctx.announce(t('app.export.saved', { filename: saved.value.filename }));
+			else fail(saved.error);
 			update(ctx.snapshot());
 		},
 	});
@@ -115,7 +201,7 @@ export function createLibrary(ctx: AppContext): LibraryView {
 		icon: 'open',
 		onClick: () => libraryInput.click(),
 	});
-	const saveDesign = button(t('app.design.save-file'), {
+	const saveDesignFile = button(t('app.design.save-file'), {
 		icon: 'save',
 		onClick: () => {
 			const design = ctx.snapshot().document.design;
@@ -131,17 +217,41 @@ export function createLibrary(ctx: AppContext): LibraryView {
 
 	const root = h('div', { className: 'panel library' }, [
 		h('p', { className: 'field__hint', text: t('app.library.intro') }),
-		h('div', { className: 'library__save' }, [name.root, saveCode]),
-		dirty,
+		h('div', { className: 'library__save' }, [name.root, saveDesign, saveKit]),
+		unsaved,
+		skipped,
 		empty,
-		list,
+		designsTitle,
+		designList,
+		kitsTitle,
+		kitList,
 		h('div', { className: 'library__files' }, [saveFile, openLibrary, libraryInput]),
 		h('h3', { className: 'notes__title', text: t('app.design.title') }),
 		h('p', { className: 'field__hint', text: t('app.design.intro') }),
-		h('div', { className: 'library__files' }, [saveDesign, openDesignButton, designInput]),
+		h('div', { className: 'library__files' }, [saveDesignFile, openDesignButton, designInput]),
 	]);
 
-	function itemRow(item: LibraryItemSummary, snapshot: StudioSnapshot): HTMLElement {
+	function itemActions(
+		label: string,
+		use: () => Promise<void>,
+		remove: () => Promise<void>,
+	): HTMLElement {
+		return h('div', { className: 'library__actions' }, [
+			button(t('app.library.use'), {
+				small: true,
+				attrs: { 'aria-label': t('app.library.use-named', { name: label }) },
+				onClick: () => void use(),
+			}),
+			button(t('app.library.remove'), {
+				small: true,
+				icon: 'minus',
+				attrs: { 'aria-label': t('app.library.remove-named', { name: label }) },
+				onClick: () => void remove(),
+			}),
+		]);
+	}
+
+	function designRow(item: LibraryItemSummary, snapshot: StudioSnapshot): HTMLElement {
 		const type = snapshot.catalogue.payloadTypes
 			.flatMap((group) => group.types)
 			.find((found) => found.id === item.typeId);
@@ -150,92 +260,123 @@ export function createLibrary(ctx: AppContext): LibraryView {
 				h('span', { className: 'library__name', text: item.name }),
 				h('span', {
 					className: 'library__when',
-					text: t('app.library.saved-at', {
-						type: type === undefined ? '' : t(type.labelKey),
-						date: when(item.savedAt),
-					}),
+					text: `${type === undefined ? '' : `${t(type.labelKey)}. `}${t('app.library.saved-at', { date: when(item.savedAt) })}`,
 				}),
 			]),
-			h('div', { className: 'library__actions' }, [
-				button(t('app.library.open'), {
-					small: true,
-					attrs: { 'aria-label': t('app.library.open-named', { name: item.name }) },
-					onClick: async () => {
-						const result = await ctx.studio.run({ type: 'library/load', id: item.id });
-						ctx.announce(
-							result.ok
-								? t('app.library.loaded', { name: item.name })
-								: errorText(studioError(result.error)),
-						);
-					},
-				}),
-				button(t('app.library.use-design'), {
-					small: true,
-					attrs: { 'aria-label': t('app.library.use-design-named', { name: item.name }) },
-					onClick: async () => {
-						// SEAM(library): the studio has no command that applies only an item's
-						// design, so its document is read from the store and its design
-						// replaces the current one, as one undoable step.
-						const loaded = await ctx.library.load(item.id);
-						if (!loaded.ok) {
-							ctx.announce(errorText(studioError(loaded.error)));
-							return;
-						}
-						ctx.dispatch({ type: 'design/replace', design: loaded.value.document.design });
-						ctx.announce(t('app.design.applied'));
-					},
-				}),
-				button(t('app.library.remove'), {
-					small: true,
-					icon: 'minus',
-					attrs: { 'aria-label': t('app.library.remove-named', { name: item.name }) },
-					onClick: async () => {
-						await ctx.studio.run({ type: 'library/remove', id: item.id });
-						ctx.announce(t('app.library.removed', { name: item.name }));
-					},
-				}),
-			]),
+			itemActions(
+				item.name,
+				async () => {
+					const loaded = await store.load(item.id);
+					if (!loaded.ok) {
+						fail(loaded.error);
+						return;
+					}
+					ctx.dispatch({ type: 'design/replace', design: loaded.value.document.design });
+					ctx.dispatch({ type: 'conditions', conditions: loaded.value.document.conditions });
+					ctx.announce(t('app.library.used', { name: item.name }));
+				},
+				async () => {
+					await ctx.studio.run({ type: 'library/remove', id: item.id });
+					ctx.announce(t('app.library.removed', { name: item.name }));
+				},
+			),
 		]);
+	}
+
+	/** A kit in one click: its first preset, then its logo and its first colour on the modules, as one step. */
+	async function useKit(id: string, label: string): Promise<void> {
+		const loaded = await store.loadKit(id);
+		if (!loaded.ok) {
+			fail(loaded.error);
+			return;
+		}
+		const kit = loaded.value.kit;
+		const preset = kit.presets.find((candidate) => ctx.registries.design.presets.get(candidate));
+		if (preset !== undefined) ctx.dispatch({ type: 'design/preset', id: preset });
+		const design = ctx.snapshot().document.design;
+		const patches: DesignPatch[] = [];
+		const first = kit.palette[0];
+		if (first !== undefined)
+			patches.push({ path: ['modules', 'paint'], value: { kind: 'solid', ink: first } });
+		if (kit.logo !== null) patches.push(...logoPatches(design, kit.logo));
+		if (patches.length > 0) ctx.dispatch({ type: 'design/patch', patch: patches });
+		ctx.announce(t('app.library.used', { name: label }));
+	}
+
+	function drawKits(): void {
+		replace(
+			kitList,
+			kits.map((kit) =>
+				h('li', { className: 'library__item' }, [
+					h('div', { className: 'library__about' }, [
+						h('span', { className: 'library__name', text: kit.name }),
+						h('span', {
+							className: 'library__when',
+							text: t('app.library.saved-at', { date: when(kit.savedAt) }),
+						}),
+					]),
+					itemActions(
+						kit.name,
+						() => useKit(kit.id, kit.name),
+						async () => {
+							await store.removeKit(kit.id);
+							ctx.announce(t('app.library.removed', { name: kit.name }));
+							await refreshKits();
+						},
+					),
+				]),
+			),
+		);
+		// The palette under each kit's name, drawn once its record is read.
+		kits.forEach((kit, index) => {
+			void store.loadKit(kit.id).then((loaded) => {
+				if (!loaded.ok) return;
+				const row = kitList.children[index]?.querySelector('.library__about');
+				row?.appendChild(
+					h(
+						'span',
+						{ className: 'library__palette', attrs: { 'aria-hidden': 'true' } },
+						loaded.value.kit.palette.slice(0, 8).map((ink) => {
+							const chip = h('span', { className: 'library__ink' });
+							chip.style.setProperty('--ink-swatch', inkCss(ink));
+							return chip;
+						}),
+					),
+				);
+			});
+		});
 	}
 
 	let shownLibrary: unknown = null;
 	function update(snapshot: StudioSnapshot): void {
+		unsaved.hidden = !store.hasUnsavedChanges();
 		const library = snapshot.library;
-		dirty.hidden = !ctx.library.dirty;
+		const designs = library.status === 'on' ? library.items : [];
+		designsTitle.hidden = designs.length === 0;
+		kitsTitle.hidden = kits.length === 0;
+		empty.hidden = designs.length > 0 || kits.length > 0;
+		saveDesign.disabled = library.status !== 'on';
 		if (library === shownLibrary) return;
 		shownLibrary = library;
-		const on = library.status === 'on';
-		saveCode.disabled = !on;
 		if (library.status === 'failed') {
-			setText(empty, errorText(library.error));
+			setText(empty, t(library.error.messageKey, library.error.params));
 			empty.hidden = false;
-			replace(list, []);
-			return;
-		}
-		if (library.status !== 'on') {
-			setText(
-				empty,
-				library.status === 'unavailable' ? t('app.library.unavailable') : t('app.library.empty'),
-			);
-			empty.hidden = false;
-			replace(list, []);
-			return;
-		}
-		setText(empty, t('app.library.empty'));
-		empty.hidden = library.items.length > 0;
+		} else setText(empty, t('app.library.empty'));
 		replace(
-			list,
-			library.items.map((item) => itemRow(item, snapshot)),
+			designList,
+			designs.map((item) => designRow(item, snapshot)),
 		);
 	}
+
+	void refreshKits();
 
 	return {
 		root,
 		update,
-		meta: (snapshot) =>
-			snapshot.library.status === 'on'
-				? t('app.library.count', { count: snapshot.library.items.length })
-				: '',
+		meta: (snapshot) => {
+			const designs = snapshot.library.status === 'on' ? snapshot.library.items.length : 0;
+			return t('app.library.count', { designs, kits: kits.length });
+		},
 		openFile,
 		openDesign,
 	};

@@ -10,12 +10,12 @@
 
 import type { Registries } from '../registries.js';
 import type { Studio, StudioAction, StudioSnapshot } from '../studio/index.js';
-import type { FileLibraryStore } from './library-file.js';
+import type { FileLibrary } from '../dom/file-library.js';
 
 export interface AppContext {
 	readonly studio: Studio;
 	readonly registries: Registries;
-	readonly library: FileLibraryStore;
+	readonly library: FileLibrary;
 	dispatch(action: StudioAction): void;
 	snapshot(): StudioSnapshot;
 	/** Say something in the live region: a result that arrived later, a copy, a save. */

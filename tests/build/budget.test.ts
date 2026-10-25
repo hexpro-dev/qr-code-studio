@@ -34,7 +34,7 @@ const BUDGETS: Readonly<Record<string, number>> = {
 	'src/core': 31_500, // 28.5 kB
 	'src/batch': 29_000, // 26.5 kB
 	'src/segment': 18_500, // 16.9 kB
-	'src/dom': 15_500, // 14.0 kB
+	'src/dom': 26_000, // 23.4 kB, with the file library (M11)
 	'src/geometry': 11_200, // 10.2 kB
 	'src/text': 9_600, // 8.7 kB
 	'src/encode': 4_900, // 4.5 kB

@@ -16,6 +16,7 @@
 
 import { decodeDesignLink } from '../design/link.js';
 import type { QrDesignV1 } from '../design/types.js';
+import { LIBRARY_EXTENSION, createFileLibrary } from '../dom/file-library.js';
 import { canvasRasterEncoder } from '../dom/raster-encoder.js';
 import { FONT_LICENCE } from '../fonts/latin.js';
 import { createRegistries } from '../registries.js';
@@ -35,10 +36,10 @@ import {
 	createLogo,
 	createModules,
 	createPrint,
+	matchPreset,
 } from './design-panels.js';
 import type { Panel } from './design-panels.js';
 import { byId, h, replace, setText } from './dom.js';
-import { createFileLibrary, LIBRARY_SUFFIX } from './library-file.js';
 import { createLibrary } from './library-view.js';
 import { createProof } from './proof.js';
 import { createSaver } from './save.js';
@@ -80,7 +81,9 @@ function readFragment(hash: string, isType: (id: string) => boolean): Fragment {
 // The studio.
 
 const registries = createRegistries();
-const library = createFileLibrary();
+// The library is a file the person saves and opens, checked against the same
+// registries the studio uses so a design it can draw is one the library keeps.
+const library = createFileLibrary({ registries });
 const isType = (id: string): boolean => {
 	const type = registries.payloads.get(id);
 	return type !== undefined && type.generate !== false;
@@ -296,7 +299,7 @@ interface Section {
 const content = createContent(ctx);
 const contentPanel: Panel = { root: content.root, update: content.update, meta: content.meta };
 const styleCard = card(2, t('app.section.style'), true, 'card-style');
-const libraryPanel = createLibrary(ctx);
+const libraryPanel = createLibrary(ctx, (design) => matchPreset(ctx, design));
 const sections: readonly Section[] = [
 	{ card: card(1, t('app.section.content'), true, 'card-content'), panel: contentPanel },
 	{ card: styleCard, panel: createGallery(ctx, styleCard.root) },
@@ -327,13 +330,15 @@ const createPanel = h(
 	},
 	[
 		sentinel,
+		// The controls come first in the document, so focus moves through them
+		// before the proof beside them; on a phone the stylesheet puts the proof on top.
 		h('div', { className: 'create' }, [
-			proofDock,
-			spacer,
 			h('div', { className: 'create__controls' }, [
 				notice,
 				...sections.map((section) => section.card.root),
 			]),
+			proofDock,
+			spacer,
 		]),
 	],
 );
@@ -449,7 +454,7 @@ window.addEventListener('drop', (event) => {
 
 async function openDropped(file: File): Promise<void> {
 	const name = file.name.toLowerCase();
-	if (name.endsWith(LIBRARY_SUFFIX)) {
+	if (name.endsWith(LIBRARY_EXTENSION)) {
 		await libraryPanel.openFile(file);
 		return;
 	}
