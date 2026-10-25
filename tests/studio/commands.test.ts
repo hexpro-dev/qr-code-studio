@@ -168,23 +168,6 @@ describe('inspect', () => {
 	});
 });
 
-describe('batch', () => {
-	it('is not in this build yet, and says so as a result', async () => {
-		const { studio } = studioWith();
-		const result = await studio.run({
-			type: 'batch',
-			csv: 'a\n1',
-			mapping: { typeId: 'text', fields: { text: { column: 'a' } }, filename: '{a}' },
-			output: { kind: 'zip', format: 'svg' },
-		});
-		expect(!result.ok && result.error).toMatchObject({
-			code: 'platform/unavailable',
-			params: { feature: 'batch' },
-		});
-		expect(studio.getSnapshot().batch).toEqual({ status: 'idle' });
-	});
-});
-
 /** A store in memory, as the website's IndexedDB store or the offline app's file store behaves. */
 class MemoryStore implements LibraryStore {
 	enabled: boolean;

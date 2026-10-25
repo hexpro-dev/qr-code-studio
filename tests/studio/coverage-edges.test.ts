@@ -348,3 +348,41 @@ describe('the library when the studio is disposed mid-command', () => {
 		}
 	});
 });
+
+describe('the scan check, when there is nothing to check or nothing drawn', () => {
+	it('does not run for content too long for any code', () => {
+		const runner = new FakeRunner();
+		const { studio, time } = studioWith({ verifyRunner: runner });
+		studio.dispatch({ type: 'payload/type', typeId: 'text' });
+		studio.dispatch({ type: 'payload/field', key: 'text', value: 'x'.repeat(5000) });
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		expect(runner.runs).toHaveLength(0);
+		expect(studio.getSnapshot().verify.status).toBe('idle');
+	});
+
+	it("checks at the person's conditions when the scene cannot be drawn", () => {
+		const registries = createRegistries();
+		registries.design.moduleShapes.register({
+			id: 'explodes',
+			labelKey: 'design.module.square',
+			params: [],
+			connects: false,
+			path() {
+				throw new QrStudioError('design/invalid', 'boom');
+			},
+		});
+		const runner = new FakeRunner();
+		const { studio, time } = studioWithCode({ registries, verifyRunner: runner });
+		studio.dispatch({
+			type: 'design/patch',
+			patch: [
+				{ path: ['modules', 'shape'], value: { id: 'explodes' } },
+				{ path: ['output', 'sizeMm'], value: 40 },
+			],
+		});
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		expect(runner.last.job.conditions).toBe(studio.getSnapshot().document.conditions);
+	});
+});

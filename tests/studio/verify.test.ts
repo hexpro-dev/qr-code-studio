@@ -448,6 +448,33 @@ describe('the entries a job requires', () => {
 		expect(runner.last.job.design).toBe(studio.getSnapshot().design.effective);
 	});
 
+	it('checks at the size the design is printed at, the symbol with its quiet zone, read from the scene', () => {
+		const runner = new FakeRunner();
+		const { studio, time } = studioWithCode({ verifyRunner: runner });
+		studio.dispatch({ type: 'design/patch', patch: { path: ['output', 'sizeMm'], value: 41 } });
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		// No frame: the artwork is the symbol and its quiet zone.
+		expect(runner.last.job.conditions.sizeMm).toBeCloseTo(41);
+		// A frame makes the artwork larger than the symbol; the 41 mm is the artwork's.
+		studio.dispatch({
+			type: 'design/patch',
+			patch: { path: ['frame'], value: { ref: { id: 'banner-bottom' } } },
+		});
+		time.advance(250);
+		const scene = studio.getSnapshot().preview?.scene;
+		const units = scene?.unitsPerMm as number;
+		expect(runner.last.job.conditions.sizeMm).toBeCloseTo((25 + 8) / units);
+		expect(runner.last.job.conditions.sizeMm).toBeLessThan(41);
+		// Without a size of the design's own, the person's conditions.
+		studio.dispatch({
+			type: 'design/patch',
+			patch: { path: ['output', 'sizeMm'], value: undefined },
+		});
+		time.advance(250);
+		expect(runner.last.job.conditions).toBe(studio.getSnapshot().document.conditions);
+	});
+
 	it("sends a design's pictures decoded, so a worker can rebuild the scene", () => {
 		const runner = new FakeRunner();
 		const { studio, time } = studioWithCode({ verifyRunner: runner });

@@ -10,9 +10,11 @@
  * Sizes: a raster is as wide as asked in pixels, or as a physical size at a
  * dpi works out to, or a size picked so every module lands on whole pixels.
  * A print format always has a physical size, from the options, the design,
- * the scan conditions or 25 mm, in that order. The physical size is the
- * symbol with its quiet zone, as everywhere else in the studio; a frame adds
- * to it.
+ * the scan conditions or 25 mm, in that order. The options and the design
+ * measure it as the design's `output.sizeBasis` says (the whole artwork, or
+ * the Swiss QR-bill's symbol alone); the conditions measure the symbol with
+ * its quiet zone. Whatever gave it, the millimetres of the result are read
+ * from the scene that size builds, never worked out again from the number.
  *
  * A bad option never fails an export: it is left out and the result's issues
  * say which one. What a content type fixes (the Swiss QR-bill's 46 mm) cannot
@@ -107,7 +109,7 @@ interface Checked {
 }
 
 /** The options that fit, the design they change, and an issue for each that did not. */
-function checkOptions(input: ExportInput, format: ExportFormat, options: ExportOptions): Checked {
+function checkOptions(input: ExportInput, options: ExportOptions): Checked {
 	const issues: Issue[] = [];
 	const bad = (option: string): void => {
 		issues.push(issue(STUDIO_KEYS.exportOption, ['options', option], 'warning'));
@@ -139,7 +141,6 @@ function checkOptions(input: ExportInput, format: ExportFormat, options: ExportO
 		} else bad('quietZone');
 	}
 
-	const print = format === 'pdf' || format === 'eps';
 	let sizeMm = design.output.sizeMm;
 	if (given.sizeMm !== undefined) {
 		if (!within(given.sizeMm, LIMITS.sizeMm.min, LIMITS.sizeMm.max)) bad('sizeMm');
@@ -151,7 +152,6 @@ function checkOptions(input: ExportInput, format: ExportFormat, options: ExportO
 			);
 		} else sizeMm = given.sizeMm;
 	}
-	if (print && sizeMm === undefined) sizeMm = input.conditions.sizeMm ?? DEFAULT_PRINT_MM;
 	// Only ever set to a number above, so a change is always to a size.
 	if (sizeMm !== design.output.sizeMm) {
 		design = { ...design, output: { ...design.output, sizeMm: sizeMm as number } };
@@ -266,7 +266,7 @@ export async function exportSymbol(
 	}
 	if ((format === 'pdf' || format === 'eps') && input.printer === null)
 		return err(unavailable(format));
-	const checked = checkOptions(input, format, options);
+	const checked = checkOptions(input, options);
 	let built;
 	try {
 		built = buildScene(input.symbol, checked.design, {
@@ -279,7 +279,18 @@ export async function exportSymbol(
 	} catch (thrown) {
 		return err(asStudioError(thrown, 'render/format-unavailable'));
 	}
-	const { scene } = built;
+	let { scene } = built;
+	// A print format needs a size. With none from the options or the design,
+	// it is the scan conditions' (the symbol with its quiet zone, as they
+	// measure it) or 25 mm, set on the scene directly so the design's own
+	// size, and the basis it is measured on, are left alone.
+	if ((format === 'pdf' || format === 'eps') && physical(scene) === null) {
+		const sizeMm = input.conditions.sizeMm ?? DEFAULT_PRINT_MM;
+		scene = {
+			...scene,
+			unitsPerMm: (input.symbol.matrix.width + 2 * checked.design.quietZone) / sizeMm,
+		};
+	}
 	const issues = [...built.issues, ...checked.issues];
 	const filename = exportName(checked.design.name, EXTENSION[format]);
 	const done = (bytes: Uint8Array, width: number, height: number): Result<ExportResult> =>

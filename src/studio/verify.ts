@@ -10,13 +10,13 @@
  * instead.
  */
 
-import { CancelledError, QrStudioError } from '../core/errors.js';
+import { QrStudioError } from '../core/errors.js';
 import type { RgbaImage } from '../core/image.js';
-import { err, ok } from '../core/result.js';
+import { err } from '../core/result.js';
 import type { Result } from '../core/result.js';
 import type { DesignOverlay, DesignPaint, DesignRegistries, QrDesignV1 } from '../design/types.js';
 import type { Registries } from '../registries.js';
-import { asStudioError } from './keys.js';
+import { driveInSlices } from './slices.js';
 import type {
 	VerifyConditions,
 	VerifyGenerator,
@@ -99,10 +99,8 @@ export const UNAVAILABLE_RUNNER: VerifyRunner = Object.freeze({
 });
 
 /**
- * A runner that steps `generator` on this thread, for about `scheduler.sliceMs`
- * at a time, then hands the thread back until the scheduler calls again. An
- * abort stops it between captures and cancels the pending slice, so nothing
- * is left waiting on the clock.
+ * A runner that steps `generator` on this thread in slices (see slices.ts),
+ * which is the default the studio uses once verify is in the build.
  */
 export function slicedVerifyRunner(
 	generator: VerifyGenerator,
@@ -119,52 +117,12 @@ export function slicedVerifyRunner(
 			signal: AbortSignal,
 			progress: (p: VerifyProgress) => void,
 		): Promise<Result<VerifyReport>> {
-			return new Promise((resolve) => {
-				let cancel: (() => void) | null = null;
-				let finished = false;
-				// Reached once: the abort listener is removed here, and the slice
-				// loop stops at the first sign of `finished`.
-				const finish = (result: Result<VerifyReport>): void => {
-					finished = true;
-					signal.removeEventListener('abort', onAbort);
-					cancel?.();
-					cancel = null;
-					resolve(result);
-				};
-				const onAbort = (): void => finish(err(new CancelledError()));
-				if (signal.aborted) {
-					finish(err(new CancelledError()));
-					return;
-				}
-				signal.addEventListener('abort', onAbort);
-				let steps: Generator<VerifyProgress, VerifyReport>;
-				try {
-					steps = generator(job, registries);
-				} catch (thrown) {
-					finish(err(asStudioError(thrown, 'verify/missing-entry')));
-					return;
-				}
-				const slice = (): void => {
-					cancel = null;
-					const started = clock();
-					try {
-						for (;;) {
-							const step = steps.next();
-							if (step.done === true) {
-								finish(ok(step.value));
-								return;
-							}
-							progress(step.value);
-							if (finished) return;
-							if (clock() - started >= scheduler.sliceMs) break;
-						}
-					} catch (thrown) {
-						finish(err(asStudioError(thrown, 'verify/missing-entry')));
-						return;
-					}
-					cancel = scheduler.later(slice, 0);
-				};
-				cancel = scheduler.later(slice, 0);
+			return driveInSlices(() => generator(job, registries), {
+				scheduler,
+				clock,
+				signal,
+				progress,
+				failure: 'verify/missing-entry',
 			});
 		},
 	});

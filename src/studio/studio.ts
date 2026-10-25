@@ -34,6 +34,11 @@ import type { FieldValue, PayloadType } from '../payload/types.js';
 import { epsIssues, sceneToEps } from '../render/eps.js';
 import { sceneToPdf } from '../render/pdf.js';
 import { sceneToSvg } from '../render/svg.js';
+import { decodeCsvBytes } from '../batch/text-decoding.js';
+import { parseCsv } from '../batch/csv.js';
+import { planBatch } from '../batch/plan.js';
+import { runBatch } from '../batch/run.js';
+import type { BatchOutcome, BatchRow } from '../batch/types.js';
 import { createRegistries } from '../registries.js';
 import { createFontRegistry } from '../text/registry.js';
 import type { Registries } from '../registries.js';
@@ -67,6 +72,7 @@ import { STUDIO_KEYS, asStudioError, studioError } from './keys.js';
 import { applyPatch, pathProblem } from './patch.js';
 import type { DesignPatch, Fix, Printer, VerifyConditions, VerifyProgress } from './seams.js';
 import { sameJson, share } from './share.js';
+import { driveInSlices } from './slices.js';
 import { trackedScheduler } from './timers.js';
 import { conformingPairs, shuffleDesign } from './shuffle.js';
 import { contentOf, encodeContent, optionsKey, symbolView } from './symbol.js';
@@ -216,7 +222,8 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	let verify: VerifyState = frozen({ status: 'idle' }) as VerifyState;
 	let lastDone: Extract<VerifyState, { status: 'done' }> | null = null;
 	let inspect: InspectState = frozen({ status: 'idle' });
-	const batch: BatchState = frozen({ status: 'idle' });
+	let batch: BatchState = frozen({ status: 'idle' });
+	let batchRun: AbortController | null = null;
 	let libraryState: LibraryState = frozen(
 		library === null ? { status: 'unavailable' } : { status: 'checking' },
 	);
@@ -466,7 +473,9 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		const design = constrained(document.design, type).effective;
 		verifyInputs = { content, design, conditions: document.conditions };
 		stopRun();
-		if (!content.ok) {
+		// No code to check: the content cannot be made, or is too long to fit.
+		const encoded = content.ok ? encodeCached(content.text, design) : null;
+		if (!content.ok || encoded === null || !encoded.ok) {
 			verify = idleVerify();
 			notify();
 			return;
@@ -475,14 +484,15 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		const controller = new AbortController();
 		verifyRun = { id, controller };
 		const at = revision;
+		const { overlay } = constrained(document.design, type);
 		const job = verifyJob(
 			content.text,
 			design,
-			document.conditions,
+			checkedConditions(encoded.symbol, design, overlay),
 			seed,
 			registries,
 			assets.all(design),
-			constrained(document.design, type).overlay,
+			overlay,
 		);
 		verify = frozen({ status: 'running', progress: 0, revision: at, axis: null });
 		notify();
@@ -528,6 +538,24 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		pending.then(settle, (thrown: unknown) =>
 			settle(err(asStudioError(thrown, 'platform/unavailable'))),
 		);
+	}
+
+	/**
+	 * The conditions a check runs at. When the design is printed at a size of
+	 * its own, that is the size checked: the symbol with its quiet zone, read
+	 * from the scene, since the design measures its size on its own basis (the
+	 * whole artwork, or the Swiss QR-bill's symbol alone). Otherwise the size
+	 * the person gave the conditions.
+	 */
+	function checkedConditions(
+		symbol: BuiltSymbol,
+		design: QrDesignV1,
+		overlay: DesignOverlay | null,
+	): VerifyConditions {
+		const units = previewFor(symbol, design, overlay)?.scene.unitsPerMm;
+		if (units === undefined) return document.conditions;
+		const sizeMm = (symbol.matrix.width + 2 * design.quietZone) / units;
+		return frozen({ ...document.conditions, sizeMm });
 	}
 
 	/** After a change: start the check again if what it checks has changed. */
@@ -913,6 +941,82 @@ export function createStudio(options: StudioOptions = {}): Studio {
 
 	// Commands.
 
+	function setBatch(next: BatchState): void {
+		batch = frozen(next);
+		notify();
+	}
+
+	/**
+	 * Many codes from a spreadsheet: read the file (its bytes' encoding worked
+	 * out where it came as bytes), plan a row per code, then make them in time
+	 * slices. A new run stops the one before; so does dispose. The design is
+	 * the person's own, which runBatch constrains per content type itself.
+	 */
+	async function batchCommand(
+		command: Extract<StudioCommand, { type: 'batch' }>,
+	): Promise<Result<Uint8Array>> {
+		batchRun?.abort();
+		const controller = new AbortController();
+		batchRun = controller;
+		const current = (): boolean => !disposed && batchRun === controller;
+		const failed = (error: QrStudioError): Result<Uint8Array> => {
+			if (current()) {
+				batchRun = null;
+				setBatch({ status: 'failed', error: studioError(error) });
+			}
+			return err(error);
+		};
+		let issues: readonly Issue[];
+		let rows: readonly BatchRow[];
+		try {
+			let text: string;
+			let fileIssues: readonly Issue[] = [];
+			if (typeof command.csv === 'string') text = command.csv;
+			else {
+				const decoded = decodeCsvBytes(command.csv);
+				text = decoded.text;
+				fileIssues = decoded.issues;
+			}
+			const table = parseCsv(text);
+			issues = frozen([...fileIssues, ...table.issues]);
+			rows = planBatch(table, command.mapping, registries);
+		} catch (thrown) {
+			if (thrown instanceof TypeError) throw thrown;
+			return failed(asStudioError(thrown, 'batch/malformed-csv'));
+		}
+		let written = 0;
+		let skipped = 0;
+		const outcomes: BatchOutcome[] = [];
+		setBatch({ status: 'running', done: 0, total: rows.length + 1, written, skipped, issues });
+		const design = document.design;
+		const result = await driveInSlices(
+			() => runBatch(rows, design, command.output, registries, { fonts, seed }),
+			{
+				scheduler: timers,
+				clock,
+				signal: controller.signal,
+				failure: 'platform/unavailable',
+				progress: (p) => {
+					if (p.row !== undefined) {
+						outcomes.push(p.row);
+						if (p.row.status === 'written') written += 1;
+						else skipped += 1;
+					}
+					if (current()) {
+						setBatch({ status: 'running', done: p.done, total: p.total, written, skipped, issues });
+					}
+				},
+			},
+		);
+		if (!result.ok)
+			return result.error.code === 'cancelled' ? err(result.error) : failed(result.error);
+		if (current()) {
+			batchRun = null;
+			setBatch({ status: 'done', outcomes: frozen(outcomes), written, skipped, issues });
+		}
+		return result;
+	}
+
 	function setInspect(next: InspectState): void {
 		inspect = frozen(next);
 		notify();
@@ -1033,16 +1137,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				return result;
 			}
 			case 'batch':
-				// SEAM(batch): planBatch and runBatch once M10 merges.
-				return err(
-					new QrStudioError(
-						'platform/unavailable',
-						'Making many codes at once is not part of this build yet.',
-						{
-							feature: 'batch',
-						},
-					),
-				);
+				return batchCommand(command);
 			case 'library/enable':
 			case 'library/disable':
 			case 'library/save':
@@ -1154,6 +1249,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			if (disposed) return;
 			disposed = true;
 			verifyArmed = false;
+			batchRun?.abort();
 			stopRun();
 			timers.cancelAll();
 			listeners.clear();

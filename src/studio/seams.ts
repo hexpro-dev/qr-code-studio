@@ -1,13 +1,13 @@
 /**
- * The shapes of the layers the studio drives that are still being written:
- * the scan check (verify), the inspector and batch, and the seam the print
- * writers come in through.
+ * The shapes of the layers the studio drives that are still being written,
+ * the scan check (verify) and the inspector, and the seam the print writers
+ * come in through.
  *
  * Each is copied from docs/CONTRACTS.md so the studio can be typed, wired
  * and tested against it now, with the real layer injected through an option
  * and a fake standing in for it in the tests. When a layer merges, its types
- * replace the copies here (`SEAM(verify)`, `SEAM(inspect)` and `SEAM(batch)`
- * mark each one) and the option's default becomes the real function.
+ * replace the copies here (`SEAM(verify)` and `SEAM(inspect)` mark each one)
+ * and the option's default becomes the real function.
  */
 
 import type { Result } from '../core/result.js';
@@ -227,23 +227,5 @@ export interface Printer {
 	eps(scene: Scene, options: EpsOptions): string;
 }
 
-// SEAM(batch): from the batch layer once it merges (M10).
-
-export interface BatchMapping {
-	readonly typeId: string;
-	readonly fields: Readonly<
-		Record<string, { readonly column: string } | { readonly template: string }>
-	>;
-	readonly filename: string;
-}
-
-export type BatchOutput =
-	| {
-			readonly kind: 'zip';
-			readonly format: 'svg' | 'png' | 'pdf' | 'eps';
-			readonly widthPx?: number;
-			readonly sizeMm?: number;
-	  }
-	| { readonly kind: 'sheet'; readonly template: string; readonly colourSpace: 'srgb' | 'cmyk' };
-
 export type { DecodeOptions, EpsOptions, PdfOptions, Point };
+export type { BatchMapping, BatchOutcome, BatchOutput } from '../batch/types.js';

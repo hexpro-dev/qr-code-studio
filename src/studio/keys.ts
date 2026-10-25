@@ -6,8 +6,9 @@
  * reaches a person goes through `studioError`, which picks the most specific
  * sentence there is. An encoding failure has its own keys in the encode
  * layer's catalogue, found by the param that says why; a reading failure has
- * the reader's, by `decodeFailureKey`; a font or a print refusal has the text
- * layer's; anything else has the generic sentence for its code,
+ * the reader's, by `decodeFailureKey`; a spreadsheet the batch layer cannot
+ * read has that layer's, by its reason; a font or a print refusal has the
+ * text layer's; anything else has the generic sentence for its code,
  * `error.<area>.<detail>`.
  */
 
@@ -102,6 +103,14 @@ export function errorKey(error: QrStudioError): MessageKey {
 		case 'decode/unreadable':
 		case 'decode/unsupported':
 			return decodeFailureKey(error);
+		case 'batch/malformed-csv': {
+			const reason = param(error, 'reason');
+			return reason === undefined ? errorMessageKey(error.code) : `batch.malformed-csv.${reason}`;
+		}
+		case 'batch/too-many-rows':
+			return 'batch.too-many-rows';
+		case 'batch/unknown-column':
+			return 'batch.unknown-column';
 		case 'font/malformed':
 			return 'text.font.malformed';
 		case 'font/missing-glyphs':

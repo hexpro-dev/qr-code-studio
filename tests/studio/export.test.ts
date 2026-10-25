@@ -302,7 +302,10 @@ describe('pdf and eps', () => {
 		expect(studio.getSnapshot().symbol.status).toBe('ok');
 		const pdf = await studio.run({ type: 'export', format: 'pdf', options: { sizeMm: 30 } });
 		if (!pdf.ok) throw pdf.error;
-		expect(pdf.value.width).toBeCloseTo(46);
+		// 46 mm is the symbol alone, without its quiet zone: the page is that and the zone.
+		const { symbol } = studio.getSnapshot();
+		const modules = symbol.status === 'ok' ? symbol.view.modules[0] : 0;
+		expect(pdf.value.width).toBeCloseTo((46 * (modules + 8)) / modules);
 		expect(pdf.value.issues.map((found) => found.code)).toContain(
 			'studio.issue.export-size-constrained',
 		);

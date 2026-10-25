@@ -248,6 +248,12 @@ describe('message keys', () => {
 			'error.render.format-unavailable',
 		);
 		expect(key('camera/in-use')).toBe('error.camera.in-use');
+		expect(key('batch/malformed-csv', { reason: 'stray-quote' })).toBe(
+			'batch.malformed-csv.stray-quote',
+		);
+		expect(key('batch/malformed-csv')).toBe('error.batch.malformed-csv');
+		expect(key('batch/too-many-rows', { max: 5 })).toBe('batch.too-many-rows');
+		expect(key('batch/unknown-column')).toBe('batch.unknown-column');
 	});
 
 	it('carry an error into an issue and a view without its message', () => {

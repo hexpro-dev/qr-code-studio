@@ -25,6 +25,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES, QrStudioError } from '../../src/core/errors.js';
 import type { Issue } from '../../src/core/issue.js';
+import { BATCH_ISSUES } from '../../src/batch/issues.js';
 import { decodeFailureKey } from '../../src/decode/failure.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import { encode } from '../../src/encode/encode.js';
@@ -67,6 +68,7 @@ function sourceFiles(dir: string): string[] {
 }
 
 const AREAS = [
+	'batch',
 	'payload',
 	'own-link',
 	'design',
@@ -207,6 +209,20 @@ function ownLinkNotes(): string[] {
 	].map((rule) => rule.noteKey);
 }
 
+/** The batch layer's spreadsheet failures, by the reasons its own union names. */
+function batchKeys(): string[] {
+	const source = readFileSync(join(root, 'src/batch/errors.ts'), 'utf8');
+	const union = /export type CsvFailure =([^;]+);/.exec(source)?.[1] ?? '';
+	const reasons = [...union.matchAll(/'([a-z-]+)'/g)].map((match) => match[1] as string);
+	expect(reasons.length).toBeGreaterThan(0);
+	return [
+		...reasons.map((reason) => errorKey(new QrStudioError('batch/malformed-csv', '', { reason }))),
+		errorKey(new QrStudioError('batch/too-many-rows', '')),
+		errorKey(new QrStudioError('batch/unknown-column', '')),
+		...Object.values(BATCH_ISSUES),
+	];
+}
+
 function codeKeys(): string[] {
 	return [
 		...ERROR_CODES.map(errorMessageKey),
@@ -230,6 +246,7 @@ const used = new Set([
 	...encodeKeys(),
 	...failureKeys(),
 	...codeKeys(),
+	...batchKeys(),
 	...emitted.map((found) => found.code),
 	...ownLinkNotes(),
 	...LIGHTNING,

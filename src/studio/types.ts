@@ -45,6 +45,7 @@ import type { Registries } from '../registries.js';
 import type { EcLevel, Mode } from '../segment/types.js';
 import type {
 	BatchMapping,
+	BatchOutcome,
 	BatchOutput,
 	CaptureAxis,
 	DesignPatch,
@@ -145,7 +146,8 @@ export type StudioCommand =
 	| { readonly type: 'inspect/text'; readonly text: string }
 	| {
 			readonly type: 'batch';
-			readonly csv: string;
+			/** The spreadsheet as text, or as the file's bytes, whose encoding is worked out. */
+			readonly csv: string | Uint8Array;
 			readonly mapping: BatchMapping;
 			readonly output: BatchOutput;
 	  }
@@ -224,10 +226,25 @@ export type InspectState =
 	| { readonly status: 'done'; readonly source: 'image' | 'text'; readonly report: InspectReport }
 	| { readonly status: 'failed'; readonly source: 'image' | 'text'; readonly error: StudioError };
 
-/** A placeholder until the batch layer (M10). */
+/** A batch run: rows done of rows plus one (the manifest or the sheet), and what each row came to. */
 export type BatchState =
 	| { readonly status: 'idle' }
-	| { readonly status: 'running'; readonly done: number; readonly total: number }
+	| {
+			readonly status: 'running';
+			readonly done: number;
+			readonly total: number;
+			readonly written: number;
+			readonly skipped: number;
+			/** About the file as a whole: its encoding, rows it could not read. */
+			readonly issues: readonly Issue[];
+	  }
+	| {
+			readonly status: 'done';
+			readonly outcomes: readonly BatchOutcome[];
+			readonly written: number;
+			readonly skipped: number;
+			readonly issues: readonly Issue[];
+	  }
 	| { readonly status: 'failed'; readonly error: StudioError };
 
 /** An error as a view shows it: the code, and the message key and params for its sentence. */
