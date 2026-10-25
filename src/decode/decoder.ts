@@ -79,19 +79,19 @@ export const TELEMETRY_PIXELS = 1_000_000;
  * still picture's budget reaches it.
  */
 const LADDER: readonly Rung[] = [
-	{ binariser: 'hybrid', scale: 'one', inverted: false, robust: false },
-	{ binariser: 'hybrid', scale: 'one', inverted: true, robust: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: false, majorityVote: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: true, majorityVote: false },
 	// Half scale is the cheapest rung and the one that reads a dim capture: the
 	// 2x2 average takes sensor noise out from under the binariser.
-	{ binariser: 'hybrid', scale: 'half', inverted: false, robust: true },
-	{ binariser: 'hybrid', scale: 'half', inverted: true, robust: true },
+	{ binariser: 'hybrid', scale: 'half', inverted: false, majorityVote: true },
+	{ binariser: 'hybrid', scale: 'half', inverted: true, majorityVote: true },
 	// A global threshold, for the scene the local one over-fits.
-	{ binariser: 'otsu', scale: 'one', inverted: false, robust: false },
-	{ binariser: 'hybrid', scale: 'one', inverted: false, robust: true },
-	{ binariser: 'sauvola', scale: 'one', inverted: false, robust: true },
-	{ binariser: 'sauvola', scale: 'one', inverted: true, robust: true },
+	{ binariser: 'otsu', scale: 'one', inverted: false, majorityVote: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: false, majorityVote: true },
+	{ binariser: 'sauvola', scale: 'one', inverted: false, majorityVote: true },
+	{ binariser: 'sauvola', scale: 'one', inverted: true, majorityVote: true },
 	// A symbol too small to sample, interpolated up.
-	{ binariser: 'hybrid', scale: 'double', inverted: false, robust: false },
+	{ binariser: 'hybrid', scale: 'double', inverted: false, majorityVote: false },
 ];
 
 /**
@@ -163,7 +163,7 @@ interface Stage {
 	readonly binarised: Binarised;
 	readonly bits: Uint8Array;
 	readonly inverted: boolean;
-	readonly robust: boolean;
+	readonly majorityVote: boolean;
 	/** Source pixels per stage pixel, per axis. */
 	readonly scaleX: number;
 	readonly scaleY: number;
@@ -225,7 +225,7 @@ function resolveProfile(options: DecodeOptions): Profile {
 					binariser: 'hybrid-mean',
 					scale: 'one',
 					inverted: (polarity ?? 'dark-on-light') === 'light-on-dark',
-					robust: false,
+					majorityVote: false,
 				},
 			],
 			tolerance: STRICT_FINDER_TOLERANCE,
@@ -467,7 +467,7 @@ function attemptGrid(
 		hypothesis.transform,
 		hypothesis.width,
 		hypothesis.height,
-		{ robust: stage.robust, outside: run.profile.strict ? 0 : LENIENT_OUTSIDE },
+		{ majorityVote: stage.majorityVote, outside: run.profile.strict ? 0 : LENIENT_OUTSIDE },
 	);
 	if (grid === null) {
 		remember(run, 'geometry');
@@ -618,7 +618,7 @@ function prepareStage(
 		binarised,
 		bits: binarised.bits,
 		inverted: rung.inverted,
-		robust: rung.robust,
+		majorityVote: rung.majorityVote,
 		scaleX: source.width / grey.width,
 		scaleY: source.height / grey.height,
 		singleFinder: run.profile.strict || attempt <= SINGLE_FINDER_RUNGS,

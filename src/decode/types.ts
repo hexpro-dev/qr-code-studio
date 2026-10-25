@@ -17,7 +17,7 @@ export interface Point {
 /**
  * Which reader to be.
  *
- * `lenient` is the scanner: every binariser, scale and polarity, a robust
+ * `lenient` is the scanner: every binariser, scale and polarity, a
  * five-point vote per module, mirrored reads and erasures. `strict-v1` is the
  * scan check, and exists to be at least as hard to satisfy as the phone
  * readers people use; `strict.ts` lists what it gives up and why.
@@ -102,7 +102,7 @@ export interface Rung {
 	readonly scale: 'half' | 'one' | 'double';
 	readonly inverted: boolean;
 	/** A five-point vote per module rather than one centre sample. */
-	readonly robust: boolean;
+	readonly majorityVote: boolean;
 }
 
 /**

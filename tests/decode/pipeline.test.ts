@@ -27,7 +27,12 @@ import { qrcodeMatrix } from '../helpers/oracles.js';
 const LEGAL = new Set(Array.from({ length: 40 }, (_, i) => 21 + i * 4));
 
 /** Every grid the pipeline would sample from a picture, best first, as bit matrices. */
-function sampledGrids(image: RgbaImage, strict = false, robust = false, limit = 64): BitMatrix[] {
+function sampledGrids(
+	image: RgbaImage,
+	strict = false,
+	majorityVote = false,
+	limit = 64,
+): BitMatrix[] {
 	const grey = toGrey(image);
 	const binarised = binariseHybrid(grey);
 	const tolerance = strict ? STRICT_FINDER_TOLERANCE : LENIENT_FINDER_TOLERANCE;
@@ -39,7 +44,7 @@ function sampledGrids(image: RgbaImage, strict = false, robust = false, limit = 
 				hypothesis.transform,
 				hypothesis.width,
 				hypothesis.height,
-				{ robust, outside: 0 },
+				{ majorityVote, outside: 0 },
 			);
 			if (grid !== null) out.push(grid.matrix);
 			if (out.length >= limit) return out;
