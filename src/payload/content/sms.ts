@@ -64,16 +64,4 @@ export const smsType = definePayload<SmsValue>({
 	detect: (text) => (/^(?:smsto|mmsto|sms|mms):/i.test(text) ? 1 : 0),
 	parse,
 	safety: () => [{ code: 'payload/sends-message', severity: 'note' }],
-	vectors: [
-		{
-			text: 'SMSTO:+61400000000:Hello from the example',
-			value: { number: '+61400000000', message: 'Hello from the example' },
-			source: 'ZXing wiki, Barcode Contents, "SMS": SMSTO:number:message.',
-		},
-		{
-			text: 'sms:+15105550101?body=hello%20there',
-			value: { number: '+15105550101', message: 'hello there' },
-			source: 'RFC 5724 section 2.5.',
-		},
-	],
 });

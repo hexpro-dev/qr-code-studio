@@ -23,9 +23,6 @@ import { definePayload, field, unparseable } from '../define.js';
 import { booleanOf, textOf } from '../fields.js';
 
 const ID = 'zatca';
-const STANDARD =
-	'https://zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/20230519_ZATCA_Electronic_Invoice_Security_Features_Implementation_Standards_vF.pdf';
-const GUIDE = 'https://zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/QRCodeCreation.pdf';
 
 export type ZatcaValue = {
 	readonly sellerName: string;
@@ -186,21 +183,4 @@ export const zatcaType = definePayload<ZatcaValue>({
 		}
 	},
 	parse,
-	vectors: [
-		{
-			text: 'AQxCb2JzIFJlY29yZHMCDzMxMDEyMjM5MzUwMDAwMwMUMjAyMi0wNC0yNVQxNTozMDowMFoEBzEwMDAuMDAFBjE1MC4wMA==',
-			value: {
-				sellerName: 'Bobs Records',
-				vatNumber: '310122393500003',
-				timestamp: '2022-04-25T15:30:00Z',
-				total: '1000.00',
-				vatTotal: '150.00',
-				hasInvoiceHash: false,
-				hasSignature: false,
-				hasPublicKey: false,
-				hasStampSignature: false,
-			},
-			source: `ZATCA, "Guide to Developed FATOORA Compliant QR Code", 18 November 2021, the worked example (format as in ${STANDARD}). ${GUIDE}`,
-		},
-	],
 });

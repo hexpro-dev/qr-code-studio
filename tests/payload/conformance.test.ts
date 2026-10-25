@@ -1,5 +1,6 @@
 /**
- * The conformance suite: every type's specification vectors.
+ * The conformance suite: every type's specification vectors, from
+ * `BUILT_IN_VECTORS` rather than from the types, which no longer carry them.
  *
  * Each vector's text reads as its value. Where the value validates and the
  * type can be made, writing it and reading that back gives the value again,
@@ -16,6 +17,7 @@
 import { describe, expect, it } from 'vitest';
 import { hasErrors } from '../../src/core/issue.js';
 import { BUILT_IN_PAYLOAD_TYPES } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 
 /** Vectors whose text is exactly what `build` writes for their value. */
 const EXACT = new Set([
@@ -56,7 +58,7 @@ const KNOWN_INVALID = new Map([
 
 describe('specification vectors', () => {
 	for (const type of BUILT_IN_PAYLOAD_TYPES) {
-		for (const vector of type.vectors) {
+		for (const vector of BUILT_IN_VECTORS[type.id]) {
 			const label = `${type.id}: ${JSON.stringify(vector.text).slice(0, 70)}`;
 			it(label, () => {
 				expect(vector.source.length).toBeGreaterThan(10);
@@ -81,7 +83,9 @@ describe('specification vectors', () => {
 
 	it('lists only vectors that exist', () => {
 		const texts = new Set(
-			BUILT_IN_PAYLOAD_TYPES.flatMap((type) => type.vectors.map((vector) => vector.text)),
+			BUILT_IN_PAYLOAD_TYPES.flatMap((type) =>
+				BUILT_IN_VECTORS[type.id].map((vector) => vector.text),
+			),
 		);
 		for (const text of EXACT) expect(texts.has(text), text).toBe(true);
 	});

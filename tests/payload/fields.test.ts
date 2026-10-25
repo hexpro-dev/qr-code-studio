@@ -242,6 +242,21 @@ describe('definePayload', () => {
 		expect('generate' in type).toBe(false);
 	});
 
+	it('keeps vectors a type brings with it, and adds none to one that brings none', () => {
+		// A type from outside this package may carry its vectors inline, and
+		// conformance runs them; the built-ins carry theirs in ./vectors.
+		expect(type.vectors).toEqual([]);
+		const bare = definePayload<{ readonly name: string }>({
+			id: 'bare',
+			category: 'text',
+			fields: [],
+			write: () => '',
+			detect: () => 0,
+			parse: () => ({ name: '' }),
+		});
+		expect('vectors' in bare).toBe(false);
+	});
+
 	it('refuses to build a value with an error, without saying what the value was', () => {
 		expect(() => type.build({ name: '' })).toThrow(TypeError);
 		expect(type.build({ name: 'x' }).text).toBe('EXAMPLE:x');

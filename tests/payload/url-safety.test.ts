@@ -7,6 +7,7 @@ import {
 	VERY_LONG_URL,
 } from '../../src/payload/url-safety.js';
 import type { SafetyCode } from '../../src/payload/types.js';
+import { REDIRECT_HOST_SOURCES } from '../../src/payload/vectors/index.js';
 
 const codes = (text: string): SafetyCode[] =>
 	analyseUrl(text).findings.map((finding) => finding.code);
@@ -172,10 +173,24 @@ describe('the redirect host table', () => {
 		for (const entry of all) {
 			expect(entry.host).toMatch(/^[a-z0-9.-]+\.[a-z]{2,}$/);
 			expect(entry.operator.length).toBeGreaterThan(0);
-			expect(entry.source, entry.host).toMatch(/^https:\/\/[^\s]+$/);
+			expect(REDIRECT_HOST_SOURCES[entry.host], entry.host).toMatch(/^https:\/\/[^\s]+$/);
 		}
 		expect(new Set(all.map((entry) => entry.host)).size).toBe(all.length);
 		expect(Object.isFrozen(SHORTENER_HOSTS)).toBe(true);
 		expect(Object.isFrozen(DYNAMIC_QR_HOSTS)).toBe(true);
+	});
+
+	it('keeps a citation only for a host the table still lists', () => {
+		// The citations are kept apart from the table, off the runtime path, so
+		// a host taken out of the table could otherwise leave its page behind.
+		const hosts = [...SHORTENER_HOSTS, ...DYNAMIC_QR_HOSTS].map((entry) => entry.host);
+		expect(Object.keys(REDIRECT_HOST_SOURCES)).toEqual(hosts);
+		expect(Object.isFrozen(REDIRECT_HOST_SOURCES)).toBe(true);
+	});
+
+	it('carries no citation in the table itself', () => {
+		for (const entry of [...SHORTENER_HOSTS, ...DYNAMIC_QR_HOSTS]) {
+			expect(Object.keys(entry), entry.host).toEqual(['host', 'operator']);
+		}
 	});
 });

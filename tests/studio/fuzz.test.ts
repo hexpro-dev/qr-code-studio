@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import { validateDesign } from '../../src/design/validate.js';
 import { createPayloadRegistry } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 import type { StudioAction } from '../../src/studio/types.js';
 import { FakeRunner, settle, studioWith } from './helpers.js';
 
@@ -94,7 +95,9 @@ const action: fc.Arbitrary<StudioAction> = fc.oneof(
 	fc
 		.oneof(
 			fc.string({ maxLength: 60 }),
-			fc.constantFrom(...payloads.list().flatMap((type) => type.vectors.map((v) => v.text))),
+			fc.constantFrom(
+				...payloads.list().flatMap((type) => BUILT_IN_VECTORS[type.id].map((v) => v.text)),
+			),
 		)
 		.map((text) => ({ type: 'payload/raw' as const, text })),
 	fc

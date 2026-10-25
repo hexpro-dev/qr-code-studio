@@ -42,7 +42,8 @@ export interface PayloadDefinition<V extends PayloadValue> {
 	readonly detect: (text: string) => number;
 	readonly parse: (text: string) => V;
 	readonly safety?: (value: V) => readonly SafetyFinding[];
-	readonly vectors: readonly PayloadVector<V>[];
+	/** The built-in types leave this out: their vectors are in ./vectors, off the runtime path. */
+	readonly vectors?: readonly PayloadVector<V>[];
 }
 
 export function definePayload<V extends PayloadValue>(
@@ -73,7 +74,6 @@ export function definePayload<V extends PayloadValue>(
 		},
 		detect: definition.detect,
 		parse: definition.parse,
-		vectors: definition.vectors,
 	};
 	return Object.freeze({
 		...type,
@@ -81,6 +81,7 @@ export function definePayload<V extends PayloadValue>(
 		...(definition.compatibility ? { compatibility: definition.compatibility } : {}),
 		...(definition.generate === false ? { generate: false } : {}),
 		...(definition.safety ? { safety: definition.safety } : {}),
+		...(definition.vectors ? { vectors: definition.vectors } : {}),
 	});
 }
 

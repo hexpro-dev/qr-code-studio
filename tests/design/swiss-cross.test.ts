@@ -17,6 +17,7 @@ import { createDesignRegistries } from '../../src/design/registries.js';
 import { buildScene } from '../../src/design/scene.js';
 import { encode } from '../../src/encode/encode.js';
 import { swissQrBillType } from '../../src/payload/content/swiss-qr-bill.js';
+import { swissQrBillVectors } from '../../src/payload/vectors/swiss-qr-bill.js';
 import { sceneToPdf } from '../../src/render/pdf.js';
 import { rasterise } from '../../src/render/raster.js';
 import type { Scene } from '../../src/render/types.js';
@@ -28,7 +29,7 @@ import { jsqrText, zxingTexts } from './oracles.js';
 import { microSymbol, qrSymbol } from './symbols.js';
 
 const registries = createDesignRegistries();
-const vector = swissQrBillType.vectors[0]!;
+const vector = swissQrBillVectors[0]!;
 const constrained = applyConstraints(defaultDesign(), swissQrBillType.constraints);
 const bill = swissQrBillType.build(vector.value).text;
 

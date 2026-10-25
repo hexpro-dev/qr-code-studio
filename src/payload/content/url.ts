@@ -129,14 +129,6 @@ function parse(text: string): UrlValue {
 	};
 }
 
-const NO_UTM = {
-	utmSource: '',
-	utmMedium: '',
-	utmCampaign: '',
-	utmTerm: '',
-	utmContent: '',
-} as const;
-
 export const urlType = definePayload<UrlValue>({
 	id: ID,
 	category: 'link',
@@ -151,23 +143,4 @@ export const urlType = definePayload<UrlValue>({
 	// The campaign tags are the person's own, added on purpose, so only the
 	// link they typed is analysed.
 	safety: (value) => analyseUrl(textOf(value, 'url')).findings,
-	vectors: [
-		{
-			text: 'https://example.com/',
-			value: { url: 'https://example.com/', ...NO_UTM },
-			source: 'RFC 3986 section 3 (generic syntax); example.com is reserved by RFC 2606.',
-		},
-		{
-			text: 'https://example.com/menu?utm_source=poster&utm_medium=qr&utm_campaign=spring',
-			value: {
-				url: 'https://example.com/menu',
-				...NO_UTM,
-				utmSource: 'poster',
-				utmMedium: 'qr',
-				utmCampaign: 'spring',
-			},
-			source:
-				'Google Analytics campaign URL parameters, support.google.com/analytics/answer/10917952.',
-		},
-	],
 });

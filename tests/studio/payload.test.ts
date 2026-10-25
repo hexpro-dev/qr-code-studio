@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createPayloadRegistry } from '../../src/payload/registry.js';
+import { zatcaVectors } from '../../src/payload/vectors/zatca.js';
 import { createRegistries } from '../../src/registries.js';
 import { emptyValue, fieldsFor, fitsField, isFieldValue } from '../../src/studio/document.js';
 import { formView } from '../../src/studio/form.js';
@@ -101,7 +102,7 @@ describe('payload/raw', () => {
 			typeId: 'text',
 			fields: { text: 'Just some words' },
 		});
-		const zatca = payloads.require('zatca').vectors[0]?.text as string;
+		const zatca = zatcaVectors[0]?.text as string;
 		studio.dispatch({ type: 'payload/raw', text: zatca });
 		expect(studio.getSnapshot().document.typeId).toBe('text');
 	});

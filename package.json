@@ -32,6 +32,10 @@
 			"types": "./dist/payload/index.d.ts",
 			"import": "./dist/payload/index.js"
 		},
+		"./payload/vectors": {
+			"types": "./dist/payload/vectors/index.d.ts",
+			"import": "./dist/payload/vectors/index.js"
+		},
 		"./own-link": {
 			"types": "./dist/own-link/index.d.ts",
 			"import": "./dist/own-link/index.js"

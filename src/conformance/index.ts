@@ -22,3 +22,5 @@ export {
 	paintInks,
 } from './preset.js';
 export type { PresetVerifier } from './preset.js';
+export { checkPayloadType } from './payload-type.js';
+export type { PayloadTypeLike, PayloadVectorLike } from './payload-type.js';
