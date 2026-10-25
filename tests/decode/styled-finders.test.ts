@@ -52,7 +52,7 @@ function finderPicture(
 		{
 			width: SPAN,
 			height: SPAN,
-			background: { kind: 'solid', colour: { r: 1, g: 1, b: 1, a: 1 } },
+			background: { kind: 'solid', colour: { r: 255, g: 255, b: 255, a: 1 } },
 			layers: [
 				{
 					kind: 'path',
@@ -140,7 +140,7 @@ describe("the design layer's rings, as the strict reader takes them", () => {
 					{
 						width: SPAN,
 						height: SPAN,
-						background: { kind: 'solid', colour: { r: 1, g: 1, b: 1, a: 1 } },
+						background: { kind: 'solid', colour: { r: 255, g: 255, b: 255, a: 1 } },
 						layers: [
 							{
 								kind: 'path',
