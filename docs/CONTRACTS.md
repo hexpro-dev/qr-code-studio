@@ -148,6 +148,13 @@ export function pow(base: number, exponent: number): number;
 export const PI: number;
 export const TAU: number;
 
+// image.ts: the pixel container every layer shares, structurally an ImageData.
+export interface RgbaImage {
+	readonly width: number;
+	readonly height: number;
+	readonly data: Uint8ClampedArray;
+}
+
 // registry.ts
 export interface RegistryEntry {
 	readonly id: string;
@@ -697,7 +704,591 @@ export function formatColour(colour: Colour): string; // #rrggbb or #rrggbbaa
 
 ---
 
-## design, verify, inspect, batch, studio
+## design
 
-Sketched in the plan and refined when their milestones start (M6, M7, M8,
-M10). They will be added here before their code is written.
+The design document is plain JSON so it can be saved as a file, put in a link
+and checked by a person. It never holds the content of the code: a design is
+reusable across codes, and a design link must be safe to share.
+
+```ts
+/** An sRGB hex colour, or one with a print value beside it. */
+export type Ink =
+	string | { readonly srgb: string; readonly cmyk: readonly [number, number, number, number] };
+export interface DesignStop {
+	readonly offset: number;
+	readonly ink: Ink;
+}
+export type DesignPaint =
+	| { readonly kind: 'solid'; readonly ink: Ink }
+	| {
+			readonly kind: 'linear';
+			readonly angle: number;
+			readonly stops: readonly DesignStop[];
+			readonly space: 'symbol' | 'module';
+	  }
+	| {
+			readonly kind: 'radial';
+			readonly cx: number;
+			readonly cy: number;
+			readonly radius: number;
+			readonly stops: readonly DesignStop[];
+			readonly space: 'symbol' | 'module';
+	  }
+	| {
+			readonly kind: 'conic';
+			readonly cx: number;
+			readonly cy: number;
+			readonly angle: number;
+			readonly stops: readonly DesignStop[];
+			readonly space: 'symbol' | 'module';
+	  }
+	| { readonly kind: 'entry'; readonly ref: EntryRef };
+// Angles in degrees, 0 = left to right, clockwise. cx, cy, radius as fractions of the box.
+
+export interface EntryRef {
+	readonly id: string;
+	readonly params?: Readonly<Record<string, number | string | boolean>>;
+}
+
+export interface RegionStyle {
+	readonly outer: EntryRef;
+	readonly inner: EntryRef;
+	readonly outerPaint?: DesignPaint; // defaults to modules.paint
+	readonly innerPaint?: DesignPaint;
+}
+
+export interface QrDesignV1 {
+	readonly schema: 'qr-design';
+	readonly version: 1;
+	readonly symbol: {
+		readonly symbology: string;
+		readonly ecLevel?: EcLevel;
+		readonly boostEc?: boolean;
+		readonly minVersion?: string;
+		readonly maxVersion?: string;
+		readonly mask?: number | 'auto';
+		readonly segmentation?: Partial<SegmentationPolicy>;
+	};
+	readonly quietZone: number; // modules; the scan check holds it to the symbology's minimum
+	readonly background: DesignPaint | null; // null is transparent
+	readonly modules: {
+		readonly shape: EntryRef;
+		readonly paint: DesignPaint;
+		/** Drawn light modules, for designs on a busy background. Null draws nothing. */
+		readonly light: { readonly shape: EntryRef; readonly paint: DesignPaint } | null;
+	};
+	readonly regions: Readonly<
+		Partial<Record<'finder' | 'sub-finder' | 'corner-finder', RegionStyle>>
+	>;
+	readonly logo: {
+		readonly source:
+			| { readonly kind: 'icon'; readonly id: string }
+			| { readonly kind: 'asset'; readonly id: string };
+		readonly size: number; // fraction of the symbol's width, 0.05 to 0.4
+		readonly clear: 'none' | 'box' | 'shape'; // which modules are left out under it
+		readonly padding: number; // modules of clear space around it
+		readonly plate: {
+			readonly paint: DesignPaint;
+			readonly shape: 'square' | 'rounded' | 'circle';
+		} | null;
+		readonly paint?: DesignPaint; // icons only
+	} | null;
+	readonly frame: {
+		readonly ref: EntryRef;
+		readonly paint?: DesignPaint;
+		readonly text?: {
+			readonly content: string;
+			readonly fontId: string;
+			readonly paint?: DesignPaint;
+		};
+	} | null;
+	readonly output: {
+		readonly sizeMm?: number;
+		readonly dpi?: number;
+		readonly colourSpace: 'srgb' | 'cmyk';
+	};
+	/** Embedded images: always PNG, re-encoded by this package on import so any build can decode them. */
+	readonly assets?: Readonly<
+		Record<
+			string,
+			{ readonly png: string /* base64 */; readonly width: number; readonly height: number }
+		>
+	>;
+	readonly name?: string;
+}
+
+export interface ParamSchema {
+	readonly key: string;
+	readonly kind: 'number' | 'integer' | 'boolean' | 'select' | 'colour' | 'angle';
+	readonly labelKey: MessageKey;
+	readonly default: number | string | boolean;
+	readonly min?: number;
+	readonly max?: number;
+	readonly step?: number;
+	readonly options?: readonly { readonly value: string; readonly labelKey: MessageKey }[];
+}
+export type ResolvedParams = Readonly<Record<string, number | string | boolean>>;
+
+/** Which of the eight neighbours are dark, bit 0 = north, clockwise to bit 7 = north-west. */
+export type Neighbours = number;
+
+export interface ModuleShape {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly params: readonly ParamSchema[];
+	/** Draws towards dark neighbours (bars, fluid). Conformance allows it to leave the cell only on those sides. */
+	readonly connects: boolean;
+	/** Draw one module into the unit cell (0,0)-(1,1). `prng` is seeded per module from the design, so a mosaic is reproducible. */
+	path(
+		ctx: { readonly neighbours: Neighbours; readonly params: ResolvedParams; readonly prng: Prng },
+		out: PathBuilder,
+	): void;
+}
+export interface RegionShape {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly params: readonly ParamSchema[];
+	readonly kinds: readonly StyleableRegion['kind'][];
+	readonly part: 'outer' | 'inner';
+	/** Draw into the region's own box in modules: 7x7 for concentric-7 (outer ring 7, inner 3x3 at 2,2). */
+	path(
+		ctx: { readonly kind: StyleableRegion['kind']; readonly params: ResolvedParams },
+		out: PathBuilder,
+	): void;
+}
+export interface FillEntry {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly params: readonly ParamSchema[];
+	resolve(
+		params: ResolvedParams,
+		box: { x: number; y: number; width: number; height: number },
+		prng: Prng,
+	): ScenePaint;
+}
+export interface FrameLayout {
+	readonly width: number;
+	readonly height: number; // the whole artwork, in modules
+	readonly symbol: { readonly x: number; readonly y: number }; // where the symbol's quiet zone starts
+	readonly nodes: readonly SceneNode[]; // drawn beneath the symbol
+	readonly over?: readonly SceneNode[]; // drawn above it, outside the quiet zone
+	readonly textBox: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		align: 'start' | 'centre' | 'end';
+	} | null;
+}
+export interface FrameEntry {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly params: readonly ParamSchema[];
+	readonly text: { readonly maxLines: number; readonly maxChars: number } | null;
+	/** Must never place anything inside the quiet zone; conformance checks it. */
+	layout(ctx: {
+		readonly symbolSize: { width: number; height: number };
+		readonly quietZone: number;
+		readonly params: ResolvedParams;
+		readonly paint: ScenePaint;
+	}): FrameLayout;
+}
+export interface LogoIcon {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly path: Path; /* unit box */
+}
+export interface Preset {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly category:
+		'classic' | 'rounded' | 'dots' | 'hex' | 'fluid' | 'bold' | 'minimal' | 'colour' | 'print';
+	readonly design: QrDesignV1;
+	readonly minSizeMm: number;
+	readonly ecLevels: readonly EcLevel[];
+}
+
+export interface DesignRegistries {
+	readonly moduleShapes: Registry<ModuleShape>;
+	readonly regionShapes: Registry<RegionShape>;
+	readonly fills: Registry<FillEntry>;
+	readonly frames: Registry<FrameEntry>;
+	readonly icons: Registry<LogoIcon>;
+	readonly presets: Registry<Preset>;
+}
+export function createDesignRegistries(): DesignRegistries;
+
+export function defaultDesign(): QrDesignV1;
+/** Every problem at once. `design` is the input made valid where that is unambiguous, or null. */
+export function validateDesign(
+	input: unknown,
+	registries: DesignRegistries,
+): { readonly design: QrDesignV1 | null; readonly issues: readonly Issue[] };
+/** Any earlier version to the current one. Throws 'design/unsupported-schema' for anything unrecognised. */
+export function migrateDesign(input: unknown): QrDesignV1;
+export function applyConstraints(
+	design: QrDesignV1,
+	constraints: PayloadConstraints | undefined,
+): { readonly design: QrDesignV1; readonly issues: readonly Issue[] };
+
+export interface BuiltScene {
+	readonly scene: Scene;
+	/** 1 where a module is hidden or altered by the logo or plate, row major over the symbol. */
+	readonly obscured: Uint8Array;
+	/** Fraction of each dark module's cell the shape actually inks, for the distance check. */
+	readonly inkFraction: number;
+	readonly issues: readonly Issue[];
+}
+export function buildScene(
+	symbol: BuiltSymbol,
+	design: QrDesignV1,
+	context: {
+		readonly registries: DesignRegistries;
+		readonly assets?: (id: string) => RgbaImage | undefined; // decoded PNG assets; render/decodePng does it
+		readonly fonts?: FontRegistry;
+		readonly seed?: number;
+	},
+): BuiltScene;
+
+/** A design link: `v1.` followed by base64url(deflate(JSON)). Content is never included. */
+export function encodeDesignLink(design: QrDesignV1): string;
+export function decodeDesignLink(fragment: string): QrDesignV1; // throws design/invalid
+```
+
+Conformance (in `./conformance`, pure, returning `Violation[]`):
+
+- `checkModuleShape(shape)`: for every neighbour combination and seeded
+  params, rasterised at 16 px a module: the five-point centre cross (0.5 plus
+  or minus 0.2 on each axis) is inked at 0.98 or more; nothing is inked outside
+  the cell except across an edge shared with a dark neighbour when `connects`;
+  nothing enters a light neighbour's centre disc of radius 0.3; same output
+  twice.
+- `checkRegionShape(shape)`: outer and inner together, rasterised at 4 px a
+  module, give runs of 1:1:3:1:1 within 0.35 of a module along both axes and
+  both diagonals through the centre (concentric kinds), and keep the ring and
+  the centre separated by a light ring at least 0.6 modules wide.
+- `checkFrame(frame)`: nothing inside the quiet zone, for the default and
+  extreme params.
+- `checkPreset(preset, verify)`: the strict scan check passes at `minSizeMm`
+  for small, medium and large versions at each allowed level.
+- `checkPayloadType(type)`: vectors reproduce; schema-generated values
+  round-trip.
+
+---
+
+## verify
+
+```ts
+export type CaptureAxis =
+	'distance' | 'focus' | 'motion' | 'noise' | 'angle' | 'light' | 'glare' | 'ink' | 'contrast';
+export interface VerifyConditions {
+	readonly sizeMm: number | null; // printed width of the symbol including its quiet zone
+	readonly dpi: number | null; // for screen use, or for a raster export
+	readonly distanceMm: number | null; // the furthest a person is expected to scan from
+}
+/** Structured-cloneable, so a website can post it to a worker. The worker re-encodes from it. */
+export interface VerifyJob {
+	readonly content: string;
+	readonly design: QrDesignV1;
+	readonly conditions: VerifyConditions;
+	readonly seed: number;
+	readonly requires: readonly string[]; // registry ids the design uses; a worker missing one refuses
+	readonly assets?: Readonly<Record<string, RgbaImage>>;
+}
+export interface VerifyProgress {
+	readonly done: number;
+	readonly total: number;
+	readonly axis: CaptureAxis | 'static';
+}
+export type CheckId =
+	| 'quiet-zone'
+	| 'contrast'
+	| 'polarity'
+	| 'function-patterns'
+	| 'logo-budget'
+	| 'module-size'
+	| 'finder-shape'
+	| 'colour-red-channel'
+	| 'reader-support';
+export interface VerifyCheck {
+	readonly id: CheckId;
+	readonly status: 'pass' | 'warn' | 'fail';
+	readonly measured: number;
+	readonly threshold: number;
+	readonly grade?: 'SC' | 'MOD' | 'FPD' | 'UEC'; // ISO/IEC 15415 parameter it corresponds to
+	readonly messageKey: MessageKey;
+}
+export interface VerifyReport {
+	readonly schema: 1;
+	readonly profile: 'strict-v1';
+	readonly seed: number;
+	readonly verdict: 'pass' | 'warn' | 'fail';
+	readonly symbol: {
+		readonly symbology: string;
+		readonly version: string;
+		readonly ecLevel: EcLevel;
+		readonly mask: number;
+		readonly modules: readonly [number, number];
+	};
+	readonly conditions: VerifyConditions;
+	readonly checks: readonly VerifyCheck[];
+	readonly blocks: readonly {
+		readonly index: number;
+		readonly ec: number;
+		readonly p: number;
+		readonly t: number;
+		readonly coveredWorst: number;
+		readonly coveredExpected: number;
+		readonly margin: number;
+	}[];
+	readonly captures: readonly {
+		readonly axis: CaptureAxis;
+		readonly worstPassed: number | null;
+		readonly firstFailed: number | null;
+		readonly minMargin: number | null;
+		readonly seeds: number;
+	}[];
+	readonly limits: {
+		readonly maxDistanceMm: number | null;
+		readonly minModuleMm: number | null;
+		readonly inkFraction: number;
+	};
+}
+export interface Fix {
+	readonly id: string;
+	readonly labelKey: MessageKey;
+	readonly patch: DesignPatch;
+}
+/** Drive it in time slices: each `next()` does one capture. The website runs the same generator in a worker. */
+export function runVerifyJob(
+	job: VerifyJob,
+	registries: Registries,
+): Generator<VerifyProgress, VerifyReport>;
+export function verify(job: VerifyJob, registries: Registries): VerifyReport;
+export function suggestFixes(report: VerifyReport, design: QrDesignV1): readonly Fix[];
+```
+
+`Registries` is the bag `createRegistries()` returns at the root: symbologies,
+payload types and the design registries together.
+
+---
+
+## inspect
+
+```ts
+export interface InspectedSymbol {
+	readonly symbology: string;
+	readonly version: string;
+	readonly ecLevel: EcLevel;
+	readonly mask: number;
+	readonly corners: readonly Point[];
+	readonly segments: readonly DecodedSegment[];
+	readonly text: string;
+	readonly textSource: DecodedBitstream['textSource'];
+	readonly structuredAppend: {
+		readonly index: number;
+		readonly total: number;
+		readonly parity: number;
+	} | null;
+	readonly gs1: readonly { readonly ai: string; readonly value: string }[] | null;
+	readonly quality: {
+		readonly errorsPerBlock: readonly number[];
+		readonly capacityPerBlock: readonly number[];
+		readonly erasuresUsed: number;
+		readonly formatErrors: number;
+		readonly mirrored: boolean;
+		readonly inverted: boolean;
+		readonly minConfidence: number;
+	};
+}
+export interface InspectReport {
+	readonly symbols: readonly InspectedSymbol[];
+	readonly sets: readonly {
+		readonly parity: number;
+		readonly complete: boolean;
+		readonly text: string | null;
+		readonly missing: readonly number[];
+	}[];
+	/** For the first symbol, or the completed set: what kind of content it is and what it says. */
+	readonly payload: {
+		readonly typeId: string;
+		readonly value: Readonly<Record<string, FieldValue>>;
+		readonly issues: readonly Issue[];
+	} | null;
+	readonly safety: ReturnType<typeof analyseUrl> | null;
+}
+export function inspectImage(
+	image: RgbaImage,
+	registries: Registries,
+	options?: DecodeOptions,
+): Result<InspectReport>;
+export function inspectText(text: string, registries: Registries): InspectReport;
+```
+
+---
+
+## batch
+
+```ts
+export interface CsvTable {
+	readonly headers: readonly string[];
+	readonly rows: readonly (readonly string[])[];
+}
+/** RFC 4180 with a BOM, CRLF or LF, and `;` or tab sniffed when asked. Throws 'batch/malformed-csv' with { row, column }. */
+export function parseCsv(
+	text: string,
+	options?: { readonly delimiter?: ',' | ';' | '\t' | 'auto'; readonly maxRows?: number },
+): CsvTable;
+export interface BatchMapping {
+	readonly typeId: string;
+	/** Each field from a column, or from a template such as `https://example.com/t/{id}`. */
+	readonly fields: Readonly<
+		Record<string, { readonly column: string } | { readonly template: string }>
+	>;
+	readonly filename: string; // template; sanitised; duplicates numbered
+}
+export interface BatchRow {
+	readonly index: number;
+	readonly filename: string;
+	readonly content: string | null;
+	readonly issues: readonly Issue[];
+}
+export function planBatch(
+	table: CsvTable,
+	mapping: BatchMapping,
+	registries: Registries,
+): readonly BatchRow[];
+export type BatchOutput =
+	| {
+			readonly kind: 'zip';
+			readonly format: 'svg' | 'png' | 'pdf' | 'eps';
+			readonly widthPx?: number;
+			readonly sizeMm?: number;
+	  }
+	| { readonly kind: 'sheet'; readonly template: string; readonly colourSpace: 'srgb' | 'cmyk' };
+export function runBatch(
+	rows: readonly BatchRow[],
+	design: QrDesignV1,
+	output: BatchOutput,
+	registries: Registries,
+): Generator<{ done: number; total: number }, Uint8Array>;
+```
+
+The manifest written into a ZIP neutralises spreadsheet formulas (a cell
+starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with an
+apostrophe), because a person opens it in a spreadsheet.
+
+---
+
+## studio
+
+```ts
+export function createStudio(options?: {
+	readonly registries?: Registries;
+	readonly verifyRunner?: VerifyRunner; // default: the generator in time slices on the main thread
+	readonly scheduler?: Scheduler; // default: setTimeout(0) slices of about 8 ms
+	readonly clock?: () => number;
+	readonly library?: LibraryStore | null;
+	readonly fonts?: FontRegistry;
+	readonly initial?: string | StudioDocument; // a design link fragment, or a document
+	readonly historyLimit?: number; // default 200
+	readonly verifyDebounceMs?: number; // default 250
+}): Studio;
+export interface Studio {
+	getSnapshot(): StudioSnapshot;
+	subscribe(listener: () => void): () => void;
+	dispatch(action: StudioAction): void;
+	run<C extends StudioCommand>(command: C): Promise<Result<CommandResult<C>>>;
+	dispose(): void;
+}
+export interface StudioDocument {
+	readonly mode: 'create' | 'scan' | 'bulk';
+	readonly typeId: string;
+	readonly fields: Readonly<Record<string, FieldValue>>;
+	readonly design: QrDesignV1;
+	readonly conditions: VerifyConditions;
+}
+export type StudioAction =
+	| { readonly type: 'mode'; readonly mode: StudioDocument['mode'] }
+	| { readonly type: 'payload/type'; readonly typeId: string }
+	| { readonly type: 'payload/field'; readonly key: string; readonly value: FieldValue }
+	| { readonly type: 'payload/raw'; readonly text: string }
+	| { readonly type: 'design/patch'; readonly patch: DesignPatch; readonly coalesce?: string }
+	| { readonly type: 'design/preset'; readonly id: string }
+	| { readonly type: 'design/replace'; readonly design: unknown }
+	| { readonly type: 'design/shuffle'; readonly seed: number }
+	| { readonly type: 'conditions'; readonly conditions: Partial<VerifyConditions> }
+	| { readonly type: 'history/undo' }
+	| { readonly type: 'history/redo' }
+	| { readonly type: 'history/begin'; readonly key: string }
+	| { readonly type: 'history/commit'; readonly key: string }
+	| { readonly type: 'history/cancel' }
+	| { readonly type: 'verify/request' }
+	| { readonly type: 'verify/cancel' }
+	| { readonly type: 'fix/apply'; readonly fixId: string };
+/** A shallow, path-addressed change: `{ path: ['modules', 'shape'], value: { id: 'dot' } }`. */
+export interface DesignPatch {
+	readonly path: readonly (string | number)[];
+	readonly value: unknown;
+}
+export type StudioCommand =
+	| {
+			readonly type: 'export';
+			readonly format: 'svg' | 'png' | 'pdf' | 'eps' | 'jpeg' | 'webp';
+			readonly options: ExportOptions;
+	  }
+	| { readonly type: 'inspect/image'; readonly image: RgbaImage }
+	| { readonly type: 'inspect/text'; readonly text: string }
+	| {
+			readonly type: 'batch';
+			readonly csv: string;
+			readonly mapping: BatchMapping;
+			readonly output: BatchOutput;
+	  }
+	| { readonly type: 'design-link' }
+	| { readonly type: 'library/enable' }
+	| { readonly type: 'library/disable' }
+	| { readonly type: 'library/save'; readonly name: string }
+	| { readonly type: 'library/load'; readonly id: string };
+export interface StudioSnapshot {
+	readonly revision: number;
+	readonly document: StudioDocument;
+	readonly form: FormView; // fields with values, issues and visibility, from the type's schema
+	readonly payloadIssues: readonly Issue[];
+	readonly symbol:
+		| { readonly status: 'ok'; readonly view: SymbolView }
+		| { readonly status: 'stale'; readonly view: SymbolView; readonly issue: Issue }
+		| { readonly status: 'empty' };
+	readonly preview: { readonly svg: string; readonly scene: Scene } | null;
+	readonly verify:
+		| { readonly status: 'idle' }
+		| { readonly status: 'running'; readonly progress: number; readonly revision: number }
+		| {
+				readonly status: 'done';
+				readonly report: VerifyReport;
+				readonly fixes: readonly Fix[];
+				readonly stale: boolean;
+		  };
+	readonly history: { readonly canUndo: boolean; readonly canRedo: boolean };
+	readonly catalogue: Catalogue; // identity changes only when a registry's version changes
+	readonly inspect: InspectState;
+	readonly batch: BatchState;
+	readonly library: LibraryState;
+}
+export interface VerifyRunner {
+	run(
+		job: VerifyJob,
+		signal: AbortSignal,
+		progress: (p: VerifyProgress) => void,
+	): Promise<Result<VerifyReport>>;
+}
+```
+
+`symbol.status === 'stale'` is the "never goes blank" rule: while the content
+is invalid or too long, the last good code stays on screen with the issue
+beside it.
+
+Snapshots are immutable and structurally shared: a slice that did not change
+keeps its identity, so `React.memo` and a vanilla view's own diffing both work.
+Async results carry the revision they were computed for and are dropped if a
+newer one has started.
