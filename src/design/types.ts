@@ -225,12 +225,29 @@ export interface RegionShapeContext {
 	readonly params: ResolvedParams;
 }
 
+/**
+ * What a reader that traces a finder ring's sides makes of a ring, as the
+ * strict profile measures it (decode's `ringKind`): `cornered`, straight sides
+ * with corners, which every reader follows; `round`, no corners, which
+ * zxing-cpp loses at a slant or under a smear; `dotted`, a scalloped side,
+ * which it loses anywhere.
+ */
+export type RingKind = 'cornered' | 'round' | 'dotted';
+
 export interface RegionShape {
 	readonly id: string;
 	readonly labelKey: MessageKey;
 	readonly params: readonly ParamSchema[];
 	readonly kinds: readonly RegionKind[];
 	readonly part: 'outer' | 'inner';
+	/**
+	 * For a ring, what its finder ring is to a reader that traces it, at every
+	 * setting; `cornered` when left out. Validation refuses a `dotted` ring as
+	 * a QR finder and warns about a `round` one. Conformance measures the ring
+	 * with the strict reader's own test and fails a shape that says otherwise.
+	 * A contract addition.
+	 */
+	readonly ringKind?: RingKind;
 	/** Draw into the region's own box in modules: 7x7 for concentric-7 (outer ring 7, inner 3x3 at 2,2). */
 	path(ctx: RegionShapeContext, out: PathBuilder): void;
 }

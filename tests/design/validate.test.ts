@@ -48,7 +48,7 @@ function full(): QrDesignV1 {
 		},
 		regions: {
 			finder: {
-				outer: { id: 'circle' },
+				outer: { id: 'squircle' },
 				inner: { id: 'circle-centre' },
 				outerPaint: {
 					kind: 'conic',
@@ -463,8 +463,47 @@ describe('validateDesign', () => {
 		[
 			'a pair the strict reader would miss',
 			(d) =>
-				(at(d, 'regions').finder = { outer: { id: 'circle' }, inner: { id: 'square-centre' } }),
+				(at(d, 'regions').finder = { outer: { id: 'square' }, inner: { id: 'circle-centre' } }),
 			['warning design.issue.region-pair regions.finder'],
+		],
+		[
+			'a round ring, which some readers lose at a slant',
+			(d) =>
+				(at(d, 'regions').finder = { outer: { id: 'circle' }, inner: { id: 'circle-centre' } }),
+			['warning design.issue.ring-round regions.finder.outer'],
+		],
+		[
+			'a round ring the strict reader would also miss',
+			(d) =>
+				(at(d, 'regions').finder = { outer: { id: 'circle' }, inner: { id: 'square-centre' } }),
+			[
+				'warning design.issue.region-pair regions.finder',
+				'warning design.issue.ring-round regions.finder.outer',
+			],
+		],
+		[
+			'a ring of dots as the QR finder, with any centre',
+			(d) =>
+				(at(d, 'regions').finder = { outer: { id: 'dot-ring' }, inner: { id: 'star-centre' } }),
+			['error design.issue.ring-not-traceable regions.finder.outer'],
+		],
+		[
+			'a ring of dots on Micro QR, which draws its ring square',
+			(d) => {
+				d.symbol = { symbology: 'micro' };
+				d.quietZone = 2;
+				d.regions = { finder: { outer: { id: 'dot-ring' }, inner: { id: 'square-centre' } } };
+			},
+			['info design.issue.region-corners regions.finder'],
+		],
+		[
+			'a ring of dots for the sub-finder and the corner pattern, which rMQR draws plainly',
+			(d) =>
+				Object.assign(at(d, 'regions'), {
+					'sub-finder': { outer: { id: 'dot-ring' }, inner: { id: 'square-centre' } },
+					'corner-finder': { outer: { id: 'dot-ring' }, inner: { id: 'square-centre' } },
+				}),
+			[],
 		],
 		[
 			'a centre with no one-module form, used for the sub-finder',

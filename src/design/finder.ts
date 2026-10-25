@@ -7,27 +7,43 @@
  * three times that for the 3 module centre, after estimating the module from
  * the whole pattern's length, and it checks both diagonals as well as the
  * axes. This file draws a ring and a centre at 4 pixels a module, thresholds
- * them, and measures exactly that, so that a pair which passes here is a pair
- * the strict reader will find.
+ * them, and measures that with sub-pixel edges from the exact centre.
  *
  * On the axes the runs are also held to their nominal lengths in modules,
  * not only to the ratio, because the reader takes its module size for the
  * rest of the symbol from the finder: a finder that is the right shape but
  * the wrong size would throw every later sample off.
  *
+ * The diagonals are held to 0.35 here although the strict reader allows them
+ * half a module. That half module is slack for the reader's own error (it
+ * walks whole pixel steps from a centre it knows to the nearest pixel), and
+ * this measurement has none: given half a module too, it accepts 73 more of
+ * the catalogue's pairs at sampled settings, and the strict reader misses 34
+ * of those at some density from 5 pixels a module, phase or small roll.
+ *
  * Pairs are checked rather than shapes because the diagonals depend on both:
  * a round ring round a square centre leaves too little light past the
- * centre's corners. `regionPairConforms` is what the validator and the scene
- * builder ask, and the conformance suite asks the same function.
+ * centre's corners. `regionPairConforms` is what the validator, the scene
+ * builder and the studio's pair table ask.
+ *
+ * This is a model of the strict reader, and the model is what runs when a
+ * design is validated or drawn, because the root of the package must not
+ * pull in the decoder. The strict reader's own tests (`strictFindsFinder`,
+ * `ringKind`) are asked in the conformance suite instead, which holds every
+ * built-in ring and centre to them: no pair this file accepts may be one the
+ * strict reader misses, and no ring may trace differently from its
+ * `ringKind`. Readers trace a ring's sides as well as cross it (see
+ * `ringKind` in decode), so a ring that says it is `dotted` is never a
+ * finder here; a `round` one is, with a warning from the validator.
  */
 
 import { flattenPath } from '../geometry/flatten.js';
 import { PathBuilder } from '../geometry/path.js';
 import type { Path } from '../geometry/path.js';
 import { rasterise } from '../render/raster.js';
-import type { RegionKind, RegionShape, ResolvedParams } from './types.js';
+import type { RegionKind, RegionShape, ResolvedParams, RingKind } from './types.js';
 
-/** Slack per run, in modules, as the strict reader allows it. */
+/** Slack per run, in modules, as the strict reader allows it on the axes. */
 export const FINDER_TOLERANCE = 0.35;
 /** The narrowest the light ring between ring and centre may be, in modules. */
 export const LIGHT_RING_MIN = 0.6;
@@ -35,8 +51,13 @@ export const LIGHT_RING_MIN = 0.6;
 export const FINDER_PIXELS = 4;
 
 export interface FinderProblem {
-	readonly rule: 'finder-runs' | 'light-ring';
+	readonly rule: 'finder-runs' | 'light-ring' | 'ring-not-traceable';
 	readonly detail: string;
+}
+
+/** What a ring says it is to a reader that traces its sides; `cornered` unless it says otherwise. */
+export function ringKindOf(shape: RegionShape): RingKind {
+	return shape.ringKind ?? 'cornered';
 }
 
 /** A region shape's path in its own box, moved by (dx, dy). */
@@ -206,6 +227,12 @@ export function finderProblems(
 		(image.data[(y * pixels + x) * 4 + 3] as number) / 255;
 
 	const problems: FinderProblem[] = [];
+	if (kind === 'concentric-7' && ringKindOf(outer) === 'dotted') {
+		problems.push({
+			rule: 'ring-not-traceable',
+			detail: `${kind}: a ring of dots, whose sides a reader cannot trace`,
+		});
+	}
 	const centre = pixels / 2;
 	const lines: { name: string; samples: number[]; axis: boolean }[] = [];
 	for (const at of [centre - 1, centre]) {

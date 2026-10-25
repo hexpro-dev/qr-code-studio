@@ -98,6 +98,17 @@ const regionStyle: fc.Arbitrary<RegionStyle> = fc.record(
 	{ outer: ref(outers), inner: ref(inners), outerPaint: paint, innerPaint: paint },
 	{ requiredKeys: ['outer', 'inner'] },
 );
+// A ring of dots is refused as the QR finder (validate.test.ts holds that),
+// so the finder is drawn from the other rings.
+const finderStyle: fc.Arbitrary<RegionStyle> = fc.record(
+	{
+		outer: ref(outers.filter((shape) => shape.ringKind !== 'dotted')),
+		inner: ref(inners),
+		outerPaint: paint,
+		innerPaint: paint,
+	},
+	{ requiredKeys: ['outer', 'inner'] },
+);
 
 const captioned = registries.frames.list().filter((frame) => frame.text !== null);
 const frame: fc.Arbitrary<QrDesignV1['frame']> = fc.oneof(
@@ -176,7 +187,7 @@ const design: fc.Arbitrary<QrDesignV1> = fc.record(
 			),
 		}),
 		regions: fc.record(
-			{ finder: regionStyle, 'sub-finder': regionStyle, 'corner-finder': regionStyle },
+			{ finder: finderStyle, 'sub-finder': regionStyle, 'corner-finder': regionStyle },
 			{ requiredKeys: [] },
 		),
 		logo,

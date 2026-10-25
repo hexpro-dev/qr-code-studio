@@ -262,7 +262,7 @@ const LAYERS = {
 	text: ['core', 'geometry'],
 	render: ['core', 'geometry'],
 	design: ['core', 'geometry', 'text', 'symbology', 'render', 'segment', 'encode'],
-	conformance: ['core', 'geometry', 'render', 'design', 'symbology', 'segment'],
+	conformance: ['core', 'geometry', 'render', 'design', 'symbology', 'segment', 'decode'],
 	verify: [
 		'core',
 		'segment',

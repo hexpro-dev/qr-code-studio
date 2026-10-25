@@ -103,11 +103,7 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "star-centre",
       "flower-centre",
     ],
-    "dot-ring": [
-      "square-centre",
-      "star-centre",
-      "flower-centre",
-    ],
+    "dot-ring": [],
     "extra-rounded": [
       "square-centre",
       "rounded-centre",

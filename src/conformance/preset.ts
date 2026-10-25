@@ -3,7 +3,10 @@
  *
  * A preset is a promise that a design works, so each one must validate with
  * no issue at all (no repairs, no warnings, which also means every finder
- * pair it uses is one the strict reader finds), build into a scene with no
+ * pair it uses is one the design layer's model of the strict reader accepts,
+ * round a ring that is neither round nor dotted), have a finder the strict
+ * reader's own search finds and whose ring it traces as cornered (see
+ * finder.ts), build into a scene with no
  * warning on small and medium symbols (a note, such as a logo made smaller
  * to fit version 1, is allowed), ask for an error correction level its
  * own list allows, and keep its colours readable: dark on light, every dark
@@ -15,6 +18,7 @@
  */
 
 import { pow } from '../core/math.js';
+import { resolveParams } from '../design/params.js';
 import { createDesignRegistries } from '../design/registries.js';
 import { buildScene } from '../design/scene.js';
 import { inkColour } from '../design/paint.js';
@@ -22,6 +26,7 @@ import type { DesignPaint, DesignRegistries, Ink, Preset, QrDesignV1 } from '../
 import { validateDesign } from '../design/validate.js';
 import { createSymbologyRegistry } from '../symbology/registry.js';
 import type { BuiltSymbol } from '../symbology/types.js';
+import { strictFinderProblems } from './finder.js';
 import type { Violation } from './types.js';
 
 /** The floor every preset's colours must clear. */
@@ -133,6 +138,27 @@ export function checkPreset(
 			`validation reports ${issues.map((found) => `${found.code} at ${found.path.join('.')}`).join(', ')}`,
 		);
 		return violations;
+	}
+
+	// The finder pair, put to the strict reader's own tests as well as the
+	// design layer's model of them (which validation has asked already).
+	const finder = design.regions.finder;
+	const outer = finder === undefined ? undefined : registries.regionShapes.get(finder.outer.id);
+	const inner = finder === undefined ? undefined : registries.regionShapes.get(finder.inner.id);
+	if (
+		finder !== undefined &&
+		outer !== undefined &&
+		inner !== undefined &&
+		outer.kinds.includes('concentric-7') &&
+		inner.kinds.includes('concentric-7')
+	) {
+		const problems = strictFinderProblems(
+			outer,
+			resolveParams(outer.params, finder.outer.params),
+			inner,
+			resolveParams(inner.params, finder.inner.params),
+		);
+		for (const problem of problems) report('finder', problem.detail);
 	}
 
 	for (const version of ['1', '10']) {

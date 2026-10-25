@@ -35,6 +35,7 @@ export type {
 	RegionShapeContext,
 	RegionStyle,
 	ResolvedParams,
+	RingKind,
 } from './types.js';
 export { DESIGN_VERSION, LIMITS, MIN_QUIET_ZONE, defaultDesign } from './document.js';
 export { createDesignRegistries } from './registries.js';
@@ -74,6 +75,7 @@ export {
 	outlineGap,
 	regionPairConforms,
 	regionPath,
+	ringKindOf,
 } from './finder.js';
 export type { FinderProblem } from './finder.js';
 export { ICON_STROKE } from './catalogue/icons.js';
