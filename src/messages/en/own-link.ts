@@ -8,7 +8,7 @@ export const OWN_LINK_MESSAGES: Readonly<Record<string, string>> = Object.freeze
 	'own-link.issue.from':
 		'Enter the full address on your own site that the code will hold, starting with https://.',
 	'own-link.issue.from-query':
-		'The address the code holds cannot have a ? or # part, because redirect rules match the path alone.',
+		'The address the code holds cannot include a query string or a fragment, because redirect rules match the path alone.',
 	'own-link.issue.from-path':
 		'Use only letters, digits, hyphens, dots, underscores and slashes in the path, so every platform matches it the same way.',
 	'own-link.issue.to': 'Enter the full destination address, starting with https://.',
