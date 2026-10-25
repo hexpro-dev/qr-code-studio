@@ -27,7 +27,7 @@ import type { Result } from '../core/result.js';
 import { applyConstraints } from '../design/constraints.js';
 import { designLink } from '../design/link.js';
 import { buildScene } from '../design/scene.js';
-import type { Preset, QrDesignV1, RegionShape } from '../design/types.js';
+import type { DesignOverlay, Preset, QrDesignV1, RegionShape } from '../design/types.js';
 import { validateDesign } from '../design/validate.js';
 import { detectPayload } from '../payload/detect.js';
 import type { FieldValue, PayloadType } from '../payload/types.js';
@@ -35,6 +35,7 @@ import { epsIssues, sceneToEps } from '../render/eps.js';
 import { sceneToPdf } from '../render/pdf.js';
 import { sceneToSvg } from '../render/svg.js';
 import { createRegistries } from '../registries.js';
+import { createFontRegistry } from '../text/registry.js';
 import type { Registries } from '../registries.js';
 import type { BuiltSymbol } from '../symbology/types.js';
 import { AssetCache } from './assets.js';
@@ -171,6 +172,9 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	const suggestFixes = options.suggestFixes ?? (() => []);
 	const library = options.library ?? null;
 	const assets = new AssetCache();
+	// One registry for checking captions and for drawing them, so a font a
+	// website registers at runtime is seen by both.
+	const fonts = options.fonts ?? createFontRegistry();
 
 	// Every timer this studio starts, so dispose can stop them all.
 	const timers = trackedScheduler(options.scheduler ?? DEFAULT_SCHEDULER);
@@ -197,7 +201,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		document = opened.document;
 		initialIssues = opened.issues;
 	} else if (options.initial !== undefined) {
-		const opened = documentFrom(options.initial, registries);
+		const opened = documentFrom(options.initial, registries, fonts);
 		document = opened.document;
 		initialIssues = opened.issues;
 	} else {
@@ -228,11 +232,12 @@ export function createStudio(options: StudioOptions = {}): Studio {
 
 	const constrained = memo((design: QrDesignV1, type: PayloadType): DesignState => {
 		const applied = applyConstraints(design, type.constraints);
-		const validated = validateDesign(design, registries.design).issues;
+		const validated = validateDesign(design, registries.design, { fonts }).issues;
 		return frozen({
 			effective: share(design, applied.design),
 			issues: frozen([...validated, ...applied.issues]),
 			locked: type.constraints?.designLocked === true,
+			overlay: applied.overlay,
 		});
 	});
 
@@ -294,37 +299,47 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			formView(type, fields, issues),
 	);
 
-	const previewFor = memo((symbol: BuiltSymbol | null, design: QrDesignV1): PreviewState | null => {
-		if (symbol === null) return null;
-		try {
-			const built = buildScene(symbol, design, {
-				registries: registries.design,
-				assets: assets.lookup(design),
-				...(options.fonts === undefined ? {} : { fonts: options.fonts }),
-				seed,
-			});
-			return frozen({
-				svg: sceneToSvg(built.scene),
-				scene: built.scene,
-				issues: built.issues,
-				epsIssues: frozen([...epsIssues(built.scene)]),
-			});
-		} catch {
-			// A shape or frame of somebody else's that throws while it draws. The
-			// symbol state still says what the code is; there is just no picture.
-			return null;
-		}
-	}, 2);
+	const previewFor = memo(
+		(
+			symbol: BuiltSymbol | null,
+			design: QrDesignV1,
+			overlay: DesignOverlay | null,
+		): PreviewState | null => {
+			if (symbol === null) return null;
+			try {
+				const built = buildScene(symbol, design, {
+					registries: registries.design,
+					assets: assets.lookup(design),
+					fonts,
+					seed,
+					overlay,
+				});
+				return frozen({
+					svg: sceneToSvg(built.scene),
+					scene: built.scene,
+					issues: built.issues,
+					epsIssues: frozen([...epsIssues(built.scene)]),
+				});
+			} catch {
+				// A shape or frame of somebody else's that throws while it draws. The
+				// symbol state still says what the code is; there is just no picture.
+				return null;
+			}
+		},
+		2,
+	);
 
 	let catalogueCache: { readonly key: string; readonly value: Catalogue } | null = null;
 	const catalogue = (): Catalogue => {
 		const key = registryVersions(registries);
-		if (catalogueCache?.key !== key) catalogueCache = { key, value: buildCatalogue(registries) };
+		if (catalogueCache?.key !== key) {
+			catalogueCache = { key, value: buildCatalogue(registries, fonts) };
+		}
 		return catalogueCache.value;
 	};
 	const thumbnailsFor = memo(
-		(cat: Catalogue, symbol: BuiltSymbol | null): PresetThumbnails =>
-			presetThumbnails(registries, cat, symbol),
+		(cat: Catalogue, symbol: BuiltSymbol | null, type: PayloadType): PresetThumbnails =>
+			presetThumbnails(registries, cat, symbol, type.constraints, fonts),
 		2,
 	);
 	let pairsCache: {
@@ -364,7 +379,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			},
 			get preview() {
 				const found = shown();
-				return previewFor(found.symbol, found.design);
+				return previewFor(found.symbol, found.design, designState().overlay);
 			},
 			get design() {
 				return designState();
@@ -380,7 +395,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			},
 			get presetThumbnails() {
 				const found = shown();
-				return thumbnailsFor(catalogue(), found.state.status === 'ok' ? found.symbol : null);
+				return thumbnailsFor(catalogue(), found.state.status === 'ok' ? found.symbol : null, type);
 			},
 			inspect,
 			batch,
@@ -467,6 +482,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			seed,
 			registries,
 			assets.all(design),
+			constrained(document.design, type).overlay,
 		);
 		verify = frozen({ status: 'running', progress: 0, revision: at, axis: null });
 		notify();
@@ -577,7 +593,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		coalesce: string | null,
 		path: readonly (string | number)[],
 	): void {
-		const checked = designFrom(input, registries);
+		const checked = designFrom(input, registries, fonts);
 		if (checked.design === null) {
 			refuse(action, checked.issues);
 			return;
@@ -940,7 +956,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	async function exportCommand(command: Extract<StudioCommand, { type: 'export' }>) {
 		const type = typeOf(document.typeId);
 		const content = contentFor(type, document.fields);
-		const design = constrained(document.design, type).effective;
+		const { effective: design, overlay } = constrained(document.design, type);
 		if (!content.ok) {
 			return err(
 				new QrStudioError('payload/invalid', 'Fix the content before saving the code.', {
@@ -958,7 +974,8 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				conditions: document.conditions,
 				registries: registries.design,
 				assets: assets.lookup(design),
-				fonts: options.fonts,
+				fonts,
+				overlay,
 				seed,
 				rasterEncoder: options.rasterEncoder ?? null,
 				printer: options.printer === undefined ? RENDER_PRINTER : options.printer,
@@ -1070,7 +1087,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				const loaded = await library.load(command.id);
 				if (disposed) return err(new CancelledError());
 				if (!loaded.ok) return loaded;
-				const opened = documentFrom(loaded.value.document, registries);
+				const opened = documentFrom(loaded.value.document, registries, fonts);
 				history = recordChange(breakRun(history), work(), null, historyLimit);
 				changed({ ...opened.document, mode: document.mode });
 				if (opened.issues.length > 0) refuse('initial', opened.issues);

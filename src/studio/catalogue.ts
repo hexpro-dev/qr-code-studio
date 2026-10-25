@@ -21,8 +21,11 @@ import { neighbourMasks } from '../design/neighbours.js';
 import { resolvePaint } from '../design/paint.js';
 import { resolveParams } from '../design/params.js';
 import { buildScene } from '../design/scene.js';
+import { applyConstraints } from '../design/constraints.js';
 import type {
+	DesignConstraints,
 	DesignRegistries,
+	FontRegistry,
 	PresetCategory,
 	QrDesignV1,
 	RegionKind,
@@ -229,8 +232,22 @@ function designThumbnail(
 	design: QrDesignV1,
 	kind: string,
 	id: string,
+	fonts: FontRegistry | undefined,
+	constraints?: DesignConstraints,
 ): string {
-	return svg(buildScene(symbol, design, { registries, seed: 1 }).scene, kind, id);
+	// Drawn as the code itself would be: the content's constraints applied,
+	// and what it prints over the code with them.
+	const applied = applyConstraints(design, constraints);
+	return svg(
+		buildScene(symbol, applied.design, {
+			registries,
+			seed: 1,
+			overlay: applied.overlay,
+			...(fonts === undefined ? {} : { fonts }),
+		}).scene,
+		kind,
+		id,
+	);
 }
 
 /** The sample code the thumbnails that need a whole code are drawn on. */
@@ -269,7 +286,7 @@ function pairsOf(registries: DesignRegistries, shape: RegionShape): readonly str
 }
 
 /** The catalogue for these registries as they stand. */
-export function buildCatalogue(registries: Registries): Catalogue {
+export function buildCatalogue(registries: Registries, fonts?: FontRegistry): Catalogue {
 	const { design } = registries;
 	let sample: BuiltSymbol | undefined;
 	const sampled = (): BuiltSymbol => (sample ??= sampleSymbol(registries));
@@ -353,6 +370,7 @@ export function buildCatalogue(registries: Registries): Catalogue {
 					{ ...defaultDesign(), frame: { ref: { id: frame.id } } },
 					'frame',
 					frame.id,
+					fonts,
 				),
 			),
 		}),
@@ -383,7 +401,7 @@ export function buildCatalogue(registries: Registries): Catalogue {
 						minSizeMm: preset.minSizeMm,
 						ecLevels: preset.ecLevels,
 						thumbnail: once(() =>
-							designThumbnail(design, sampled(), preset.design, 'preset', preset.id),
+							designThumbnail(design, sampled(), preset.design, 'preset', preset.id, fonts),
 						),
 					}),
 				),
@@ -412,6 +430,8 @@ export function presetThumbnails(
 	registries: Registries,
 	catalogue: Catalogue,
 	symbol: BuiltSymbol | null,
+	constraints?: DesignConstraints,
+	fonts?: FontRegistry,
 ): PresetThumbnails {
 	const drawn = new Map<string, string>();
 	return Object.freeze({
@@ -427,7 +447,15 @@ export function presetThumbnails(
 			let found = drawn.get(id);
 			if (found === undefined) {
 				found = once(() =>
-					designThumbnail(registries.design, symbol, preset.design, 'preset', id),
+					designThumbnail(
+						registries.design,
+						symbol,
+						preset.design,
+						'preset',
+						id,
+						fonts,
+						constraints,
+					),
 				)();
 				drawn.set(id, found);
 			}

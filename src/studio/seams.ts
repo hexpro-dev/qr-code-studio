@@ -13,7 +13,7 @@
 import type { Result } from '../core/result.js';
 import type { RgbaImage } from '../core/image.js';
 import type { Issue, MessageKey } from '../core/issue.js';
-import type { QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, QrDesignV1 } from '../design/types.js';
 import type { FieldValue, UrlAnalysis } from '../payload/types.js';
 import type { DecodeOptions, Point } from '../decode/types.js';
 import type { EpsOptions } from '../render/eps.js';
@@ -58,6 +58,8 @@ export interface VerifyJob {
 	/** Registry ids the design uses, as `kind:id`; a worker missing one refuses. */
 	readonly requires: readonly string[];
 	readonly assets?: Readonly<Record<string, RgbaImage>>;
+	/** What the content prints over the code, as applyConstraints returns it, for the worker's scene. */
+	readonly overlay?: DesignOverlay | null;
 }
 
 export interface VerifyProgress {

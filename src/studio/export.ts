@@ -27,7 +27,7 @@ import { err, ok } from '../core/result.js';
 import type { Result } from '../core/result.js';
 import { LIMITS, MIN_QUIET_ZONE } from '../design/document.js';
 import { buildScene } from '../design/scene.js';
-import type { DesignRegistries, FontRegistry, QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, DesignRegistries, FontRegistry, QrDesignV1 } from '../design/types.js';
 import { encodePng } from '../render/png.js';
 import { rasterise } from '../render/raster.js';
 import { sceneToSvg } from '../render/svg.js';
@@ -77,7 +77,9 @@ export interface ExportInput {
 	readonly conditions: VerifyConditions;
 	readonly registries: DesignRegistries;
 	readonly assets: (id: string) => RgbaImage | undefined;
-	readonly fonts: FontRegistry | undefined;
+	readonly fonts: FontRegistry;
+	/** What the content prints over the code, from applyConstraints. */
+	readonly overlay: DesignOverlay | null;
 	readonly seed: number;
 	readonly rasterEncoder: RasterEncoder | null;
 	readonly printer: Printer | null;
@@ -270,8 +272,9 @@ export async function exportSymbol(
 		built = buildScene(input.symbol, checked.design, {
 			registries: input.registries,
 			assets: input.assets,
-			...(input.fonts === undefined ? {} : { fonts: input.fonts }),
+			fonts: input.fonts,
 			seed: input.seed,
+			overlay: input.overlay,
 		});
 	} catch (thrown) {
 		return err(asStudioError(thrown, 'render/format-unavailable'));

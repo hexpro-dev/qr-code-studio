@@ -15,7 +15,7 @@ import type { Issue } from '../core/issue.js';
 import { defaultDesign } from '../design/document.js';
 import { decodeDesignLink } from '../design/link.js';
 import { migrateDesign } from '../design/migrate.js';
-import type { QrDesignV1 } from '../design/types.js';
+import type { FontRegistry, QrDesignV1 } from '../design/types.js';
 import { validateDesign } from '../design/validate.js';
 import type { FieldSchema, FieldValue, PayloadType } from '../payload/types.js';
 import type { Registries } from '../registries.js';
@@ -90,6 +90,7 @@ export function fieldsFor(
 export function designFrom(
 	input: unknown,
 	registries: Registries,
+	fonts?: FontRegistry,
 ): { readonly design: QrDesignV1 | null; readonly issues: readonly Issue[] } {
 	let migrated: QrDesignV1;
 	try {
@@ -98,7 +99,7 @@ export function designFrom(
 		return { design: null, issues: [errorIssue(asStudioError(thrown, 'design/invalid'), [])] };
 	}
 	try {
-		return validateDesign(migrated, registries.design);
+		return validateDesign(migrated, registries.design, fonts === undefined ? {} : { fonts });
 	} catch (thrown) {
 		// The validator reports problems as issues; this is for a registry
 		// entry of somebody else's that throws while it is asked about itself.
@@ -160,6 +161,7 @@ export function defaultDocument(registries: Registries): StudioDocument {
 export function documentFrom(
 	input: unknown,
 	registries: Registries,
+	fonts?: FontRegistry,
 ): { readonly document: StudioDocument; readonly issues: readonly Issue[] } {
 	const base = defaultDocument(registries);
 	if (!isRecord(input)) {
@@ -184,7 +186,7 @@ export function documentFrom(
 		}
 	}
 	const fields = fieldsFor(type, given);
-	const checked = designFrom(input.design, registries);
+	const checked = designFrom(input.design, registries, fonts);
 	if (checked.design === null) {
 		issues.push(issue(STUDIO_KEYS.documentRepaired, ['design'], 'warning'));
 	}

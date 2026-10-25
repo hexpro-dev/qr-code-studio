@@ -18,6 +18,7 @@ import { encodePng } from '../../src/render/png.js';
 import { rasterise } from '../../src/render/raster.js';
 import { sceneToSvg } from '../../src/render/svg.js';
 import type { RgbaImage } from '../../src/core/image.js';
+import type { SceneNode } from '../../src/render/types.js';
 import { exportName, fileStem } from '../../src/studio/names.js';
 import { EXPORT_MAX_PIXELS } from '../../src/studio/export.js';
 import type { RasterEncoder } from '../../src/studio/types.js';
@@ -305,6 +306,19 @@ describe('pdf and eps', () => {
 		expect(pdf.value.issues.map((found) => found.code)).toContain(
 			'studio.issue.export-size-constrained',
 		);
+		// Every picture of the bill carries its cross: the preview, the export and the scan check's job.
+		const roles = (nodes: readonly SceneNode[]): string[] =>
+			nodes.flatMap((node) =>
+				node.kind === 'group'
+					? roles(node.children)
+					: node.kind === 'path'
+						? [node.role ?? '']
+						: [],
+			);
+		const preview = studio.getSnapshot().preview;
+		expect(roles(preview?.scene.layers ?? [])).toContain('swiss-cross');
+		const svg = await studio.run({ type: 'export', format: 'svg', options: {} });
+		expect(svg.ok && new TextDecoder().decode(svg.value.bytes)).toBe(preview?.svg);
 		const same = await studio.run({ type: 'export', format: 'pdf', options: { sizeMm: 46 } });
 		expect(same.ok && same.value.issues.map((found) => found.code)).not.toContain(
 			'studio.issue.export-size-constrained',

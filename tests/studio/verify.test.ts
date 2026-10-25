@@ -68,6 +68,7 @@ describe('verify/request', () => {
 		expect(job.seed).toBe(77);
 		expect(job.requires).toEqual(['module-shape:square', 'symbology:qr']);
 		expect(job.assets).toBeUndefined();
+		expect(job.overlay).toBeNull();
 		// Structured-cloneable, so a website can post it to a worker.
 		expect(structuredClone(job)).toEqual(job);
 	});
@@ -434,6 +435,17 @@ describe('the entries a job requires', () => {
 			},
 		};
 		expect(requiredEntries(picture, registries)).toEqual(['module-shape:square', 'symbology:qr']);
+	});
+
+	it("names the overlay the content prints, so the worker draws the bill's cross too", async () => {
+		const runner = new FakeRunner();
+		const { studio, time } = studioWith({ verifyRunner: runner });
+		const { swissQrBillType } = await import('../../src/payload/content/swiss-qr-bill.js');
+		studio.dispatch({ type: 'payload/raw', text: swissQrBillType.vectors[0]?.text as string });
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		expect(runner.last.job.overlay).toBe('swiss-cross');
+		expect(runner.last.job.design).toBe(studio.getSnapshot().design.effective);
 	});
 
 	it("sends a design's pictures decoded, so a worker can rebuild the scene", () => {

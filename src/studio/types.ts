@@ -25,6 +25,7 @@ import type { Issue, MessageKey } from '../core/issue.js';
 import type { RgbaImage } from '../core/image.js';
 import type { Result } from '../core/result.js';
 import type {
+	DesignOverlay,
 	FontRegistry,
 	ParamSchema,
 	PresetCategory,
@@ -102,7 +103,11 @@ export type ExportFormat = 'svg' | 'png' | 'pdf' | 'eps' | 'jpeg' | 'webp';
 export interface ExportOptions {
 	/** The width of a raster in pixels, the whole artwork included. Wins over a size and dpi. */
 	readonly widthPx?: number;
-	/** The printed width of the symbol with its quiet zone, as the conditions measure it. */
+	/**
+	 * The printed size, in place of the design's `output.sizeMm` and measured
+	 * the way it is. The millimetres of a result always come from the scene
+	 * that size builds (`Scene.unitsPerMm`), never from this number alone.
+	 */
 	readonly sizeMm?: number;
 	/** Pixels to the inch, for a raster drawn from a physical size and for PNG's own record of it. */
 	readonly dpi?: number;
@@ -337,6 +342,8 @@ export interface DesignState {
 	readonly issues: readonly Issue[];
 	/** True when the content fixes the whole look, so design changes are refused. */
 	readonly locked: boolean;
+	/** What the content prints over the code whatever the design (the Swiss QR-bill's cross). */
+	readonly overlay: DesignOverlay | null;
 }
 
 export type VerifyState =
@@ -488,6 +495,7 @@ export interface StudioOptions {
 	/** Milliseconds, monotonic. Default performance.now. */
 	readonly clock?: () => number;
 	readonly library?: LibraryStore | null;
+	/** Where a caption's font is found. Default: the text layer's built-in family. */
 	readonly fonts?: FontRegistry;
 	/** A design link fragment, or a document. */
 	readonly initial?: string | StudioDocument;

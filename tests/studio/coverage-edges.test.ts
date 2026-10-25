@@ -195,6 +195,7 @@ describe('exports, at their edges', () => {
 		seed: 1,
 		rasterEncoder: null,
 		printer: null,
+		overlay: null,
 	};
 
 	it('take options that are not an object as none', async () => {

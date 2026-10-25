@@ -10,6 +10,7 @@ import { defaultDesign } from '../../src/design/document.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import type { DesignPaint, Ink, Preset, QrDesignV1 } from '../../src/design/types.js';
 import { validateDesign } from '../../src/design/validate.js';
+import { createFontRegistry } from '../../src/text/registry.js';
 import { contrastRatio, luminance } from '../../src/studio/contrast.js';
 import { applyPatch, pathProblem } from '../../src/studio/patch.js';
 import { sameJson, share } from '../../src/studio/share.js';
@@ -446,9 +447,11 @@ describe('content constraints', () => {
 		expect(effective.modules.paint).toEqual({ kind: 'solid', ink: '#000000' });
 		expect(effective.output.sizeMm).toBe(46);
 		expect(effective.symbol.ecLevel).toBe('M');
-		expect(snapshot.design.issues.map((found) => found.code)).toEqual(
-			expect.arrayContaining(['design.issue.design-locked', 'design.issue.overlay-required']),
+		expect(snapshot.design.issues.map((found) => found.code)).toContain(
+			'design.issue.design-locked',
 		);
+		// The cross the bill prints over its code is drawn, not reported.
+		expect(snapshot.design.overlay).toBe('swiss-cross');
 		for (const action of [
 			{ type: 'design/patch', patch: { path: ['modules', 'shape'], value: { id: 'dot' } } },
 			{ type: 'design/preset', id: 'classic-black' },
@@ -503,5 +506,50 @@ describe('content constraints', () => {
 			patch: { path: ['modules', 'shape'], value: { id: 'dot' } },
 		});
 		expect(studio.getSnapshot().refusal).toBeNull();
+	});
+});
+
+describe('frame captions', () => {
+	it('are drawn with the built-in fonts, and a font the studio lacks is a warning', () => {
+		const { studio } = studioWithCode();
+		studio.dispatch({
+			type: 'design/patch',
+			patch: {
+				path: ['frame'],
+				value: {
+					ref: { id: 'banner-bottom' },
+					text: { content: 'Scan me', fontId: 'plex-sans-bold' },
+				},
+			},
+		});
+		expect(studio.getSnapshot().refusal).toBeNull();
+		const drawn = studio.getSnapshot().preview;
+		expect(drawn?.issues).toEqual([]);
+		studio.dispatch({
+			type: 'design/patch',
+			patch: { path: ['frame', 'text', 'fontId'], value: 'not-installed' },
+		});
+		expect(studio.getSnapshot().design.issues.map((found) => found.code)).toContain(
+			'design.issue.font-unavailable',
+		);
+		expect(studio.getSnapshot().preview?.svg).not.toBe(drawn?.svg);
+	});
+
+	it('are checked against the fonts a website registers', () => {
+		const fonts = createFontRegistry();
+		const own = fonts.require('plex-sans-regular');
+		fonts.register({ ...own, id: 'house-font' });
+		const { studio } = studioWithCode({ fonts });
+		studio.dispatch({
+			type: 'design/patch',
+			patch: {
+				path: ['frame'],
+				value: { ref: { id: 'banner-bottom' }, text: { content: 'Menu', fontId: 'house-font' } },
+			},
+		});
+		expect(studio.getSnapshot().design.issues.map((found) => found.code)).not.toContain(
+			'design.issue.font-unavailable',
+		);
+		expect(studio.getSnapshot().preview?.issues).toEqual([]);
 	});
 });

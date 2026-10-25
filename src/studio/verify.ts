@@ -14,7 +14,7 @@ import { CancelledError, QrStudioError } from '../core/errors.js';
 import type { RgbaImage } from '../core/image.js';
 import { err, ok } from '../core/result.js';
 import type { Result } from '../core/result.js';
-import type { DesignPaint, DesignRegistries, QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, DesignPaint, DesignRegistries, QrDesignV1 } from '../design/types.js';
 import type { Registries } from '../registries.js';
 import { asStudioError } from './keys.js';
 import type {
@@ -75,6 +75,7 @@ export function verifyJob(
 	seed: number,
 	registries: Registries,
 	assets: Readonly<Record<string, RgbaImage>> | undefined,
+	overlay: DesignOverlay | null,
 ): VerifyJob {
 	return Object.freeze({
 		content,
@@ -83,6 +84,7 @@ export function verifyJob(
 		seed,
 		requires: requiredEntries(design, registries),
 		...(assets === undefined ? {} : { assets }),
+		overlay,
 	});
 }
 
