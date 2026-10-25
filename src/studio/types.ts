@@ -13,7 +13,8 @@
  *   code) and `preview.issues`.
  * - Verify has a `failed` state, and its running state says which capture
  *   axis it is on.
- * - The `library/remove` command, which `LibraryStore.remove` needs a way in.
+ * - The `library/remove` command, which `LibraryStore.remove` needs a way in,
+ *   and the brand kit and library file commands beside it.
  * - createStudio takes the layers still in flight as seams: `inspector`,
  *   `printer` and `suggestFixes`, and the browser's encoders as
  *   `rasterEncoder`. Frame captions need nothing here: the design layer sets
@@ -25,8 +26,10 @@ import type { Issue, MessageKey } from '../core/issue.js';
 import type { RgbaImage } from '../core/image.js';
 import type { Result } from '../core/result.js';
 import type {
+	DesignAsset,
 	DesignOverlay,
 	FontRegistry,
+	Ink,
 	ParamSchema,
 	PresetCategory,
 	QrDesignV1,
@@ -156,7 +159,14 @@ export type StudioCommand =
 	| { readonly type: 'library/disable' }
 	| { readonly type: 'library/save'; readonly name: string }
 	| { readonly type: 'library/load'; readonly id: string }
-	| { readonly type: 'library/remove'; readonly id: string };
+	| { readonly type: 'library/remove'; readonly id: string }
+	| { readonly type: 'library/list-kits' }
+	| { readonly type: 'library/save-kit'; readonly name: string; readonly kit: BrandKit }
+	/** Applies the kit to the design (see kit.ts for the rule) and offers its presets. */
+	| { readonly type: 'library/load-kit'; readonly id: string }
+	| { readonly type: 'library/remove-kit'; readonly id: string }
+	| { readonly type: 'library/save-file'; readonly name?: string }
+	| { readonly type: 'library/open-file'; readonly file: Blob };
 
 /** What each command resolves to. */
 export interface CommandResults {
@@ -170,6 +180,12 @@ export interface CommandResults {
 	readonly 'library/save': LibraryItemSummary;
 	readonly 'library/load': LibraryItemSummary;
 	readonly 'library/remove': readonly LibraryItemSummary[];
+	readonly 'library/list-kits': readonly KitSummary[];
+	readonly 'library/save-kit': KitSummary;
+	readonly 'library/load-kit': KitItem;
+	readonly 'library/remove-kit': readonly KitSummary[];
+	readonly 'library/save-file': { readonly filename: string };
+	readonly 'library/open-file': LibraryFileOpened;
 }
 
 export type CommandResult<C extends StudioCommand> = CommandResults[C['type']];
@@ -185,37 +201,127 @@ export interface LibraryItemSummary {
 	readonly typeId: string;
 }
 
+/**
+ * A saved design as a store hands it back. Records never hold content, so
+ * `document.fields` is always empty and `document.typeId` only says which
+ * kind of content the design was made for: `library/load` takes the design
+ * and the conditions from it and nothing else.
+ */
 export interface LibraryItem extends LibraryItemSummary {
 	readonly document: StudioDocument;
 }
 
+/** A brand's own colours, logo and favourite presets, kept so new codes start from them. */
+export interface BrandKit {
+	readonly palette: readonly Ink[];
+	/** A picture logo, as a design embeds one: a PNG this package encoded. */
+	readonly logo: DesignAsset | null;
+	/** Preset ids, in the order the person prefers them. */
+	readonly presets: readonly string[];
+}
+
+export interface KitSummary {
+	readonly id: string;
+	/** What the person called it. Theirs, so it may be shown, but it never reaches an error. */
+	readonly name: string;
+	/** Milliseconds since 1970, as the store recorded it. */
+	readonly savedAt: number;
+}
+
+export interface KitItem extends KitSummary {
+	readonly kit: BrandKit;
+}
+
 /**
- * Where saved codes live, when the person asks for that. The offline app
- * passes a store backed by files the person saves and opens; the website
- * passes IndexedDB (src/dom/library, M11).
+ * What a store says a view should offer:
+ * - 'off': a switch to turn the library on;
+ * - 'unknown': the browser cannot say whether there is a library without
+ *   opening it, so the view offers "Open my library", and the click is the
+ *   consent (`library/enable`);
+ * - 'on': the library is there;
+ * - 'file': the library is a file the person saves and opens (the offline
+ *   app), so the view offers Save and Open rather than a switch;
+ * - 'unavailable': nothing can be kept here.
+ */
+export type LibraryProbeState = 'unavailable' | 'off' | 'on' | 'unknown' | 'file';
+
+/** Everything a library holds, and the records left out because they could not be used. */
+export interface LibraryContents {
+	readonly designs: readonly LibraryItemSummary[];
+	readonly kits: readonly KitSummary[];
+	/** One warning per record left out, at `['designs' | 'kits', id]`. */
+	readonly skipped: readonly Issue[];
+}
+
+/** What opening a library file came to. */
+export interface LibraryFileOpened {
+	/** False when the file was refused, and nothing the page held was changed. */
+	readonly opened: boolean;
+	readonly issues: readonly Issue[];
+}
+
+/**
+ * Where saved designs and brand kits live, when the person asks for that.
+ * The offline app passes the file library (src/dom/file-library.ts), which
+ * the person saves and opens as a file; the website passes IndexedDB
+ * (src/dom/library). Records hold the look of a code and never its content.
  *
  * A store does nothing until `enable`, and `probe` never creates anything: it
- * only answers whether the store can work here and whether it was switched on
- * before. `disable` switches it off and deletes everything it holds.
+ * only answers whether the store can work here, whether it was switched on
+ * before, and, as `state`, which control to offer. `disable` switches it off
+ * and deletes everything it holds. The file methods are the file library's
+ * alone.
  */
 export interface LibraryStore {
-	probe(): Promise<Result<{ readonly available: boolean; readonly enabled: boolean }>>;
+	probe(): Promise<
+		Result<{
+			readonly available: boolean;
+			readonly enabled: boolean;
+			/** Absent from an older store: then 'unavailable', 'on' or 'off' from the two flags. */
+			readonly state?: LibraryProbeState;
+		}>
+	>;
 	enable(): Promise<Result<null>>;
 	disable(): Promise<Result<null>>;
 	list(): Promise<Result<readonly LibraryItemSummary[]>>;
+	contents(): Promise<Result<LibraryContents>>;
 	save(item: {
 		readonly name: string;
 		readonly document: StudioDocument;
 	}): Promise<Result<LibraryItemSummary>>;
 	load(id: string): Promise<Result<LibraryItem>>;
 	remove(id: string): Promise<Result<null>>;
+	listKits(): Promise<Result<readonly KitSummary[]>>;
+	saveKit(item: { readonly name: string; readonly kit: BrandKit }): Promise<Result<KitSummary>>;
+	loadKit(id: string): Promise<Result<KitItem>>;
+	removeKit(id: string): Promise<Result<null>>;
+	/** The file library: hands everything to the person as `<name>.qrlibrary.json`. */
+	saveFile?(name?: string): Result<{ readonly filename: string }>;
+	/** The file library: puts the library in `file` in place of what the page holds. */
+	openFile?(file: Blob): Promise<LibraryFileOpened>;
+	/** The file library: whether anything changed since the file was last saved or opened. */
+	hasUnsavedChanges?(): boolean;
+}
+
+/** What a library holds, as the snapshot shows it. */
+export interface LibraryShelves {
+	readonly items: readonly LibraryItemSummary[];
+	readonly kits: readonly KitSummary[];
+	/** Records left out because they could not be read: "2 saved designs could not be read". */
+	readonly skipped: readonly Issue[];
+	/** The brand kit last applied, whose presets a view offers first. Null until one is. */
+	readonly kit: KitItem | null;
 }
 
 export type LibraryState =
 	| { readonly status: 'unavailable' }
 	| { readonly status: 'checking' }
 	| { readonly status: 'off' }
-	| { readonly status: 'on'; readonly items: readonly LibraryItemSummary[] }
+	/** Offer "Open my library"; `library/enable` is the consent. */
+	| { readonly status: 'unknown' }
+	| ({ readonly status: 'on' } & LibraryShelves)
+	/** Offer Save and Open; `unsaved` is for a warning before the page is left. */
+	| ({ readonly status: 'file'; readonly unsaved: boolean } & LibraryShelves)
 	| { readonly status: 'failed'; readonly error: StudioError };
 
 // Inspect and batch.
@@ -455,8 +561,8 @@ export interface PresetThumbnails {
 }
 
 export interface Refusal {
-	/** The action refused, or 'initial' for what the studio was opened with. */
-	readonly action: StudioAction['type'] | 'initial';
+	/** The action or command refused, or 'initial' for what the studio was opened with. */
+	readonly action: StudioAction['type'] | StudioCommand['type'] | 'initial';
 	readonly issues: readonly Issue[];
 }
 
