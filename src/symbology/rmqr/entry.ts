@@ -167,42 +167,48 @@ function decodeBitstream(): DecodedBitstream {
 	);
 }
 
-export const RMQR: SymbologyEntry = Object.freeze({
-	id: RMQR_ID,
-	labelKey: RMQR_MESSAGE_KEYS.label,
-	quietZone: 2,
-	phoneReadable: false,
-	get versions(): readonly string[] {
-		return rmqrVersionsBySize();
-	},
-	ecLevels(version: string): readonly EcLevel[] {
-		rmqrSpec(version);
-		return RMQR_LEVELS;
-	},
-	size(version: string): { width: number; height: number } {
-		const { width, height } = rmqrSpec(version);
-		return { width, height };
-	},
-	profile: rmqrProfile,
-	blocks: rmqrBlocks,
-	layout: rmqrLayout,
-	masks(version: string): readonly number[] {
-		rmqrSpec(version);
-		return RMQR_MASK_IDS;
-	},
-	build: buildRmqr,
-	read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
-		const read = readRmqrCodewords(matrix, options);
-		return Object.freeze({
-			version: read.version,
-			ecLevel: read.ecLevel,
-			mask: read.mask,
-			bitstream: decodeBitstream(),
-			errorsPerBlock: read.errorsPerBlock,
-			capacityPerBlock: read.capacityPerBlock,
-			erasuresUsed: read.erasuresUsed,
-			formatErrors: read.formatErrors,
-			mirrored: read.mirrored,
-		});
-	},
-});
+/**
+ * The rMQR entry, a fresh frozen object each call, for a registry to hold.
+ * Its tables and layouts are built on first use and shared.
+ */
+export function createRmqrSymbology(): SymbologyEntry {
+	return Object.freeze({
+		id: RMQR_ID,
+		labelKey: RMQR_MESSAGE_KEYS.label,
+		quietZone: 2,
+		phoneReadable: false,
+		get versions(): readonly string[] {
+			return rmqrVersionsBySize();
+		},
+		ecLevels(version: string): readonly EcLevel[] {
+			rmqrSpec(version);
+			return RMQR_LEVELS;
+		},
+		size(version: string): { width: number; height: number } {
+			const { width, height } = rmqrSpec(version);
+			return { width, height };
+		},
+		profile: rmqrProfile,
+		blocks: rmqrBlocks,
+		layout: rmqrLayout,
+		masks(version: string): readonly number[] {
+			rmqrSpec(version);
+			return RMQR_MASK_IDS;
+		},
+		build: buildRmqr,
+		read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
+			const read = readRmqrCodewords(matrix, options);
+			return Object.freeze({
+				version: read.version,
+				ecLevel: read.ecLevel,
+				mask: read.mask,
+				bitstream: decodeBitstream(),
+				errorsPerBlock: read.errorsPerBlock,
+				capacityPerBlock: read.capacityPerBlock,
+				erasuresUsed: read.erasuresUsed,
+				formatErrors: read.formatErrors,
+				mirrored: read.mirrored,
+			});
+		},
+	});
+}

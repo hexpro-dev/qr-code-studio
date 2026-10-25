@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { QrStudioError } from '../../../src/core/index.js';
-import { RMQR } from '../../../src/symbology/rmqr/entry.js';
+import { createRmqrSymbology } from '../../../src/symbology/rmqr/entry.js';
 import { rmqrVersionsBySize } from '../../../src/symbology/rmqr/tables.js';
+
+const RMQR = createRmqrSymbology();
 
 describe('the rMQR entry', () => {
 	it('describes itself as the contract asks', () => {

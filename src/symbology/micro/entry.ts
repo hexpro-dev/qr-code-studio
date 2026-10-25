@@ -203,39 +203,45 @@ function decodeBitstream(): DecodedBitstream {
 	);
 }
 
-export const MICRO_QR: SymbologyEntry = Object.freeze({
-	id: MICRO_ID,
-	labelKey: MICRO_MESSAGE_KEYS.label,
-	quietZone: 2,
-	phoneReadable: false,
-	versions: MICRO_VERSIONS,
-	ecLevels(version: string): readonly EcLevel[] {
-		return Object.freeze(microSpec(version).levels.map((candidate) => candidate.ecLevel));
-	},
-	size(version: string): { width: number; height: number } {
-		const { size } = microSpec(version);
-		return { width: size, height: size };
-	},
-	profile: microProfile,
-	blocks: microBlocks,
-	layout: microLayout,
-	masks(version: string): readonly number[] {
-		microSpec(version);
-		return MICRO_MASK_IDS;
-	},
-	build: buildMicro,
-	read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
-		const read = readMicroCodewords(matrix, options);
-		return Object.freeze({
-			version: read.version,
-			ecLevel: read.ecLevel,
-			mask: read.mask,
-			bitstream: decodeBitstream(),
-			errorsPerBlock: read.errorsPerBlock,
-			capacityPerBlock: read.capacityPerBlock,
-			erasuresUsed: read.erasuresUsed,
-			formatErrors: read.formatErrors,
-			mirrored: read.mirrored,
-		});
-	},
-});
+/**
+ * The Micro QR entry, a fresh frozen object each call, for a registry to
+ * hold. Its tables and layouts are built on first use and shared.
+ */
+export function createMicroQrSymbology(): SymbologyEntry {
+	return Object.freeze({
+		id: MICRO_ID,
+		labelKey: MICRO_MESSAGE_KEYS.label,
+		quietZone: 2,
+		phoneReadable: false,
+		versions: MICRO_VERSIONS,
+		ecLevels(version: string): readonly EcLevel[] {
+			return Object.freeze(microSpec(version).levels.map((candidate) => candidate.ecLevel));
+		},
+		size(version: string): { width: number; height: number } {
+			const { size } = microSpec(version);
+			return { width: size, height: size };
+		},
+		profile: microProfile,
+		blocks: microBlocks,
+		layout: microLayout,
+		masks(version: string): readonly number[] {
+			microSpec(version);
+			return MICRO_MASK_IDS;
+		},
+		build: buildMicro,
+		read(matrix: BitMatrix, options: ReadOptions): MatrixRead {
+			const read = readMicroCodewords(matrix, options);
+			return Object.freeze({
+				version: read.version,
+				ecLevel: read.ecLevel,
+				mask: read.mask,
+				bitstream: decodeBitstream(),
+				errorsPerBlock: read.errorsPerBlock,
+				capacityPerBlock: read.capacityPerBlock,
+				erasuresUsed: read.erasuresUsed,
+				formatErrors: read.formatErrors,
+				mirrored: read.mirrored,
+			});
+		},
+	});
+}

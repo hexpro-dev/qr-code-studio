@@ -9,8 +9,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { MICRO_MESSAGES } from '../../../src/messages/en/micro.js';
-import { MICRO_MESSAGE_KEYS, MICRO_QR } from '../../../src/symbology/micro/entry.js';
+import { MICRO_MESSAGE_KEYS, createMicroQrSymbology } from '../../../src/symbology/micro/entry.js';
 import { checkRegister, keysInSource } from './helpers.js';
+
+const MICRO_QR = createMicroQrSymbology();
 
 describe('Micro QR messages', () => {
 	it('has a sentence for every key the symbology uses', () => {

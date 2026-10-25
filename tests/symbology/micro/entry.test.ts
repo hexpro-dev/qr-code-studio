@@ -4,7 +4,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { QrStudioError } from '../../../src/core/index.js';
-import { MICRO_QR } from '../../../src/symbology/micro/entry.js';
+import { createMicroQrSymbology } from '../../../src/symbology/micro/entry.js';
+
+const MICRO_QR = createMicroQrSymbology();
 
 describe('the Micro QR entry', () => {
 	it('describes itself as the contract asks', () => {
