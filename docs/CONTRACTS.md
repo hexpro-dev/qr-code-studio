@@ -418,6 +418,12 @@ export function decodeMatrix(
 ): MatrixRead;
 ```
 
+As built, `DecodeOptions` also takes `polarity` (strict reads only this one; lenient tries it
+first), `clock`, `budget.maxMs` (needs a clock; the default is no time budget) and
+`onTelemetry` (stage frames, never content). A strict refusal after a successful read reports
+`params.stage: 'margin'`. Erasures reach `read` as a per-module flag map.
+`decodeFailureKey(error)` maps a failure to its message key.
+
 The strict profile, `strict-v1`, exists for the scan check and must be at
 least as hard to satisfy as the phone readers people use: one binariser, a
 single sample per module, no mirroring, the design's own polarity only, finder
@@ -706,6 +712,28 @@ export function formatColour(colour: Colour): string; // #rrggbb or #rrggbbaa
 ```
 
 ---
+
+## text
+
+As built: `parseTrueType(bytes, { id, labelKey? })` throws `FontMalformedError` ('font/malformed',
+params { table, reason }); `createFontRegistry()` holds the built-ins `plex-sans-regular` and
+`plex-sans-bold` (labelled "Sans" and "Sans bold", because the OFL reserves "Plex" for unmodified
+fonts); `layoutText(text, { fontId, size, box, align = 'centre', maxLines = 1, lineHeight,
+shrinkToFit, minSize = size / 2, fonts? })` returns `{ paths, lines, missing, overflow, size }`;
+`textToPaths` throws 'font/missing-glyphs' with { count }. Kerning sums every lookup, as HarfBuzz
+does. NFC, breaks at U+0020 and line feeds only, no shaping. A page that bundles the tables shows
+`FONT_LICENCE`.
+
+## print (render)
+
+As built: `sceneToPdf`, `sheetToPdf`, `sceneToEps`, `epsIssues`, `imposeSheet(cells, template,
+{ fit: 'none' | 'contain', skip })` returning `{ template, pages: { cells, marks }[], issues }`,
+`imposeCopies`, `printSheetTemplate`, `cropMarks`, `builtInSheets`, `PAPER`. CMYK uses
+`Colour.cmyk` when present; otherwise k = 1 - max(r, g, b), and every neutral goes to black ink
+alone (black is exactly `0 0 0 1 k`). This is not a colour-managed conversion. EPS refuses
+transparency ('render/format-unavailable', { format: 'eps', reason: 'transparency', count }),
+and `epsIssues` lists each part, so the studio offers PDF instead. Crop marks are 5 mm long,
+max(bleed, 3 mm) off the trim, in registration black.
 
 ## design
 
