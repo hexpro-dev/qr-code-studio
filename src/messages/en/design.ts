@@ -207,6 +207,10 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 		'Readers find this kind of code by the corners of its position marks, so they are drawn square and only the centre of the main one takes the style.',
 	'design.issue.region-pair':
 		'Strict readers may not find position marks with this ring and this centre. Choose a different centre or ring.',
+	'design.issue.ring-not-traceable':
+		'Many phone readers cannot find position marks with a ring of dots, so it cannot be used for the corners of a QR code. Choose another ring.',
+	'design.issue.ring-round':
+		'Some phone readers struggle to find round corners when the code is seen at an angle. A squarer ring scans more reliably.',
 	'design.issue.quiet-zone':
 		'The margin round the code was not a usable width, so the usual width was used.',
 	'design.issue.quiet-zone-small':

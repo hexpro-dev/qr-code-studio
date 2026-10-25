@@ -13,7 +13,11 @@
  * depends on both (a round ring leaves too little light round a square
  * centre's corners), so pairs are checked where they are chosen, by
  * `regionPairConforms`, and conformance asks of each shape that it makes a
- * good finder with at least one partner at every setting. The sub-finder of rMQR (concentric-5) is the same ring
+ * good finder with at least one partner at every setting, and that every
+ * pair that measure accepts is one the strict reader's own finder search
+ * finds. A ring also says how a reader that traces its sides takes it
+ * (`ringKind`), which conformance measures with the strict reader's test:
+ * the circle is round and the ring of dots dotted, the rest cornered. The sub-finder of rMQR (concentric-5) is the same ring
  * round a one-module centre; the corner pattern (corner-l) is an L of five
  * modules, square or rounded.
  */
@@ -67,6 +71,8 @@ interface OuterDefinition {
 	readonly id: string;
 	readonly params: RegionShape['params'];
 	readonly kinds: readonly RegionKind[];
+	/** How a reader that traces the ring's sides takes it; cornered when left out. */
+	readonly ringKind?: RegionShape['ringKind'];
 	/** The outer edge and the hole, both clockwise, in a box of `size`. */
 	readonly ring: (size: number, ctx: RegionShapeContext) => readonly [Contour, Contour];
 	/** The corner pattern: rounded with this corner radius, or square when null. */
@@ -80,6 +86,7 @@ function outer(definition: OuterDefinition): RegionShape {
 		params: Object.freeze([...definition.params]),
 		kinds: definition.kinds,
 		part: 'outer',
+		...(definition.ringKind === undefined ? {} : { ringKind: definition.ringKind }),
 		path(ctx: RegionShapeContext, out: PathBuilder) {
 			if (ctx.kind === 'corner-l') {
 				const corner = definition.corner(ctx);
@@ -132,6 +139,9 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'circle',
 		params: [],
 		kinds: BOTH,
+		// No corners to trace: zxing-cpp finds a round ring square on and loses
+		// it at a slant, so the validator warns where one is chosen.
+		ringKind: 'round',
 		ring: (size) => [
 			circleContour(size / 2, size / 2, size / 2),
 			circleContour(size / 2, size / 2, size / 2 - 1),
@@ -177,12 +187,23 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 	// Dots round the ring, with squircles at the four corners: a dot there is
 	// too short along the diagonal, where a square module is root two long,
 	// and the diagonal runs fall outside the strict ratio with any centre.
+	//
+	// Its sides are scalloped, and zxing-cpp, which traces a finder ring's
+	// straight sides to find the symbol's fourth corner, misses it even square
+	// on, so it is never a QR finder: the validator refuses it as one and no
+	// centre pairs with it there. It stays in the catalogue so that a design
+	// saved with it is refused with a reason rather than as an unknown style,
+	// and as the ring the strict reader's tests hold a dotted ring to. The
+	// sub-finder and corner pattern it could draw are drawn plainly on rMQR,
+	// the only symbol that has them (see the scene builder), so nothing it
+	// draws reaches a reader.
 	Object.freeze({
 		id: 'dot-ring',
 		labelKey: 'design.region.dot-ring',
 		params: Object.freeze([numberParam('size', 0.94, 0.9, 1, 0.02)]),
 		kinds: BOTH,
 		part: 'outer',
+		ringKind: 'dotted',
 		path({ kind, params }: RegionShapeContext, out: PathBuilder) {
 			const r = num(params, 'size') / 2;
 			if (kind === 'corner-l') {
@@ -311,7 +332,10 @@ const INNERS: readonly RegionShape[] = Object.freeze([
 	}),
 	inner({
 		id: 'octagon',
-		params: [numberParam('cut', 0.6, 0.4, 0.9, 0.05)],
+		// Cut less than 0.45, inside the round ring, the centre's diagonals pass
+		// the design layer's runs and the strict reader's finder search still
+		// misses the pair at 6 pixels a module.
+		params: [numberParam('cut', 0.6, 0.45, 0.9, 0.05)],
 		kinds: CENTRES,
 		centre: (x, size, { params }) =>
 			octagonContour(x, x, size, size, centreScaled(num(params, 'cut'), size)),

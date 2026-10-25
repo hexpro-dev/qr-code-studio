@@ -11,6 +11,15 @@
  * some setting of its own, is broken; which pairs work is then the scene
  * builder's question, answered by the same measurement.
  *
+ * That measurement is a model of the strict reader, so for the QR finder it
+ * is held to the reader itself (see finder.ts here): every pair the model
+ * accepts, at each sampled setting of the shape and the partners' defaults,
+ * must be found by the strict reader's finder search at 6 and 8 pixels a
+ * module and four sub-pixel phases, and the ring must trace, by the strict
+ * profile's `ringKind`, as its `ringKind` says. A ring that says it is
+ * `dotted` needs no partner for the QR finder, since the validator never
+ * lets it be one; it only has to be dotted.
+ *
  * Outer shapes must also support concentric-7 and corner-l, and their corner
  * pattern is drawn at 16 pixels a module and held to the module rules: each
  * of its five modules inked round the centre cross, nothing within 0.3 of the
@@ -20,7 +29,7 @@
 
 import { bounds } from '../geometry/measure.js';
 import type { Path } from '../geometry/path.js';
-import { finderProblems, regionPath } from '../design/finder.js';
+import { finderProblems, regionPath, ringKindOf } from '../design/finder.js';
 import type { FinderProblem } from '../design/finder.js';
 import { resolveParams } from '../design/params.js';
 import { createDesignRegistries } from '../design/registries.js';
@@ -32,6 +41,7 @@ import {
 	LIGHT_DISC_RADIUS,
 	MODULE_PIXELS,
 } from './module-shape.js';
+import { measureRingKind, strictFinderProblems } from './finder.js';
 import { sampleParams } from './sample.js';
 import type { Violation } from './types.js';
 
@@ -187,20 +197,56 @@ export function checkRegionShape(
 				);
 				continue;
 			}
+			// A ring of dots is never a QR finder (the validator refuses it as
+			// one), so no centre has to pair with it there; what is asked of it
+			// is that it is what it says, by the strict reader's measure.
+			const dotted =
+				shape.part === 'outer' && kind === 'concentric-7' && ringKindOf(shape) === 'dotted';
+			if (dotted) {
+				const partner = partners.find((other) => other.kinds.includes(kind));
+				if (partner !== undefined) {
+					const traced = measureRingKind(
+						shape,
+						params,
+						partner,
+						resolveParams(partner.params, undefined),
+					);
+					if (traced !== 'dotted') {
+						report(
+							'ring-kind',
+							`${kind}: the ring says it is dotted and the strict reader traces it as ${traced ?? 'nothing it can measure'}`,
+						);
+					}
+				}
+				continue;
+			}
 			let closest: FinderProblem[] | null = null;
 			let found = false;
 			for (const partner of partners) {
 				if (!partner.kinds.includes(kind)) continue;
 				const partnerParams = resolveParams(partner.params, undefined);
-				const problems =
+				const [outer, outerParams, inner, innerParams] =
 					shape.part === 'outer'
-						? finderProblems(shape, params, partner, partnerParams, kind)
-						: finderProblems(partner, partnerParams, shape, params, kind);
-				if (problems.length === 0) {
-					found = true;
-					break;
+						? [shape, params, partner, partnerParams]
+						: [partner, partnerParams, shape, params];
+				if (kind === 'concentric-7' && ringKindOf(outer) === 'dotted') continue;
+				const problems = finderProblems(outer, outerParams, inner, innerParams, kind);
+				if (problems.length > 0) {
+					if (closest === null || problems.length < closest.length) closest = problems;
+					continue;
 				}
-				if (closest === null || problems.length < closest.length) closest = problems;
+				if (kind === 'concentric-7') {
+					// Every pair the design layer's model accepts must be one the
+					// strict reader finds, and its ring must trace as it says.
+					const strict = strictFinderProblems(outer, outerParams, inner, innerParams);
+					for (const problem of strict) {
+						// How a partner's ring traces is that ring's own violation.
+						if (problem.rule === 'ring-kind' && shape.part === 'inner') continue;
+						report(problem.rule, `${kind} with ${partner.id}: ${problem.detail}`);
+					}
+					if (strict.some((problem) => problem.rule === 'strict-finder')) continue;
+				}
+				found = true;
 			}
 			if (!found) {
 				report(

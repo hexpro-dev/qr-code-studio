@@ -393,9 +393,22 @@ describe('the alignment walk and the finder rings', () => {
 	});
 
 	it('refuses dotted rings always, round rings at a slant, and neither square on', () => {
-		const ids = ['classic-black', 'midnight-dots', 'charcoal-dots'];
-		const verdicts = ids.map((id) => {
-			const preset = presets().find((candidate) => candidate.id === id)!;
+		// The dot presets with the rings they had before the presets were given
+		// cornered ones: a round ring and a ring of dots.
+		const rings = [
+			['classic-black', null],
+			['midnight-dots', { outer: { id: 'circle' }, inner: { id: 'circle-centre' } }],
+			[
+				'charcoal-dots',
+				{ outer: { id: 'dot-ring', params: { size: 0.94 } }, inner: { id: 'square-centre' } },
+			],
+		] as const;
+		const verdicts = rings.map(([id, finder]) => {
+			const found = presets().find((candidate) => candidate.id === id)!;
+			const preset =
+				finder === null
+					? found
+					: { ...found, design: { ...found.design, regions: { ...found.design.regions, finder } } };
 			return [0, 20].map((tilt) => {
 				const shot = styledCapture({
 					preset,

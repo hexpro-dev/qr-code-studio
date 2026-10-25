@@ -252,7 +252,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#10173a'),
 			background: WHITE,
-			eyes: eyes('circle', 'circle-centre'),
+			eyes: eyes('squircle', 'circle-centre'),
 		},
 		{
 			id: 'charcoal-dots',
@@ -262,7 +262,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#262626'),
 			background: solid('#fafafa'),
-			eyes: eyes('dot-ring', 'square-centre', { size: 0.94 }),
+			eyes: eyes('cushion', 'square-centre'),
 		},
 		{
 			id: 'teal-dots',
@@ -272,7 +272,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#064e57'),
 			background: solid('#effaf9'),
-			eyes: eyes('circle', 'squircle-centre', undefined, undefined, { inner: solid('#0b3b40') }),
+			eyes: eyes('squircle', 'squircle-centre', undefined, undefined, { inner: solid('#0b3b40') }),
 		},
 		{
 			id: 'berry-dots',
@@ -304,7 +304,7 @@ function specs(): readonly PresetSpec[] {
 				},
 			},
 			background: WHITE,
-			eyes: eyes('circle', 'circle-centre', undefined, undefined, {
+			eyes: eyes('squircle', 'circle-centre', undefined, undefined, {
 				outer: solid('#14213d'),
 				inner: solid('#14213d'),
 			}),
@@ -573,7 +573,7 @@ function specs(): readonly PresetSpec[] {
 				],
 			},
 			background: solid('#fdfbff'),
-			eyes: eyes('circle', 'circle-centre', undefined, undefined, { outer: solid('#2a0a4a') }),
+			eyes: eyes('squircle', 'circle-centre', undefined, undefined, { outer: solid('#2a0a4a') }),
 		},
 		{
 			id: 'mosaic-tiles',

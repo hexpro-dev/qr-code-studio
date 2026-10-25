@@ -168,6 +168,9 @@ describe('checkModuleShape', () => {
 
 const squareRing = registries.regionShapes.require('square');
 const squareCentre = registries.regionShapes.require('square-centre');
+const circleRing = registries.regionShapes.require('circle');
+const circleCentre = registries.regionShapes.require('circle-centre');
+const octagonCentre = registries.regionShapes.require('octagon-centre');
 
 describe('checkRegionShape', () => {
 	it('requires rings to support the finder and the corner pattern, and centres the finder', () => {
@@ -263,6 +266,71 @@ describe('checkRegionShape', () => {
 				checkRegionShape(broken((out) => void out.rect(-1, 0, 4, 1).rect(0, 0, 1, 3), 'outside')),
 			),
 		).toEqual(['corner-outside']);
+	});
+
+	it('finds a ring that traces as something other than it says', () => {
+		// A circle that leaves its kind unsaid is taken as cornered, and the
+		// strict reader traces it as round.
+		const quiet: RegionShape = { ...circleRing, id: 'quiet-circle' };
+		delete (quiet as { ringKind?: unknown }).ringKind;
+		const found = checkRegionShape(quiet);
+		expect(rules(found)).toEqual(['ring-kind']);
+		expect(found[0]?.detail).toContain('says it is cornered');
+		expect(found[0]?.detail).toContain('traces it as round');
+		// A square ring that says it is a ring of dots is held to that too.
+		const said: RegionShape = { ...squareRing, id: 'said-dotted', ringKind: 'dotted' };
+		const dotted = checkRegionShape(said, { partners: [squareCentre] });
+		expect(rules(dotted)).toEqual(['ring-kind']);
+		expect(dotted[0]?.detail).toContain('traces it as cornered');
+		// And one that draws too little to measure at all.
+		const speck: RegionShape = {
+			...said,
+			id: 'speck',
+			path: ({ kind, params }, out) => {
+				if (kind === 'corner-l') squareRing.path({ kind, params }, out);
+				else out.rect(0, 0, 0.5, 0.5);
+			},
+		};
+		const unmeasured = checkRegionShape(speck, { partners: [squareCentre] });
+		expect(unmeasured.find((v) => v.rule === 'ring-kind')?.detail).toContain(
+			'traces it as nothing it can measure',
+		);
+		// A centre is not blamed for how its partner's ring traces.
+		expect(checkRegionShape(circleCentre, { partners: [quiet] })).toEqual([]);
+	});
+
+	it('finds a pair the runs measured here accept and the strict reader misses', () => {
+		// The octagon centre at a cut of 0.4, below its range: inside the round
+		// ring its diagonals pass the design layer's runs, and the strict
+		// search misses the pair at 6 pixels a module.
+		const deep: RegionShape = {
+			...octagonCentre,
+			id: 'deep-cut',
+			params: [],
+			path: ({ kind }, out) => octagonCentre.path({ kind, params: { cut: 0.4 } }, out),
+		};
+		const found = checkRegionShape(deep, { partners: [circleRing] });
+		expect(rules(found)).toEqual(['finder', 'strict-finder']);
+		expect(found.find((v) => v.rule === 'strict-finder')?.detail).toContain('6 px');
+		// With a ring the strict reader finds it in, the centre has a partner,
+		// and the miss with the round ring is still its violation.
+		expect(rules(checkRegionShape(deep, { partners: [circleRing, squareRing] }))).toEqual([
+			'strict-finder',
+		]);
+	});
+
+	it('asks a ring of dots only to be one, and never pairs it as the QR finder', () => {
+		const dots = registries.regionShapes.require('dot-ring');
+		expect(checkRegionShape(dots)).toEqual([]);
+		// With no partners, only the sub-finder misses one: as the finder it
+		// needs none, and there is no centre to measure it round.
+		const alone = checkRegionShape(dots, { partners: [] });
+		expect(rules(alone)).toEqual(['finder']);
+		expect(alone.every((v) => v.detail.includes('concentric-5:'))).toBe(true);
+		// A centre is never asked to pair with it there.
+		expect(checkRegionShape(squareCentre, { partners: [dots] }).map((v) => v.rule)).toEqual([
+			'finder',
+		]);
 	});
 
 	it('finds a shape that draws differently each time', () => {
@@ -413,6 +481,8 @@ describe('checkPreset', () => {
 
 	it('passes a good preset and runs the scan check it is given', () => {
 		expect(checkPreset(preset)).toEqual([]);
+		// With no finder style of its own, the square finder is drawn.
+		expect(checkPreset({ ...preset, design: { ...preset.design, regions: {} } })).toEqual([]);
 		const verify = (found: Preset, own: DesignRegistries) => [
 			{ entry: found.id, rule: 'scan', detail: `${own.presets.ids().length} presets` },
 		];
@@ -455,6 +525,33 @@ describe('checkPreset', () => {
 			},
 		};
 		expect(rules(checkPreset(picture, null, registries))).toEqual(['scene']);
+	});
+
+	it('finds a finder ring that is round or dotted, or traces otherwise than it says', () => {
+		const withRing = (outer: string, inner: string): Preset => ({
+			...preset,
+			design: {
+				...preset.design,
+				regions: { finder: { outer: { id: outer }, inner: { id: inner } } },
+			},
+		});
+		const round = checkPreset(withRing('circle', 'circle-centre'), null, registries);
+		expect(round.map((v) => v.detail)).toEqual([
+			'validation reports design.issue.ring-round at regions.finder.outer',
+		]);
+		const dotted = checkPreset(withRing('dot-ring', 'square-centre'), null, registries);
+		expect(dotted.map((v) => v.detail)).toEqual([
+			'validation reports design.issue.ring-not-traceable at regions.finder.outer',
+		]);
+		// A round ring that does not say so validates cleanly, and the strict
+		// reader's own measure finds it out.
+		const own = createDesignRegistries();
+		const quiet: RegionShape = { ...circleRing, id: 'quiet-circle' };
+		delete (quiet as { ringKind?: unknown }).ringKind;
+		own.regionShapes.register(quiet);
+		const found = checkPreset(withRing('quiet-circle', 'circle-centre'), null, own);
+		expect(rules(found)).toEqual(['finder']);
+		expect(found[0]?.detail).toContain('traces it as round');
 	});
 
 	it('finds colours that are too close, inverted, or unknowable', () => {
