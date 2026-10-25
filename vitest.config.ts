@@ -50,6 +50,13 @@ export default defineConfig({
 				// fail a clean tree.
 				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/render/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// The bitstream, the symbology and the encoder. Every line and every
+				// branch is reached today; branches are gated at 99, the figure set for
+				// these layers when they were written.
+				'src/segment/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/symbology/qr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/symbology/*.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/encode/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},
