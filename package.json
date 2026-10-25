@@ -56,6 +56,10 @@
 			"types": "./dist/encode/index.d.ts",
 			"import": "./dist/encode/index.js"
 		},
+		"./decode": {
+			"types": "./dist/decode/index.d.ts",
+			"import": "./dist/decode/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
