@@ -39,6 +39,12 @@ export default defineConfig({
 				// and zlib's TOO_FAR cut-off, which a four-byte hash reaches only
 				// through a collision.
 				'src/core/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
+				// The content types and the redirect writers parse other people's
+				// text and write payment instructions, so every branch is exercised.
+				// The deterministic suites reach 100 on their own, without the
+				// property and fuzz runs, so a random seed cannot move these.
+				'src/payload/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
+				'src/own-link/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
 			},
 		},
 	},
