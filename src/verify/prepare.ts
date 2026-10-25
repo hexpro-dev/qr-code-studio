@@ -190,7 +190,7 @@ export interface Prepared {
 	readonly quietZone: number;
 	/** The job's conditions, with the design's output size and resolution where the job gave none. */
 	readonly conditions: VerifyConditions;
-	/** Millimetres a module, when the printed size is known: one scene unit, by the scene's own scale. */
+	/** Millimetres a module, when the printed size is known. */
 	readonly moduleMm: number | null;
 	/** The reading of the clean matrix: every capture must give the same bytes. */
 	readonly reference: MatrixRead;
@@ -258,7 +258,7 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		});
 	}
 	const design = validated.design;
-	const sizeMm = finiteOrNull(job.conditions.sizeMm, 'sizeMm') ?? design.output.sizeMm ?? null;
+	const givenMm = finiteOrNull(job.conditions.sizeMm, 'sizeMm');
 	const dpi = finiteOrNull(job.conditions.dpi, 'dpi') ?? design.output.dpi ?? null;
 	const distanceMm = finiteOrNull(job.conditions.distanceMm, 'distanceMm');
 
@@ -278,20 +278,30 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		},
 		registries.symbologies,
 	);
-	// The scene is drawn at the job's size, measured as the design measures
-	// it (the whole artwork unless the design says the symbol), so its units
-	// per millimetre say how wide a module prints whatever the basis.
-	const sized = sizeMm === null ? design : { ...design, output: { ...design.output, sizeMm } };
 	const assets = job.assets;
-	const built = buildScene(symbol, sized, {
+	const built = buildScene(symbol, design, {
 		registries: registries.design,
 		...(assets === undefined ? {} : { assets: (id: string) => assets[id] }),
 		seed: job.seed,
 		overlay: job.overlay ?? null,
 	});
 	const where = placement(symbol, design, registries);
-	const unitsPerMm = built.scene.unitsPerMm;
 	const inks = designInks(design, registries.design);
+	// The job's size is the symbol with its quiet zone, as the contract has
+	// it. Without one, the design's own size is read from its scene, whose
+	// units per millimetre already account for what that size measures (the
+	// whole artwork, or the symbol alone for the Swiss QR-bill), and given
+	// back in the same terms as a job's.
+	const across = symbol.matrix.width + 2 * where.quiet;
+	// The scene has a scale exactly when the design's size is usable; the
+	// size is then scaled from what it measures, as the scene measures it.
+	const measured = design.output.sizeBasis === 'symbol' ? symbol.matrix.width : built.scene.width;
+	const ownMm =
+		built.scene.unitsPerMm === undefined
+			? null
+			: ((design.output.sizeMm as number) * across) / measured;
+	const sizeMm = givenMm ?? ownMm;
+	const moduleMm = sizeMm === null ? null : sizeMm / across;
 
 	return {
 		job,
@@ -303,7 +313,7 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		origin: { x: where.x, y: where.y },
 		quietZone: where.quiet,
 		conditions: { sizeMm, dpi, distanceMm },
-		moduleMm: unitsPerMm === undefined ? null : 1 / unitsPerMm,
+		moduleMm,
 		reference: entry.read(symbol.matrix, { strict: true }),
 		seeds: job.captureSeeds ?? 8,
 		inks,

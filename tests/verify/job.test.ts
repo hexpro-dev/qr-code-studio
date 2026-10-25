@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QrStudioError } from '../../src/core/errors.js';
 import { defaultDesign } from '../../src/design/document.js';
+import type { QrDesignV1 } from '../../src/design/types.js';
 import {
 	CAMERA,
 	distanceFor,
@@ -403,32 +404,28 @@ describe('the encoding a design asks for', () => {
 });
 
 describe('what the size measures', () => {
-	it('is the whole artwork by default, frame and all', () => {
+	it('is the symbol with its quiet zone, frame or no frame', () => {
 		const framed = prepare(job({ design: preset('poster-yellow') }), registries);
-		expect(framed.moduleMm).toBeCloseTo(30 / framed.built.scene.width, 12);
+		expect(framed.moduleMm).toBeCloseTo(30 / 37, 12);
 		const plain = prepare(job(), registries);
 		expect(plain.moduleMm).toBeCloseTo(30 / 37, 12);
 	});
 
-	it('is the symbol alone when the design says so', () => {
-		const symbolSized = prepare(
-			job({
-				design: design({ output: { sizeMm: 46, sizeBasis: 'symbol', colourSpace: 'srgb' } }),
-				conditions: { sizeMm: null, dpi: null, distanceMm: null },
-			}),
-			registries,
-		);
-		expect(symbolSized.moduleMm).toBeCloseTo(46 / 29, 12);
-		const report = run(
-			{
-				design: design({ output: { sizeBasis: 'symbol', colourSpace: 'srgb' } }),
-				conditions: { sizeMm: 7, dpi: null, distanceMm: null },
-			},
-			{ reader: alwaysReads, axes: [] },
-		);
-		// The minimum is given in the same terms: the symbol's own width.
-		const check = report.checks.find((c) => c.id === 'module-size');
-		expect(check?.params?.minimumMm).toBe(Math.ceil(minModuleMm() * 29));
+	it('reads the size a design gives itself through its scene, on the basis it measures', () => {
+		const at = (output: QrDesignV1['output'], frame: QrDesignV1['frame'] = null) =>
+			prepare(
+				job({
+					design: design({ output, frame }),
+					conditions: { sizeMm: null, dpi: null, distanceMm: null },
+				}),
+				registries,
+			);
+		const symbolOnly = at({ sizeMm: 46, sizeBasis: 'symbol', colourSpace: 'srgb' });
+		expect(symbolOnly.moduleMm).toBeCloseTo(46 / 29, 12);
+		expect(symbolOnly.conditions.sizeMm).toBeCloseTo((46 / 29) * 37, 9);
+		const artwork = at({ sizeMm: 60, colourSpace: 'srgb' }, { ref: { id: 'rounded-card' } });
+		expect(artwork.moduleMm).toBeCloseTo(60 / artwork.built.scene.width, 12);
+		expect(at({ colourSpace: 'srgb' }).moduleMm).toBeNull();
 	});
 
 	it('counts the Swiss QR-bill cross against the logo budget', () => {

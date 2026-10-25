@@ -20,10 +20,9 @@
  * - `VerifyReport.baseline`: whether the clean capture read, which fails the
  *   verdict on its own and so has to be visible.
  * - `VerifyJob.overlay`, from the design layer's `applyConstraints`.
- * - `VerifyConditions.sizeMm` measures what the design's
- *   `output.sizeBasis` names (the whole artwork by default) rather than the
- *   symbol and its quiet zone, as the design layer settled; the module size
- *   comes from the scene's own units per millimetre.
+ * - With no size in the job, the design's own size is read through its
+ *   scene's units per millimetre, so `output.sizeBasis` is honoured, and
+ *   reported as the symbol with its quiet zone, as a job's size is.
  * - `Fix.patch` may be null for a fix that is a change of conditions rather
  *   than of the design (print it larger), with the change in
  *   `Fix.conditions`; `Fix.params` carries the numbers its label uses; and
@@ -46,9 +45,11 @@ export type CaptureAxis =
 
 export interface VerifyConditions {
 	/**
-	 * Printed width in millimetres of what the design's `output.sizeBasis`
-	 * names: the whole artwork, quiet zone and frame included, by default; the
-	 * symbol alone for a design that says 'symbol' (the Swiss QR-bill's 46 mm).
+	 * Printed width of the symbol including its quiet zone, in millimetres.
+	 * When a job gives none, the design's own `output.sizeMm` is used, read
+	 * through its scene on the basis the design measures it (the whole
+	 * artwork, or the symbol alone), and the report gives it back in these
+	 * terms.
 	 */
 	readonly sizeMm: number | null;
 	/** For screen use, or for a raster export. */
