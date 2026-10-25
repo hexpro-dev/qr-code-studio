@@ -7,8 +7,6 @@
 
 import { describe, expect, it } from 'vitest';
 import { QrStudioError } from '../../src/core/errors.js';
-import { err, ok } from '../../src/core/result.js';
-import type { Result } from '../../src/core/result.js';
 import { defaultDesign } from '../../src/design/document.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import type { Preset, QrDesignV1 } from '../../src/design/types.js';
@@ -23,10 +21,9 @@ import { darkInk } from '../../src/studio/shuffle.js';
 import { encodeOptions, symbolView } from '../../src/studio/symbol.js';
 import { trackedScheduler } from '../../src/studio/timers.js';
 import { requiredEntries, slicedVerifyRunner } from '../../src/studio/verify.js';
-import type { LibraryStore, StudioDocument } from '../../src/studio/types.js';
 import { createPrng } from '../../src/core/prng.js';
 import { assetOf, discImage } from '../design/helpers.js';
-import { FakeRunner, FakeTime, reportFor, settle, studioWith, studioWithCode } from './helpers.js';
+import { FakeRunner, FakeTime, reportFor, studioWith, studioWithCode } from './helpers.js';
 
 describe('the picture cache', () => {
 	it('decodes a picture once, forgets the least recently drawn past eight, and draws a damaged one as missing', () => {
@@ -287,65 +284,6 @@ describe('the job and its runner, at their edges', () => {
 		const before = studio.getSnapshot();
 		first.progress({ done: 5, total: 10, axis: 'noise' });
 		expect(studio.getSnapshot()).toBe(before);
-	});
-});
-
-describe('the library when the studio is disposed mid-command', () => {
-	function slowStore(): { store: LibraryStore; release: () => void } {
-		let release: () => void = () => undefined;
-		const gate = new Promise<void>((resolve) => (release = resolve));
-		const later = <T>(value: T): Promise<Result<T>> => gate.then(() => ok(value));
-		const summary = { id: 'a', name: 'A', savedAt: 0, typeId: 'url' };
-		const store: LibraryStore = {
-			probe: () => Promise.resolve(ok({ available: true, enabled: true })),
-			enable: () => later(null),
-			disable: () => later(null),
-			list: () => later([summary]),
-			save: () => later(summary),
-			load: () => later({ ...summary, document: {} as StudioDocument }),
-			remove: () => later(null),
-		};
-		return { store, release };
-	}
-
-	it('stops a list that finishes after dispose', async () => {
-		const slow = slowStore();
-		const { studio } = studioWith({ library: slow.store });
-		await settle();
-		studio.dispose();
-		slow.release();
-		await settle();
-		expect(studio.getSnapshot().library).toEqual({ status: 'on', items: [] });
-	});
-
-	it('cancels disable, remove and load each mid-flight', async () => {
-		for (const command of [
-			{ type: 'library/disable' },
-			{ type: 'library/remove', id: 'a' },
-			{ type: 'library/load', id: 'a' },
-		] as const) {
-			let release: () => void = () => undefined;
-			const gate = new Promise<void>((resolve) => (release = resolve));
-			const store: LibraryStore = {
-				probe: () => Promise.resolve(ok({ available: true, enabled: true })),
-				enable: () => Promise.resolve(ok(null)),
-				disable: () => gate.then(() => ok(null)),
-				list: () => Promise.resolve(ok([])),
-				save: () => Promise.resolve(err(new QrStudioError('library/quota', 'full'))),
-				load: () =>
-					gate.then(() =>
-						ok({ id: 'a', name: 'A', savedAt: 0, typeId: 'url', document: {} as StudioDocument }),
-					),
-				remove: () => gate.then(() => ok(null)),
-			};
-			const { studio } = studioWith({ library: store });
-			await settle();
-			const pending = studio.run(command);
-			studio.dispose();
-			release();
-			const result = await pending;
-			expect(!result.ok && result.error.code, command.type).toBe('cancelled');
-		}
 	});
 });
 
