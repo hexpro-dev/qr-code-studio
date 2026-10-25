@@ -31,6 +31,7 @@
  */
 
 import { BitMatrix } from '../core/bit-matrix.js';
+import type { RgbaImage } from '../core/image.js';
 import { hypot } from '../core/math.js';
 import type { Binarised } from './binarise.js';
 import type { GreyImage } from './grey.js';
@@ -39,6 +40,27 @@ import type { Point } from './types.js';
 
 const BLOCK = 8;
 const MIN_DYNAMIC_RANGE = 24;
+
+/**
+ * The picture's luminance as jsQR takes it: BT.709 weights on red, green and
+ * blue, rounded into a byte, and the alpha ignored. This package's scanner
+ * uses BT.601 and reads alpha as paper, and on a coloured design the two
+ * disagree by enough to move a threshold: a plain reader picking finders from
+ * its own luminance picked a printed ornament on one ticket design that the
+ * scanner's luminance never showed it.
+ */
+export function plainLuminance(image: RgbaImage): GreyImage {
+	const { width, height, data } = image;
+	// Bytes, so each level rounds as jsQR's does when it stores it.
+	const out = new Uint8ClampedArray(width * height);
+	for (let i = 0, p = 0; i < out.length; i += 1, p += 4) {
+		out[i] =
+			0.2126 * (data[p] as number) +
+			0.7152 * (data[p + 1] as number) +
+			0.0722 * (data[p + 2] as number);
+	}
+	return { width, height, data: new Uint8Array(out.buffer) };
+}
 
 /**
  * The picture thresholded as the plain reader thresholds it: the block-mean

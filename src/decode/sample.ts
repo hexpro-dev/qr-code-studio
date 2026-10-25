@@ -31,11 +31,11 @@ export const UNCERTAIN = 0.2;
 const MIN_CONTRAST = 8;
 
 /**
- * Where within a module the robust vote looks: the centre and four points a
+ * Where within a module the majority vote looks: the centre and four points a
  * quarter of a module from it. One blown out pixel in the middle of a module
  * no longer flips it.
  */
-const ROBUST_OFFSETS: readonly (readonly [number, number])[] = [
+const VOTE_OFFSETS: readonly (readonly [number, number])[] = [
 	[0.5, 0.5],
 	[0.25, 0.5],
 	[0.75, 0.5],
@@ -65,7 +65,7 @@ export interface SampledGrid {
 
 export interface SampleOptions {
 	/** A five-point vote per module rather than one centre sample. */
-	readonly robust: boolean;
+	readonly majorityVote: boolean;
 	/**
 	 * Modules that fall outside the picture, as a fraction of the symbol, that
 	 * the grid tolerates; they sample light and uncertain. Zero refuses any.
@@ -87,7 +87,7 @@ export function sampleGrid(
 	options: SampleOptions,
 ): SampledGrid | null {
 	const { grey, binarised } = source;
-	const offsets = options.robust ? ROBUST_OFFSETS : CENTRE_ONLY;
+	const offsets = options.majorityVote ? VOTE_OFFSETS : CENTRE_ONLY;
 	const points = offsets.length;
 	const modules = width * height;
 	// Signed distance from the threshold per sample point, positive towards

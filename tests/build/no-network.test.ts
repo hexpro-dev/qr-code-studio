@@ -22,7 +22,7 @@
  * turn a string into code.
  */
 
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
@@ -51,6 +51,37 @@ const FORBIDDEN = [
 /** The one file allowed one of those names, and the name. */
 const LIBRARY_FILE = 'src/dom/library/indexeddb.ts';
 const LIBRARY_ALLOWS = ['indexedDB'];
+
+/**
+ * Every scheme and host the program names, as reviewed. Each is data, not a
+ * destination: the SVG namespaces every SVG writer must name, the links the
+ * content types build (a WhatsApp chat is an https://wa.me link), the sample
+ * code's reserved example address, the font licence's own line, and the
+ * scheme a typed address is given when it has none. A new one is printed
+ * when the suite runs, so a reviewer sees it arrive; the test below fails
+ * only if it did not come from the library's own source.
+ */
+const REVIEWED_ADDRESSES = [
+	'http://',
+	'http://scripts.sil.org',
+	'http://www.w3.org',
+	'https://',
+	'https://example.com',
+	'https://signal.me',
+	'https://t.me',
+	'https://wa.me',
+	'upi://pay',
+] as const;
+
+/** Each scheme and host named in a text, without the path or a template's expression after it. */
+function addresses(text: string): readonly string[] {
+	const found = new Set<string>();
+	for (const match of text.matchAll(/\b([a-z][a-z0-9+.-]*):\/\/([a-z0-9.-]*)/gi)) {
+		const host = (match[2] ?? '').replace(/\.+$/, '');
+		found.add(`${match[1]?.toLowerCase()}://${host.toLowerCase()}`);
+	}
+	return [...found].sort();
+}
 
 /** The ways a program can acquire code, or a name, after it has started. */
 const RUNTIME_LOADERS = ['import(', 'eval(', 'Function(', 'importScripts'] as const;
@@ -126,9 +157,37 @@ describe('the program inside the built document', () => {
 		}
 	});
 
-	it('names nowhere to send anything', () => {
-		expect(script, 'a scheme and host in the program').not.toContain('://');
+	it('names no address in the stylesheet', () => {
 		expect(style, 'a scheme and host in the stylesheet').not.toContain('://');
+	});
+
+	it('names only addresses the library itself spells out, none added by the application or the build', () => {
+		// The program carries addresses as data once the studio is in it. None is
+		// somewhere to send anything: there is no network API in the program
+		// (above), and the policy refuses every connection however it is
+		// spelled. What this holds to is provenance. Every scheme and host must
+		// be written, as it stands, in the library's own source outside
+		// src/app, so the application cannot add one and neither can a bundler.
+		const library = sourceFiles(resolve(root, 'src'))
+			.filter((file) => !relative(root, file).startsWith('src/app/'))
+			.map((file) => readFileSync(file, 'utf8'))
+			.join('\n');
+		const named = addresses(script);
+		expect(named.length, 'no addresses were read out of the program').toBeGreaterThan(0);
+		const added = named.filter(
+			(address) => !(REVIEWED_ADDRESSES as readonly string[]).includes(address),
+		);
+		if (added.length > 0) {
+			// Printed rather than failed, so the merge that brought it shows it.
+			console.warn(
+				`New addresses in the offline program, not yet in REVIEWED_ADDRESSES: ${added.join(', ')}`,
+			);
+		}
+		for (const address of named) {
+			expect(library, `${address} is in the program and nowhere in the library's source`).toContain(
+				address,
+			);
+		}
 	});
 
 	it('acquires no code once it is running', () => {

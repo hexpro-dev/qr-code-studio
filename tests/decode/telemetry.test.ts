@@ -133,7 +133,7 @@ describe('decode telemetry', () => {
 			binariser: 'hybrid',
 			scale: 'one',
 			inverted: false,
-			robust: false,
+			majorityVote: false,
 		});
 	});
 });
