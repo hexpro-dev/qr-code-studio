@@ -62,6 +62,12 @@ describe('the exports map', () => {
 		// laptop rather than in a minute on a runner, and because the whole claim
 		// of this package rests on it.
 		expect(Object.keys(manifest.dependencies ?? {})).toEqual([]);
+		// Written out explicitly, so an addition shows up as a change to an
+		// existing line in a diff. `pnpm add` deletes an empty object when it
+		// rewrites the manifest, which is how this was lost the first time.
+		expect(manifest, 'package.json no longer says "dependencies": {}').toHaveProperty(
+			'dependencies',
+		);
 	});
 
 	it('has no script pointing at a file that is not there', () => {
