@@ -30,7 +30,8 @@ export type Polarity = 'dark-on-light' | 'light-on-dark';
 export interface DecodeBudget {
 	/**
 	 * Reduce the picture to at most this many pixels before any work, by area
-	 * averaging. Default 2,500,000.
+	 * averaging. Default 2,500,000 for the scanner and 12,000,000 for the
+	 * strict profile, which reads at the picture's own scale.
 	 */
 	readonly maxPixels?: number;
 	/** Rungs of the ladder to try. Default all of them: nine lenient, one strict. */

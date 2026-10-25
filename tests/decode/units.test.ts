@@ -30,12 +30,21 @@ import {
 	toGrey,
 	upscaleSmooth,
 } from '../../src/decode/grey.js';
-import { candidateSizes, qrHypotheses, tripleModuleSize } from '../../src/decode/locate-qr.js';
+import {
+	candidateSizes,
+	diagonalAlignments,
+	qrHypotheses,
+	strictHypothesis,
+	tripleModuleSize,
+} from '../../src/decode/locate-qr.js';
 import { plainReaderGrid, plainReaderLocations, plainThreshold } from '../../src/decode/plain.js';
 import type { SampledGrid } from '../../src/decode/sample.js';
-import { speckle } from '../../src/decode/strict.js';
+import { finderRingsTraceable, speckle } from '../../src/decode/strict.js';
 import { encode } from '../../src/encode/encode.js';
 import { createSymbologyRegistry } from '../../src/symbology/registry.js';
+import { ROLE_CODES } from '../../src/symbology/roles.js';
+import type { Homography } from '../../src/decode/transform.js';
+import { presets, styledCapture } from '../helpers/styled.js';
 import type { SymbologyEntry } from '../../src/symbology/types.js';
 import { mirror, rotateQuarter } from '../helpers/damage.js';
 import { drawGrid } from '../helpers/draw.js';
@@ -196,25 +205,17 @@ describe('finders and triples', () => {
 describe('QR grid hypotheses', () => {
 	const legal = new Set(Array.from({ length: 40 }, (_, i) => 21 + 4 * i));
 
-	it('computes the strict size the way phone readers do', () => {
-		expect(candidateSizes(24.4, legal, true)).toEqual([25]);
-		expect(candidateSizes(25.6, legal, true)).toEqual([25]);
-		expect(candidateSizes(27.2, legal, true)).toEqual([]);
-		expect(candidateSizes(13, legal, true)).toEqual([]);
-		expect(candidateSizes(29, legal, false)).toEqual([29, 25, 33, 21, 37]);
-		expect(candidateSizes(21, legal, false)).toEqual([21, 25, 29]);
+	it('offers the nearest legal size and its neighbours', () => {
+		expect(candidateSizes(29, legal)).toEqual([29, 25, 33, 21, 37]);
+		expect(candidateSizes(21, legal)).toEqual([21, 25, 29]);
+		expect(candidateSizes(27.2, legal)).toEqual([29, 25, 33, 21, 37]);
 	});
 
 	it('offers nothing for a triple that collapses to a point', () => {
 		const triple = orderFinders(pattern(10, 10), pattern(10, 10), pattern(10, 10));
-		expect([
-			...qrHypotheses(
-				bits(50, 50, () => false),
-				triple,
-				legal,
-				false,
-			),
-		]).toEqual([]);
+		const blank = bits(50, 50, () => false);
+		expect([...qrHypotheses(blank, triple, legal)]).toEqual([]);
+		expect(strictHypothesis(blank, triple, legal)).toBeNull();
 	});
 });
 
@@ -367,5 +368,57 @@ describe('the rest', () => {
 				pattern(0, 0),
 			),
 		).toBeNull();
+	});
+});
+
+describe('the alignment walk and the finder rings', () => {
+	it('lists the diagonal alignment patterns every QR version has', () => {
+		const qr = createSymbologyRegistry().require('qr');
+		for (let version = 1; version <= 40; version += 1) {
+			const layout = qr.layout(String(version));
+			const size = layout.width;
+			const expected: number[] = [];
+			for (let i = 7; i < size; i += 1) {
+				// The centre of an alignment pattern on the diagonal is dark with an
+				// alignment ring around it.
+				const at = (x: number, y: number) => layout.roles[y * size + x];
+				if (at(i, i) === ROLE_CODES.alignment && at(i - 2, i - 2) === ROLE_CODES.alignment) {
+					if (at(i + 2, i + 2) === ROLE_CODES.alignment && at(i - 3, i) !== ROLE_CODES.alignment) {
+						expected.push(i);
+					}
+				}
+			}
+			expect(diagonalAlignments(size), `version ${version}`).toEqual(expected);
+		}
+	});
+
+	it('refuses dotted rings always, round rings at a slant, and neither square on', () => {
+		const ids = ['classic-black', 'midnight-dots', 'charcoal-dots'];
+		const verdicts = ids.map((id) => {
+			const preset = presets().find((candidate) => candidate.id === id)!;
+			return [0, 20].map((tilt) => {
+				const shot = styledCapture({
+					preset,
+					modulePixels: 8,
+					version: 3,
+					seed: 5,
+					tilt: tilt || undefined,
+				});
+				const result = decodeImage(shot.image, { profile: 'strict-v1' });
+				return result.ok ? 'read' : String(result.error.params.stage);
+			});
+		});
+		expect(verdicts).toEqual([
+			['read', 'read'],
+			['read', 'margin'],
+			['margin', 'margin'],
+		]);
+	});
+
+	it('refuses a ring it cannot measure, cut off by the picture edge', () => {
+		const grey = { width: 20, height: 20, data: new Uint8Array(400).fill(255) };
+		const shift: Homography = [1, 0, -2, 0, 1, -2, 0, 0, 1];
+		const blank = bits(20, 20, () => false);
+		expect(finderRingsTraceable(grey, blank, shift, 21)).toBe(false);
 	});
 });

@@ -107,6 +107,29 @@ export function invert(image: RgbaImage): RgbaImage {
 	return map(image, (value) => 255 - value);
 }
 
+/**
+ * A camera moving during the exposure: every pixel the mean of a straight
+ * smear `length` pixels long at `degrees`, sampled a pixel apart, the edges
+ * clamped.
+ */
+export function motionBlur(image: RgbaImage, length: number, degrees: number): RgbaImage {
+	const out = blankImage(image.width, image.height);
+	const dx = cos((degrees * PI) / 180);
+	const dy = sin((degrees * PI) / 180);
+	const taps = Math.max(1, Math.round(length));
+	for (let y = 0; y < image.height; y += 1) {
+		for (let x = 0; x < image.width; x += 1) {
+			let total = 0;
+			for (let k = 0; k < taps; k += 1) {
+				const t = taps === 1 ? 0 : (k / (taps - 1) - 0.5) * length;
+				total += level(image, Math.round(x + dx * t), Math.round(y + dy * t));
+			}
+			setLevel(out, x, y, total / taps);
+		}
+	}
+	return out;
+}
+
 /** A separable box blur of `radius` pixels, standing in for slightly out of focus. */
 export function blur(image: RgbaImage, radius: number): RgbaImage {
 	if (radius <= 0) return map(image, (value) => value);

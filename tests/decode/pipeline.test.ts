@@ -18,7 +18,7 @@ import {
 	findFinderPatterns,
 } from '../../src/decode/finder.js';
 import { toGrey } from '../../src/decode/grey.js';
-import { qrHypotheses, qrTimingAgreement } from '../../src/decode/locate-qr.js';
+import { qrHypotheses, qrTimingAgreement, strictHypothesis } from '../../src/decode/locate-qr.js';
 import { sampleGrid } from '../../src/decode/sample.js';
 import { blur, noise, perspective, place, rotate, rotateQuarter } from '../helpers/damage.js';
 import { drawGrid } from '../helpers/draw.js';
@@ -38,7 +38,13 @@ function sampledGrids(
 	const tolerance = strict ? STRICT_FINDER_TOLERANCE : LENIENT_FINDER_TOLERANCE;
 	const out: BitMatrix[] = [];
 	for (const triple of candidateTriples(findFinderPatterns(binarised, tolerance))) {
-		for (const hypothesis of qrHypotheses(binarised, triple, LEGAL, strict)) {
+		const strictOne = strict ? strictHypothesis(binarised, triple, LEGAL) : null;
+		const hypotheses = strict
+			? strictOne === null
+				? []
+				: [strictOne]
+			: qrHypotheses(binarised, triple, LEGAL);
+		for (const hypothesis of hypotheses) {
 			const grid = sampleGrid(
 				{ grey, binarised },
 				hypothesis.transform,
