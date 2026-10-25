@@ -105,14 +105,11 @@ export function bchNearest(
 	maxDistance: number,
 ): { index: number; distance: number } | undefined;
 
-// checksums.ts
+// checksums.ts: the two the containers need. Check digits for content
+// (EMVCo CRC-16, IBAN MOD 97-10, the Swiss QR reference, GS1, Luhn) belong to
+// the content types that use them, in payload/check-digits.ts.
 export function crc32(bytes: Uint8Array, seed?: number): number;
 export function adler32(bytes: Uint8Array): number;
-export function crc16CcittFalse(bytes: Uint8Array): number; // poly 0x1021, init 0xffff (EMVCo MPM)
-export function mod97(digits: string): number; // ISO 7064 MOD 97-10 over a digit string (IBAN, Swiss QR reference)
-export function mod10Recursive(digits: string): number; // Swiss QR-bill QR reference check digit
-export function gs1CheckDigit(digits: string): number; // GTIN and GS1 keys
-export function luhn(digits: string): number;
 
 // deflate.ts: synchronous and deterministic.
 export function deflateRaw(bytes: Uint8Array, options?: { level?: 0 | 1 | 6 | 9 }): Uint8Array;
@@ -530,6 +527,13 @@ export interface SafetyFinding {
 	readonly severity: 'danger' | 'caution' | 'note';
 	readonly params?: Readonly<Record<string, number | string>>; // host names may appear here; they are what the person needs to see
 }
+// check-digits.ts
+export function crc16CcittFalse(bytes: Uint8Array): number; // poly 0x1021, init 0xffff, no reflection (EMVCo MPM)
+export function mod97(digits: string): number; // ISO 7064 MOD 97-10 (IBAN, creditor reference)
+export function mod10Recursive(digits: string): number; // Swiss QR-bill QR reference check digit
+export function gs1CheckDigit(digits: string): number; // GTIN and the other GS1 keys
+export function luhn(digits: string): number;
+
 export function analyseUrl(text: string): {
 	readonly findings: readonly SafetyFinding[];
 	readonly displayHost: string | null;
