@@ -28,6 +28,14 @@
 			"types": "./dist/core/index.d.ts",
 			"import": "./dist/core/index.js"
 		},
+		"./geometry": {
+			"types": "./dist/geometry/index.d.ts",
+			"import": "./dist/geometry/index.js"
+		},
+		"./render": {
+			"types": "./dist/render/index.d.ts",
+			"import": "./dist/render/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
