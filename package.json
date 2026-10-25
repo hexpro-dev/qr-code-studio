@@ -72,6 +72,10 @@
 			"types": "./dist/text/index.d.ts",
 			"import": "./dist/text/index.js"
 		},
+		"./batch": {
+			"types": "./dist/batch/index.d.ts",
+			"import": "./dist/batch/index.js"
+		},
 		"./fonts/latin": {
 			"types": "./dist/fonts/latin.d.ts",
 			"import": "./dist/fonts/latin.js"

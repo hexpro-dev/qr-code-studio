@@ -17,6 +17,7 @@ import { createDesignRegistries } from '../../src/design/registries.js';
 import { buildScene } from '../../src/design/scene.js';
 import { encode } from '../../src/encode/encode.js';
 import { swissQrBillType } from '../../src/payload/content/swiss-qr-bill.js';
+import { sceneToPdf } from '../../src/render/pdf.js';
 import { rasterise } from '../../src/render/raster.js';
 import type { Scene } from '../../src/render/types.js';
 import { blockCapacity, interleaveOrder } from '../../src/symbology/qr/blocks.js';
@@ -159,6 +160,76 @@ describe('the Swiss QR-bill cross', () => {
 		}
 		const across = Math.ceil(from + side) - Math.floor(from);
 		expect(count).toBe(across * across);
+	});
+
+	it('prints its symbol 46 mm and its cross 7 mm wide at every version from 10 to 25', () => {
+		// The spec vector without its optional lines, so the smaller versions
+		// hold it too; each symbol is built at one version exactly.
+		const short = swissQrBillType.build({
+			...vector.value,
+			message: '',
+			billingInformation: '',
+			alternative1: '',
+			debtorName: '',
+			debtorStreet: '',
+			debtorBuilding: '',
+			debtorPostcode: '',
+			debtorTown: '',
+			debtorCountry: '',
+		}).text;
+		expect(constrained.design.output).toMatchObject({ sizeMm: 46, sizeBasis: 'symbol' });
+		const perMm = 20;
+		for (let version = 10; version <= 25; version += 1) {
+			const symbol = encode(short, {
+				ecLevel: 'M',
+				minVersion: String(version),
+				maxVersion: String(version),
+				segmentation: constrained.design.symbol.segmentation,
+			});
+			expect(symbol.version).toBe(String(version));
+			const { scene } = buildScene(symbol, constrained.design, {
+				registries,
+				overlay: constrained.overlay,
+			});
+			// The export's width, as a print writer is given it.
+			const widthMm = scene.width / scene.unitsPerMm!;
+			const width = Math.round(widthMm * perMm);
+			const pixelsPerMm = width / widthMm;
+			const where = `version ${version}`;
+			const near = (pixels: number, mm: number) =>
+				expect(Math.abs(pixels / pixelsPerMm - mm), where).toBeLessThanOrEqual(1.01 / pixelsPerMm);
+			// The finders mark three corners of the symbol, so the dark pixels'
+			// extent is the symbol's.
+			const whole = rasterise(scene, { width });
+			const dark = extent(whole, (r, a) => a >= 128 && r < 128);
+			near(dark.x1 + 1 - dark.x0, 46);
+			near(dark.y1 + 1 - dark.y0, 46);
+			const cross = rasterise(
+				{
+					...scene,
+					background: null,
+					layers: scene.layers.filter(
+						(node) => node.kind === 'path' && node.role === 'swiss-cross',
+					),
+				},
+				{ width },
+			);
+			const logo = extent(cross, (_, a) => a >= 128);
+			near(logo.x1 + 1 - logo.x0, 7);
+			near(logo.y1 + 1 - logo.y0, 7);
+			// Centred on the symbol.
+			near(logo.x0 - dark.x0, (46 - 7) / 2);
+			near(logo.y0 - dark.y0, (46 - 7) / 2);
+			if (version === 10 || version === 25) {
+				// A PDF of it is the same size: 46 mm of symbol and its margin.
+				const pdf = new TextDecoder('latin1').decode(
+					sceneToPdf(scene, { colour: 'cmyk', widthMm }),
+				);
+				const media = /\/MediaBox \[0 0 ([\d.]+) /.exec(pdf);
+				expect(Number(media?.[1]), where).toBeCloseTo((widthMm * 72) / 25.4, 2);
+				expect(widthMm - 46, where).toBeCloseTo((8 * 46) / symbol.matrix.width, 9);
+			}
+		}
 	});
 
 	it('reads back to the exact bill with zxing-cpp and jsQR', async () => {

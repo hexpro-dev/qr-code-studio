@@ -184,6 +184,7 @@ const design: fc.Arbitrary<QrDesignV1> = fc.record(
 		output: fc.record(
 			{
 				sizeMm: number(5, 2000),
+				sizeBasis: fc.constantFrom('artwork' as const, 'symbol' as const),
 				dpi: fc.integer({ min: 72, max: 2400 }),
 				colourSpace: fc.constantFrom('srgb' as const, 'cmyk' as const),
 			},

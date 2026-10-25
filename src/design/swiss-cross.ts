@@ -22,7 +22,9 @@
  *
  * Those numbers are drawn here exactly, as filled shapes (this package has
  * no strokes), scaled so the logo is 7/46 of the symbol's width: 7 mm when
- * the symbol is printed at the 46 mm the guidelines fix. The logo is centred
+ * the symbol is printed at the 46 mm the guidelines fix, which
+ * `applyConstraints` asks for as `sizeMm: 46` measured over the symbol
+ * (`sizeBasis: 'symbol'`), at every version. The logo is centred
  * on the symbol. The cross inside it is placed as SIX's artwork places it,
  * 0.4 units (0.14 mm) above the square's centre and 0.05 units right of it on
  * its upright bar; the PNG in the same archive has the same offset, so it is

@@ -17,6 +17,9 @@
  *   a person can reuse on any code and share as a link, so it never enters
  *   the design document; the constraints name it and the caller hands it to
  *   `buildScene`.
+ * - `QrDesignV1.output.sizeBasis`: whether `sizeMm` is the whole artwork's
+ *   width or the symbol's own. Optional within version 1, so every version 1
+ *   document stays valid and means what it meant.
  * - `validateDesign(input, registries, { fonts })`: the registry a caption's
  *   font is checked against, as `BuildContext.fonts` is for the scene.
  * - `DesignConstraints` repeats `PayloadConstraints`, because this layer may
@@ -156,7 +159,16 @@ export interface QrDesignV1 {
 	readonly logo: DesignLogo | null;
 	readonly frame: DesignFrame | null;
 	readonly output: {
+		/** The printed width, in millimetres, of what `sizeBasis` names. */
 		readonly sizeMm?: number;
+		/**
+		 * What `sizeMm` measures: the whole artwork, quiet zone and frame
+		 * included ('artwork', the default), which is what a person cuts out and
+		 * sticks down; or the symbol alone, without its quiet zone or frame
+		 * ('symbol'), which is how the Swiss QR-bill fixes its 46 mm. A
+		 * contract addition, optional within version 1.
+		 */
+		readonly sizeBasis?: 'artwork' | 'symbol';
 		readonly dpi?: number;
 		readonly colourSpace: 'srgb' | 'cmyk';
 	};

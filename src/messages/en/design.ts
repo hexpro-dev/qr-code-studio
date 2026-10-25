@@ -259,7 +259,8 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'design.issue.version-constrained': 'This content allows a code no larger than version {max}.',
 	'design.issue.eci-constrained':
 		'This content names its own character set, so no character set marker is added.',
-	'design.issue.size-constrained': 'This content is printed {size} mm wide, so that size is used.',
+	'design.issue.size-constrained':
+		'This content is printed with the code itself {size} mm wide, not counting its margin, so that size is used.',
 	'design.issue.overlay-unsupported':
 		'The Swiss cross this content needs is printed over QR codes only, so it was left out.',
 

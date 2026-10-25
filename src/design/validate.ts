@@ -722,7 +722,7 @@ function checkOutput(checker: Checker, value: unknown): Checked<QrDesignV1['outp
 		checker.warn('design.issue.filled-default', path);
 		return { colourSpace: 'srgb' };
 	}
-	const record = checker.record(value, path, ['sizeMm', 'dpi', 'colourSpace']);
+	const record = checker.record(value, path, ['sizeMm', 'sizeBasis', 'dpi', 'colourSpace']);
 	if (record === BAD) return BAD;
 	const out: { -readonly [K in keyof QrDesignV1['output']]: QrDesignV1['output'][K] } = {
 		colourSpace: 'srgb',
@@ -732,6 +732,14 @@ function checkOutput(checker: Checker, value: unknown): Checked<QrDesignV1['outp
 		const size = checker.number(record.sizeMm, [...path, 'sizeMm'], LIMITS.sizeMm);
 		if (size === BAD) failed = true;
 		else out.sizeMm = size;
+	}
+	if (own(record, 'sizeBasis')) {
+		const basis = checker.option(record.sizeBasis, [...path, 'sizeBasis'], [
+			'artwork',
+			'symbol',
+		] as const);
+		if (basis === BAD) failed = true;
+		else out.sizeBasis = basis;
 	}
 	if (own(record, 'dpi')) {
 		const dpi = checker.number(record.dpi, [...path, 'dpi'], { ...LIMITS.dpi, integer: true });
