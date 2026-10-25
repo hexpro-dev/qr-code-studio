@@ -647,6 +647,12 @@ describe('validateDesign', () => {
 				'error design.issue.invalid-option output.colourSpace',
 			],
 		],
+		['a size measured over the symbol alone', (d) => (at(d, 'output').sizeBasis = 'symbol'), []],
+		[
+			'a size basis it does not know',
+			(d) => (at(d, 'output').sizeBasis = 'page'),
+			['error design.issue.invalid-option output.sizeBasis'],
+		],
 		[
 			'output with no colour space, filled in',
 			(d) => (d.output = {}),

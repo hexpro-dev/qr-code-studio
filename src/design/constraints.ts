@@ -208,7 +208,14 @@ export function applyConstraints(
 		};
 	}
 
-	if (constraints.sizeMm !== undefined && out.output.sizeMm !== constraints.sizeMm) {
+	// A content type's size is the symbol's own, without its quiet zone or
+	// frame: the Swiss QR-bill's 46 mm is the code alone (guidelines v2.4,
+	// section 6.4), so the code and its 7 mm cross print the same at every
+	// version, whatever margin is added round them.
+	if (
+		constraints.sizeMm !== undefined &&
+		(out.output.sizeMm !== constraints.sizeMm || out.output.sizeBasis !== 'symbol')
+	) {
 		if (out.output.sizeMm !== undefined) {
 			issues.push(
 				issue('design.issue.size-constrained', ['output', 'sizeMm'], 'warning', {
@@ -216,7 +223,10 @@ export function applyConstraints(
 				}),
 			);
 		}
-		out = { ...out, output: { ...out.output, sizeMm: constraints.sizeMm } };
+		out = {
+			...out,
+			output: { ...out.output, sizeMm: constraints.sizeMm, sizeBasis: 'symbol' },
+		};
 	}
 
 	// The overlay is drawn, not reported: the person cannot change it, and
