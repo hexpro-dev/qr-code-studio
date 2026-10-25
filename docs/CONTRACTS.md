@@ -240,7 +240,7 @@ export interface DecodedBitstream {
 	readonly structuredAppend: { index: number; total: number; parity: number } | null;
 	readonly fnc1: 'gs1' | { applicationIndicator: number } | null;
 }
-/** Throws QrStudioError 'decode/unreadable' (params { stage: 'segments' }) on a malformed bitstream. */
+/** Throws QrStudioError 'decode/unreadable' (params { stage: 'segments' }) on a malformed bitstream, and 'decode/unsupported' (params { stage: 'segments', feature: 'eci' | 'kanji' }) rather than guessing a character set it cannot decode. ECI 'auto' never writes an ECI; 'utf-8' writes ECI 26 in every symbol. */
 export function readSegments(
 	bytes: Uint8Array,
 	bitLength: number,
@@ -327,14 +327,15 @@ export interface SymbologyEntry {
 	readonly labelKey: MessageKey;
 	readonly quietZone: number; // minimum, in modules: 4 for QR, 2 for Micro and rMQR
 	readonly phoneReadable: boolean; // false for Micro QR and rMQR
-	readonly versions: readonly string[]; // smallest first
+	readonly versions: readonly string[]; // smallest first (by area for rMQR)
 	ecLevels(version: string): readonly EcLevel[];
 	size(version: string): { width: number; height: number };
 	profile(version: string): BitstreamProfile;
 	blocks(version: string, ec: EcLevel): BlockLayout;
-	layout(version: string): SymbolLayout; // cached; the same object for the same version
-	masks(version: string): readonly number[]; // 0..7 for QR, 0..3 for Micro, [0] for rMQR (fixed)
-	/** Place codewords, apply the mask (or choose one), write format and version information. */
+	/** Cached. `ec` matters only where the bit mapping depends on the level (Micro QR M3, whose 4-bit codeword moves); elsewhere one object serves every level. */
+	layout(version: string, ec?: EcLevel): SymbolLayout;
+	masks(version: string): readonly number[]; // 0..7 for QR; 0..3 for Micro (ISO's references, QR masks 1, 4, 6, 7); [0] for rMQR (fixed, QR mask 4)
+	/** Takes the DATA codewords (the padded bitstream; for M1 and M3 the last is a nibble in the high bits of its byte). Adds Reed-Solomon, interleaves (symbology/qr exports interleaveBlocks and decodeBlocks for reuse), places, masks or chooses a mask, writes format and version information. BuiltSymbol.codewords is the full interleaved sequence. */
 	build(codewords: Uint8Array, version: string, ec: EcLevel, mask: number | 'auto'): BuiltSymbol;
 	/** Read a sampled matrix. Pure: throws QrStudioError 'decode/unreadable' with params { stage }. */
 	read(matrix: BitMatrix, options: { strict: boolean; erasures?: Uint8Array }): MatrixRead;
@@ -479,6 +480,8 @@ export interface PayloadConstraints {
 	readonly colours?: 'black-on-white';
 	readonly designLocked?: boolean;
 	readonly overlay?: 'swiss-cross';
+	/** EPC and the Swiss QR-bill carry their character set in a field and must not have an ECI header. */
+	readonly eci?: 'never';
 }
 
 export interface PayloadType<
@@ -505,7 +508,7 @@ export interface PayloadType<
 	/** Throws QrStudioError 'payload/unparseable'. */
 	parse(text: string): V;
 	safety?(value: V): readonly SafetyFinding[];
-	/** Spec vectors, run by the conformance suite. `source` cites where each came from. */
+	/** Spec vectors, run by the conformance suite. `source` cites where each came from. A vector whose text is not in the form `build` writes (an `sms:` read where `SMSTO:` is written) checks parse only, plus parse(build(value)). */
 	readonly vectors: readonly {
 		readonly text: string;
 		readonly value: V;

@@ -28,6 +28,34 @@
 			"types": "./dist/core/index.d.ts",
 			"import": "./dist/core/index.js"
 		},
+		"./payload": {
+			"types": "./dist/payload/index.d.ts",
+			"import": "./dist/payload/index.js"
+		},
+		"./own-link": {
+			"types": "./dist/own-link/index.d.ts",
+			"import": "./dist/own-link/index.js"
+		},
+		"./geometry": {
+			"types": "./dist/geometry/index.d.ts",
+			"import": "./dist/geometry/index.js"
+		},
+		"./render": {
+			"types": "./dist/render/index.d.ts",
+			"import": "./dist/render/index.js"
+		},
+		"./segment": {
+			"types": "./dist/segment/index.d.ts",
+			"import": "./dist/segment/index.js"
+		},
+		"./symbology": {
+			"types": "./dist/symbology/index.d.ts",
+			"import": "./dist/symbology/index.js"
+		},
+		"./encode": {
+			"types": "./dist/encode/index.d.ts",
+			"import": "./dist/encode/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
@@ -62,11 +90,13 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
+		"test:e2e": "playwright test",
 		"prepublishOnly": "pnpm run clean && pnpm run build:all && pnpm run typecheck && pnpm run test"
 	},
 	"dependencies": {},
 	"devDependencies": {
 		"@eslint/js": "^9.17.0",
+		"@playwright/test": "1.63.0",
 		"@resvg/resvg-js": "^2.6.2",
 		"@types/node": "^22.10.2",
 		"@types/pngjs": "^6.0.5",
