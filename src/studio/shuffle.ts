@@ -5,7 +5,10 @@
  * makes must scan as well as a preset does. Three rules hold that:
  *
  * - finders come only from ring and centre pairs that make a finder the
- *   strict reader finds (`regionPairConforms`), at their default params;
+ *   strict reader finds (`regionPairConforms`), at their default params,
+ *   and only with rings a reader that traces their sides follows
+ *   (`ringKindOf` is cornered): a round ring comes with a warning, which a
+ *   preset never has;
  * - every dark ink is at least 7:1 against the ground by luminance, the
  *   figure the presets aim for, where the conformance floor is 4.5:1. A
  *   gradient between two such inks stays above it all the way along, because
@@ -25,7 +28,7 @@
 
 import { createPrng } from '../core/prng.js';
 import type { Prng } from '../core/prng.js';
-import { regionPairConforms } from '../design/finder.js';
+import { regionPairConforms, ringKindOf } from '../design/finder.js';
 import { resolveParams } from '../design/params.js';
 import type {
 	DesignPaint,
@@ -126,7 +129,9 @@ export function conformingPairs(
 	registries: DesignRegistries,
 ): readonly (readonly [RegionShape, RegionShape])[] {
 	const shapes = registries.regionShapes.list();
-	const rings = shapes.filter((s) => s.part === 'outer' && s.kinds.includes('concentric-7'));
+	const rings = shapes.filter(
+		(s) => s.part === 'outer' && s.kinds.includes('concentric-7') && ringKindOf(s) === 'cornered',
+	);
 	const centres = shapes.filter((s) => s.part === 'inner' && s.kinds.includes('concentric-7'));
 	const pairs: (readonly [RegionShape, RegionShape])[] = [];
 	for (const ring of rings) {
