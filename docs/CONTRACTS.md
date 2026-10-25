@@ -563,6 +563,18 @@ still never put into an error message.
 
 ---
 
+### Settled when the vectors moved (m7-vectors)
+
+- `PayloadType.vectors` is optional, and no built-in type carries it. The built-ins' vectors live in
+  `./payload/vectors` as `BUILT_IN_VECTORS` (keyed by type id), with `REDIRECT_HOST_SOURCES`
+  holding the redirect host citations. Nothing at runtime imports that subpath, so the offline
+  file carries no test data and only the addresses it builds.
+- `CompatibilityNote.source` is optional (built-in citations are comments). `RedirectHost` is
+  `{ host, operator }`.
+- `checkPayloadType(type, vectors?)` in `./conformance` checks vectors (source, parse, build,
+  round trip) and returns `Violation[]`. The schema-generated round trip stays in the property
+  tests.
+
 ## geometry
 
 ```ts
