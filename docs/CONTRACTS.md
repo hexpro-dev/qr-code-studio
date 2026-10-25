@@ -148,6 +148,13 @@ export function pow(base: number, exponent: number): number;
 export const PI: number;
 export const TAU: number;
 
+// image.ts: the pixel container every layer shares, structurally an ImageData.
+export interface RgbaImage {
+	readonly width: number;
+	readonly height: number;
+	readonly data: Uint8ClampedArray;
+}
+
 // registry.ts
 export interface RegistryEntry {
 	readonly id: string;
