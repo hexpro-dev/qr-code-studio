@@ -12,8 +12,8 @@
  * Whether a particular ring and centre work together on the diagonals
  * depends on both (a round ring leaves too little light round a square
  * centre's corners), so pairs are checked where they are chosen, by
- * `regionPairConforms`, and each shape's own conformance is checked with its
- * namesake partner. The sub-finder of rMQR (concentric-5) is the same ring
+ * `regionPairConforms`, and conformance asks of each shape that it makes a
+ * good finder with at least one partner at every setting. The sub-finder of rMQR (concentric-5) is the same ring
  * round a one-module centre; the corner pattern (corner-l) is an L of five
  * modules, square or rounded.
  */

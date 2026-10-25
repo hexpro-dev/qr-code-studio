@@ -12,9 +12,9 @@
  *
  * - keys the schema does not know are dropped (an entry's unknown parameters
  *   too);
- * - `light`, `logo`, `frame` and `regions` left out mean none, `output` and
- *   its colour space left out mean screen colour, a gradient's `space` left
- *   out means the symbol's;
+ * - `light`, `logo`, a logo's `plate`, `frame` and `regions` left out mean
+ *   none, `output` and its colour space left out mean screen colour, and a
+ *   gradient's `space` left out means the symbol's;
  * - an angle outside 0 to 360 is brought round into it;
  * - a paint on a picture logo, which only icons take, is dropped, as is a
  *   caption on a frame that has nowhere to put one;

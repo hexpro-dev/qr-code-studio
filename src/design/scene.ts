@@ -8,11 +8,17 @@
  * included, so a module is one unit wide whatever the export's size.
  *
  * Finder, separator and the rMQR sub-finder and corner modules are drawn by
- * the region shapes; every other dark module (data, timing, alignment,
- * format and version information, the dark module) by the module shape. A
- * connecting shape's neighbours are counted over the modules the module
- * shape draws, so a bar never reaches into a finder and a fluid blob never
- * bulges towards one.
+ * the region shapes, and so are QR's 5 by 5 alignment patterns, in the
+ * finder's style (see `alignmentRegions` for why). Every other dark module
+ * (data, timing, format and version information, the dark module, rMQR's
+ * small alignment patterns) is drawn by the module shape. A connecting
+ * shape's neighbours are counted over the modules the module shape draws, so
+ * a bar never reaches into a finder and a fluid blob never bulges towards
+ * one.
+ *
+ * Micro QR and rMQR, read by one finder rather than three, keep their rings
+ * square and their small patterns plain, and rMQR is drawn without a frame:
+ * each is measured below where it is done.
  *
  * The same symbol, design and seed always give the same scene, and so the
  * same SVG bytes: every random choice comes from a stream forked off the
