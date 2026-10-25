@@ -56,6 +56,14 @@
 			"types": "./dist/encode/index.d.ts",
 			"import": "./dist/encode/index.js"
 		},
+		"./design": {
+			"types": "./dist/design/index.d.ts",
+			"import": "./dist/design/index.js"
+		},
+		"./conformance": {
+			"types": "./dist/conformance/index.d.ts",
+			"import": "./dist/conformance/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
