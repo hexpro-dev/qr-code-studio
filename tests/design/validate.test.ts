@@ -75,7 +75,7 @@ function full(): QrDesignV1 {
 			paint: { kind: 'solid', ink: '#0b3d91' },
 			text: {
 				content: 'Scan me\nfor the menu',
-				fontId: 'inter',
+				fontId: 'plex-sans-bold',
 				paint: { kind: 'solid', ink: '#ffffff' },
 			},
 		},

@@ -7,6 +7,12 @@
  * the studio runs the design through this before every build and shows the
  * issues it returns beside the controls they disabled. Nothing here fails:
  * each constraint is applied, and each change it makes is reported.
+ *
+ * What the content prints over the code (the Swiss QR-bill's cross) comes
+ * back beside the design as `overlay`, for the caller to hand to
+ * `buildScene` with the design. It is not written into the design: a design
+ * is reused across codes and shared as a link, and the cross belongs to the
+ * bill, not to the look.
  */
 
 import { issue } from '../core/issue.js';
@@ -14,7 +20,13 @@ import type { Issue } from '../core/issue.js';
 import type { EcLevel } from '../segment/types.js';
 import { canonicalJson } from './canonical.js';
 import { defaultDesign } from './document.js';
-import type { DesignConstraints, DesignPaint, QrDesignV1, RegionStyle } from './types.js';
+import type {
+	DesignConstraints,
+	DesignOverlay,
+	DesignPaint,
+	QrDesignV1,
+	RegionStyle,
+} from './types.js';
 
 const LEVELS: readonly EcLevel[] = ['L', 'M', 'Q', 'H'];
 const BLACK: DesignPaint = { kind: 'solid', ink: '#000000' };
@@ -54,6 +66,9 @@ function blackOnWhite(design: QrDesignV1): QrDesignV1 {
 						plate: design.logo.plate === null ? null : { ...design.logo.plate, paint: WHITE },
 						...(design.logo.source.kind === 'icon' ? { paint: BLACK } : {}),
 					},
+		// A caption loses its own paint and takes the frame's ink for where it
+		// sits, which in black on white is white on the frame's artwork and
+		// black beside it.
 		frame:
 			design.frame === null
 				? null
@@ -62,7 +77,9 @@ function blackOnWhite(design: QrDesignV1): QrDesignV1 {
 						paint: BLACK,
 						...(design.frame.text === undefined
 							? {}
-							: { text: { ...design.frame.text, paint: WHITE } }),
+							: {
+									text: { content: design.frame.text.content, fontId: design.frame.text.fontId },
+								}),
 					},
 	};
 }
@@ -70,9 +87,14 @@ function blackOnWhite(design: QrDesignV1): QrDesignV1 {
 export function applyConstraints(
 	design: QrDesignV1,
 	constraints: DesignConstraints | undefined,
-): { readonly design: QrDesignV1; readonly issues: readonly Issue[] } {
+): {
+	readonly design: QrDesignV1;
+	readonly issues: readonly Issue[];
+	/** What `buildScene` draws over the code for this content, whatever the design. */
+	readonly overlay: DesignOverlay | null;
+} {
 	const issues: Issue[] = [];
-	if (constraints === undefined) return { design, issues };
+	if (constraints === undefined) return { design, issues, overlay: null };
 	let out = design;
 
 	if (constraints.designLocked === true) {
@@ -197,10 +219,11 @@ export function applyConstraints(
 		out = { ...out, output: { ...out.output, sizeMm: constraints.sizeMm } };
 	}
 
-	if (constraints.overlay === 'swiss-cross') {
-		// SEAM: the Swiss cross the QR-bill prints over its code is drawn by the
-		// payment slip, not by a design entry; this layer says it is needed.
-		issues.push(issue('design.issue.overlay-required', [], 'info', { overlay: 'swiss-cross' }));
-	}
-	return { design: out, issues };
+	// The overlay is drawn, not reported: the person cannot change it, and
+	// the scene shows it.
+	return {
+		design: out,
+		issues,
+		overlay: constraints.overlay === 'swiss-cross' ? 'swiss-cross' : null,
+	};
 }
