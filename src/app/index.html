@@ -2,38 +2,56 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<!--CSP-->
+		<meta name="color-scheme" content="light dark" />
 		<title>QR Code Studio</title>
 		<style><!--STYLE--></style>
 	</head>
 	<body>
-		<main class="shell" id="studio">
-			<header class="masthead">
-				<p class="eyebrow">Offline QR code studio</p>
-				<h1>Make a QR code that keeps working.</h1>
-				<p class="lede">
-					Everything happens in this page. Nothing is sent anywhere, and you can check that by
-					turning your network off and using it anyway.
-				</p>
-			</header>
-			<section class="panel" aria-labelledby="facts-title">
-				<h2 id="facts-title">What this file does</h2>
-				<dl class="facts">
-					<dt>Network</dt>
-					<dd id="fact-network">
-						None. There is no fetch, XMLHttpRequest, WebSocket, EventSource or sendBeacon in this
-						file, and its security policy refuses every connection.
-					</dd>
-					<dt>Storage</dt>
-					<dd id="fact-storage">
-						None. It keeps no cookies, no local or session storage, no database and no cache. A
-						library is a file you save yourself.
-					</dd>
-				</dl>
-			</section>
-			<p class="version">Version <span id="version"></span>. Source: github.com/hexpro-dev/qr-code-studio</p>
-		</main>
+		<div class="desk">
+			<main class="shell" id="app"></main>
+			<footer class="footer">
+				<details class="about card">
+					<summary class="card__head">
+						<span class="card__num">00</span>
+						<h2 class="card__title" id="about-title"></h2>
+					</summary>
+					<div class="card__body about__body">
+						<section class="about__part" aria-labelledby="facts-title">
+							<h3 class="notes__title" id="facts-title"></h3>
+							<dl class="facts">
+								<dt>Network</dt>
+								<dd id="fact-network">
+									None. There is no fetch, XMLHttpRequest, WebSocket, EventSource or sendBeacon in this
+									file, and its security policy refuses every connection.
+								</dd>
+								<dt>Storage</dt>
+								<dd id="fact-storage">
+									None. It keeps no cookies, no local or session storage, no database and no cache. A
+									library is a file you save yourself.
+								</dd>
+							</dl>
+							<p class="field__hint" id="check-it"></p>
+						</section>
+						<section class="about__part">
+							<p class="about__line">
+								<span id="version-label"></span> <span class="mono" id="version"></span>
+							</p>
+							<p class="about__line">
+								<span id="source-label"></span>
+								<span class="mono">github.com/hexpro-dev/qr-code-studio</span>
+							</p>
+						</section>
+						<section class="about__part" aria-labelledby="licence-title">
+							<h3 class="notes__title" id="licence-title"></h3>
+							<p class="field__hint" id="licence-intro"></p>
+							<pre class="licence" id="font-licence" tabindex="0" role="region" aria-labelledby="licence-title"></pre>
+						</section>
+					</div>
+				</details>
+			</footer>
+		</div>
 		<script><!--SCRIPT--></script>
 	</body>
 </html>

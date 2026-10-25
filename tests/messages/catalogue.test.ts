@@ -67,7 +67,10 @@ function sourceFiles(dir: string): string[] {
 	});
 }
 
+// 'app' is the offline file's own words: counted here like every other area,
+// and left out of LIBRARY_AREAS, which is what the website mirrors.
 const AREAS = [
+	'app',
 	'batch',
 	'payload',
 	'own-link',
