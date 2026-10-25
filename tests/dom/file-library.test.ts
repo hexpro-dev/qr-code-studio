@@ -172,11 +172,23 @@ describe('the file library', () => {
 		const { library } = harness();
 		const studio = createStudio({ registries, library });
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(studio.getSnapshot().library).toEqual({ status: 'on', items: [] });
+		// The file library is always there: Save and Open, not a switch.
+		expect(studio.getSnapshot().library).toEqual({
+			status: 'file',
+			unsaved: false,
+			items: [],
+			kits: [],
+			skipped: [],
+			kit: null,
+		});
 		studio.dispatch({ type: 'design/preset', id: 'hex-pro-blue' });
 		const saved = await studio.run({ type: 'library/save', name: 'Blue' });
 		expect(value(saved).name).toBe('Blue');
-		expect(studio.getSnapshot().library).toMatchObject({ status: 'on', items: [{ name: 'Blue' }] });
+		expect(studio.getSnapshot().library).toMatchObject({
+			status: 'file',
+			unsaved: true,
+			items: [{ name: 'Blue' }],
+		});
 		studio.dispose();
 	});
 
