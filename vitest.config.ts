@@ -39,6 +39,10 @@ export default defineConfig({
 				// and zlib's TOO_FAR cut-off, which a four-byte hash reaches only
 				// through a collision.
 				'src/core/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
+				// Micro QR and rMQR: every branch is reached, the refusals included, by
+				// the oracle, read, property and fuzz suites under tests/symbology.
+				'src/symbology/micro/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
+				'src/symbology/rmqr/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
 			},
 		},
 	},
