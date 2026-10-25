@@ -22,6 +22,10 @@ export default defineConfig({
 				// no signal.
 				'src/**/types.ts',
 				'src/**/index.ts',
+				// Generated data: the compiled font tables, rebuilt and compared
+				// byte for byte by tests/text/build-fonts.test.ts. The loader that
+				// reads them is src/text/compiled.ts, which is held to 100 below.
+				'src/fonts/**',
 			],
 			// Every threshold sits just under what the suite actually reaches, so a
 			// real regression trips it. A lower one gates nothing; a higher one is a
@@ -57,6 +61,11 @@ export default defineConfig({
 				'src/symbology/qr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/symbology/*.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/encode/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// The TrueType parser reads files a person chose, so every refusal
+				// is reached by a file built to provoke it (tests/text/ttf.ts).
+				// Every line and branch is reached; branches are gated at 99 with
+				// the other layers.
+				'src/text/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

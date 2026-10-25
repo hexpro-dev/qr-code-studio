@@ -56,6 +56,14 @@
 			"types": "./dist/encode/index.d.ts",
 			"import": "./dist/encode/index.js"
 		},
+		"./text": {
+			"types": "./dist/text/index.d.ts",
+			"import": "./dist/text/index.js"
+		},
+		"./fonts/latin": {
+			"types": "./dist/fonts/latin.d.ts",
+			"import": "./dist/fonts/latin.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
@@ -81,6 +89,7 @@
 		"build": "tsc",
 		"build:html": "tsx scripts/build-html.ts",
 		"build:all": "pnpm run build && pnpm run build:html",
+		"build:fonts": "tsx scripts/build-fonts.ts",
 		"clean": "rimraf dist coverage",
 		"typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
 		"lint": "eslint .",
