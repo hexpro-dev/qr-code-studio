@@ -343,14 +343,14 @@ describe('the English catalogue', () => {
 
 /** As escapes, so a search of this repository for one finds none in the file that bans them. */
 const FORBIDDEN = [
-	['—', 'an em dash'],
-	['–', 'an en dash'],
-	['‘', 'a curly quote'],
-	['’', 'a curly apostrophe'],
-	['“', 'a curly double quote'],
-	['”', 'a curly double quote'],
-	['→', 'an arrow'],
-	['•', 'a bullet'],
+	['\u2014', 'an em dash'],
+	['\u2013', 'an en dash'],
+	['\u2018', 'a curly quote'],
+	['\u2019', 'a curly apostrophe'],
+	['\u201c', 'a curly double quote'],
+	['\u201d', 'a curly double quote'],
+	['\u2192', 'an arrow'],
+	['\u2022', 'a bullet'],
 	['!', 'an exclamation mark'],
 ] as const;
 

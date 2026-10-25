@@ -103,10 +103,12 @@ describe('importLogo', () => {
 			ok: false,
 			error: later,
 		});
-		expect(await importLogo(blobOf('﻿  \n<?xml version="1.0"?><svg/>', ''), { deps })).toEqual({
-			ok: false,
-			error: later,
-		});
+		expect(await importLogo(blobOf('\ufeff  \n<?xml version="1.0"?><svg/>', ''), { deps })).toEqual(
+			{
+				ok: false,
+				error: later,
+			},
+		);
 		expect(await importLogo(blobOf('\t<svg/>', 'application/octet-stream'), { deps })).toEqual({
 			ok: false,
 			error: later,

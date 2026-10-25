@@ -151,7 +151,7 @@ describe('the symbol helpers, at their edges', () => {
 	});
 
 	it('read back an ECI designator into the summary', () => {
-		const { studio } = studioWithCode({}, 'https://example.com/café');
+		const { studio } = studioWithCode({}, 'https://example.com/caf\u00e9');
 		studio.dispatch({
 			type: 'design/patch',
 			patch: { path: ['symbol', 'segmentation'], value: { eci: 'utf-8' } },

@@ -404,10 +404,10 @@ describe('file names', () => {
 		const { studio } = studioWithCode();
 		studio.dispatch({
 			type: 'design/patch',
-			patch: { path: ['name'], value: 'Shop / window: café' },
+			patch: { path: ['name'], value: 'Shop / window: caf\u00e9' },
 		});
 		const result = await studio.run({ type: 'export', format: 'svg', options: {} });
-		expect(result.ok && result.value.filename).toBe('Shop window café.svg');
+		expect(result.ok && result.value.filename).toBe('Shop window caf\u00e9.svg');
 		expect(fileStem('../../etc/passwd')).toBe('etc passwd');
 		expect(fileStem('...')).toBe('qr-code');
 		expect(fileStem('   ')).toBe('qr-code');
