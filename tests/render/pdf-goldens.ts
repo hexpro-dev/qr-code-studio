@@ -130,7 +130,7 @@ function painted(): Scene {
 const text = (value: string): Uint8Array => new TextEncoder().encode(value);
 
 function captionPixels(): Uint8Array {
-	const scene = captioned('Scan for the menu → €5', 'plex-sans-bold');
+	const scene = captioned('Scan for the menu \u2192 €5', 'plex-sans-bold');
 	const image = rasterise(
 		{ ...scene, layers: scene.layers.slice(1), background: { kind: 'solid', colour: white } },
 		{ width: 240 },

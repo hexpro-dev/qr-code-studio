@@ -147,8 +147,12 @@ describe('several lines', () => {
 	});
 
 	it('keeps words joined by a no-break space together', () => {
-		const result = layoutText('see the menu', { ...base, maxLines: 2, box: { ...box, width: 50 } });
-		expect(result.lines.map((line) => line.text)).toEqual(['see', 'the menu']);
+		const result = layoutText('see the\u00a0menu', {
+			...base,
+			maxLines: 2,
+			box: { ...box, width: 50 },
+		});
+		expect(result.lines.map((line) => line.text)).toEqual(['see', 'the\u00a0menu']);
 	});
 
 	it('cuts to maxLines and says it overflowed', () => {
@@ -225,7 +229,7 @@ describe('characters the font cannot draw', () => {
 	});
 
 	it('composes a typed accent with its letter first', () => {
-		const result = layoutText('Café', base);
+		const result = layoutText('Cafe\u0301', base);
 		expect(result.missing).toEqual([]);
 		expect(result.lines[0]!.text).toBe('Café');
 	});

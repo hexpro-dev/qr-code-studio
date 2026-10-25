@@ -95,7 +95,17 @@ describe('the compiled font module', () => {
 		expect(FONT_LICENCE).toContain('SIL Open Font License, Version 1.1');
 		expect(FONT_LICENCE).toContain('Copyright © 2017 IBM Corp.');
 		const text = readFileSync(resolve(root, OUTPUT), 'utf8');
-		for (const banned of ['—', '–', '‘', '’', '“', '”', '→', '•']) {
+		// Written as escapes, so a search of the repository for these finds none.
+		for (const banned of [
+			'\u2014',
+			'\u2013',
+			'\u2018',
+			'\u2019',
+			'\u201c',
+			'\u201d',
+			'\u2192',
+			'\u2022',
+		]) {
 			expect(text).not.toContain(banned);
 		}
 		// The base64 tables are long enough that a word could turn up by
