@@ -11,8 +11,14 @@
  * - `FillEntry.space`. A palette scattered over modules is resolved once per
  *   module, a diagonal split once over the symbol; the resolver cannot tell
  *   which from the signature.
- * - `BuildContext.fonts` is typed by a placeholder until the text layer (M9)
- *   defines `FontRegistry`.
+ * - `BuildContext.overlay`, and `applyConstraints` returning the overlay
+ *   beside the design. What a content type prints over every code of its
+ *   kind (the Swiss QR-bill's cross) belongs to the content, not to a design
+ *   a person can reuse on any code and share as a link, so it never enters
+ *   the design document; the constraints name it and the caller hands it to
+ *   `buildScene`.
+ * - `validateDesign(input, registries, { fonts })`: the registry a caption's
+ *   font is checked against, as `BuildContext.fonts` is for the scene.
  * - `DesignConstraints` repeats `PayloadConstraints`, because this layer may
  *   not import the payload layer. The two are structurally the same type.
  */
@@ -26,6 +32,9 @@ import type { Path } from '../geometry/path.js';
 import type { Scene, SceneNode, ScenePaint } from '../render/types.js';
 import type { EcLevel, SegmentationPolicy } from '../segment/types.js';
 import type { StyleableRegion } from '../symbology/types.js';
+import type { FontRegistry } from '../text/types.js';
+
+export type { FontRegistry } from '../text/types.js';
 
 /** An sRGB hex colour, or one with a print value beside it. */
 export type Ink =
@@ -300,25 +309,26 @@ export interface DesignRegistries {
 	readonly presets: Registry<Preset>;
 }
 
-/**
- * The text layer's font registry, a placeholder until M9 defines it. The
- * caption is drawn by that layer; this one only reserves the box.
- */
-export interface FontRegistry {
-	has(id: string): boolean;
-}
+/** What a content type prints over the middle of every code of its kind. */
+export type DesignOverlay = 'swiss-cross';
 
 export interface BuildContext {
 	readonly registries: DesignRegistries;
 	/** Decoded PNG assets; render/decodePng does it. */
 	readonly assets?: (id: string) => RgbaImage | undefined;
+	/** Where a caption's font is found. Defaults to the built-in family. */
 	readonly fonts?: FontRegistry;
 	readonly seed?: number;
+	/**
+	 * The overlay the content's constraints call for, as `applyConstraints`
+	 * returns it. A contract addition: see the module comment.
+	 */
+	readonly overlay?: DesignOverlay | null;
 }
 
 export interface BuiltScene {
 	readonly scene: Scene;
-	/** 1 where a module is hidden or altered by the logo or plate, row major over the symbol. */
+	/** 1 where a module is hidden or altered by the logo, its plate or the overlay, row major over the symbol. */
 	readonly obscured: Uint8Array;
 	/** Fraction of each dark module's cell the shape actually inks, for the distance check. */
 	readonly inkFraction: number;

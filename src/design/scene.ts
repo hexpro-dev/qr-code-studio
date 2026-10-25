@@ -3,9 +3,11 @@
  *
  * The layers go down in this order: the frame's own artwork (beneath
  * everything), the background, light modules when the design draws them,
- * dark modules, finder rings, finder centres, the logo's plate, the logo, and
- * whatever the frame draws on top. Units are modules, the quiet zone
- * included, so a module is one unit wide whatever the export's size.
+ * dark modules, finder rings, finder centres, the logo's plate, the logo,
+ * the content's overlay (the Swiss QR-bill's cross, when the context names
+ * it), whatever the frame draws on top, and the frame's caption. Units are
+ * modules, the quiet zone included, so a module is one unit wide whatever
+ * the export's size.
  *
  * Finder, separator and the rMQR sub-finder and corner modules are drawn by
  * the region shapes, and so are QR's 5 by 5 alignment patterns, in the
@@ -43,6 +45,7 @@ import { rasterise } from '../render/raster.js';
 import type { Scene, SceneNode, ScenePaint } from '../render/types.js';
 import { ROLE_CODES } from '../symbology/roles.js';
 import type { BuiltSymbol, StyleableRegion } from '../symbology/types.js';
+import { drawCaption } from './caption.js';
 import { squareModule } from './catalogue/module-shapes.js';
 import { LIMITS, MIN_QUIET_ZONE } from './document.js';
 import { regionPairConforms } from './finder.js';
@@ -50,6 +53,7 @@ import { placeLogo } from './logo.js';
 import { neighbourMasks } from './neighbours.js';
 import { paintSpace, resolvePaint } from './paint.js';
 import { paramProblem, resolveParams } from './params.js';
+import { swissCross } from './swiss-cross.js';
 import type {
 	Box,
 	BuildContext,
@@ -57,6 +61,7 @@ import type {
 	DesignPaint,
 	DesignRegistries,
 	EntryRef,
+	FrameEntry,
 	FrameLayout,
 	ModuleShape,
 	ParamSchema,
@@ -72,6 +77,8 @@ const INK_PIXELS = 16;
 const INK_SAMPLE_LIMIT = 512;
 
 const BLACK: DesignPaint = { kind: 'solid', ink: '#000000' };
+/** Told apart by identity: what `Builder.paint` returns for a fill the registry lacks. */
+const MISSING: DesignPaint = { kind: 'solid', ink: '#000000' };
 
 /** The plain square cell, for when a shape is missing and for the light behind a finder. */
 const PLAIN_CELL: ModuleShape = squareModule;
@@ -357,6 +364,10 @@ export function buildScene(
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
 		throw new TypeError('buildScene: seed is an integer from 0 to 2^32 - 1.');
 	}
+	const overlay = context.overlay ?? null;
+	if (overlay !== null && overlay !== 'swiss-cross') {
+		throw new TypeError('buildScene: overlay is swiss-cross, or null for none.');
+	}
 	const builder = new Builder(context.registries);
 	const { registries } = context;
 	const { issues } = builder;
@@ -378,10 +389,13 @@ export function buildScene(
 		regions: root.fork(4),
 		frame: root.fork(5),
 		logo: root.fork(6),
+		caption: root.fork(7),
 	};
 
 	// The frame first: it decides where the symbol sits in the artwork.
 	let frameLayout: FrameLayout | null = null;
+	let frameEntry: FrameEntry | null = null;
+	let framePaint: ScenePaint | null = null;
 	// rMQR is read by its sub-finder and corner patterns as well as its
 	// finder, and zxing-cpp loses rMQR symbols inside a frame's dark border
 	// erratically: at one quiet zone width it reads, at the next it does not,
@@ -410,30 +424,14 @@ export function buildScene(
 				paint: { kind: 'solid', colour: { r: 0, g: 0, b: 0, a: 1 } },
 			});
 			const paint = builder.paint(design.frame.paint ?? design.modules.paint, ['frame', 'paint']);
-			frameLayout = entry.layout({
-				...ctx,
-				paint: resolvePaint(
-					paint,
-					{ x: 0, y: 0, width: first.width, height: first.height },
-					registries.fills,
-					streams.frame,
-				),
-			});
-			const text = design.frame.text;
-			if (text !== undefined && text.content.length > 0) {
-				// SEAM(M9): the caption is set by the text layer into
-				// `frameLayout.textBox` with `context.fonts`, as path nodes in the
-				// frame's `over` layer. Until that lands it is left out, and said.
-				issues.push(
-					issue(
-						entry.text === null || frameLayout.textBox === null
-							? 'design.issue.caption-unsupported'
-							: 'design.issue.caption-pending',
-						['frame', 'text'],
-						entry.text === null || frameLayout.textBox === null ? 'warning' : 'info',
-					),
-				);
-			}
+			framePaint = resolvePaint(
+				paint,
+				{ x: 0, y: 0, width: first.width, height: first.height },
+				registries.fills,
+				streams.frame,
+			);
+			frameLayout = entry.layout({ ...ctx, paint: framePaint });
+			frameEntry = entry;
 		}
 	}
 	const ox = frameLayout?.symbol.x ?? 0;
@@ -501,12 +499,17 @@ export function buildScene(
 	const layers: SceneNode[] = [];
 	if (frameLayout !== null) layers.push(...frameLayout.nodes);
 	let background: ScenePaint | null = null;
-	if (design.background !== null) {
-		const paint = builder.paint(design.background, ['background'], {
-			kind: 'solid',
-			ink: '#ffffff',
-		});
-		const resolved = resolvePaint(paint, quietBox, registries.fills, streams.paints.fork(0));
+	const backgroundPaint =
+		design.background === null
+			? null
+			: builder.paint(design.background, ['background'], { kind: 'solid', ink: '#ffffff' });
+	if (backgroundPaint !== null) {
+		const resolved = resolvePaint(
+			backgroundPaint,
+			quietBox,
+			registries.fills,
+			streams.paints.fork(0),
+		);
 		if (frameLayout === null) background = resolved;
 		else {
 			layers.push({
@@ -597,7 +600,41 @@ export function buildScene(
 		...drawRegions(symbol, alignments, design, geometry, builder, streams.regions, modulesPaint),
 	);
 	layers.push(...logo.nodes);
+
+	const obscured = logo.obscured;
+	if (overlay === 'swiss-cross') {
+		if (symbol.symbology === 'qr') {
+			const cross = swissCross(width, height, sx, sy);
+			layers.push(...cross.nodes);
+			for (let i = 0; i < count; i += 1)
+				obscured[i] = (obscured[i] as number) | (cross.obscured[i] as number);
+		} else {
+			// The guidelines define the cross for the Swiss QR Code, a QR symbol;
+			// a bill in anything else is not a bill a bank reads.
+			issues.push(issue('design.issue.overlay-unsupported', [], 'warning', { overlay }));
+		}
+	}
+
 	if (frameLayout?.over !== undefined) layers.push(...frameLayout.over);
+	const text = design.frame?.text;
+	if (frameLayout !== null && text !== undefined && text.content.length > 0) {
+		const caption = drawCaption({
+			frame: frameEntry as FrameEntry,
+			layout: frameLayout,
+			text,
+			fonts: context.fonts,
+			registries,
+			framePaint: framePaint as ScenePaint,
+			background: backgroundPaint,
+			paint: (paint) => {
+				const checked = builder.paint(paint, ['frame', 'text', 'paint'], MISSING);
+				return checked === MISSING ? null : checked;
+			},
+			prng: streams.caption,
+		});
+		layers.push(...caption.nodes);
+		issues.push(...caption.issues);
+	}
 
 	const sizeMm = design.output.sizeMm;
 	const scene: Scene = {
@@ -615,7 +652,7 @@ export function buildScene(
 	};
 	return {
 		scene,
-		obscured: logo.obscured,
+		obscured,
 		inkFraction: drawn.ink.count === 0 ? 0 : drawn.ink.sum / drawn.ink.count,
 		issues,
 	};

@@ -157,7 +157,7 @@ describe('applyConstraints', () => {
 		frame: {
 			ref: { id: 'banner-bottom' },
 			paint: { kind: 'solid', ink: '#00ff00' },
-			text: { content: 'Scan', fontId: 'inter' },
+			text: { content: 'Scan', fontId: 'plex-sans-bold' },
 		},
 		output: { sizeMm: 30, colourSpace: 'srgb' },
 		name: 'Kept',
@@ -165,12 +165,13 @@ describe('applyConstraints', () => {
 
 	it('leaves a design alone with no constraints', () => {
 		const design = defaultDesign();
-		expect(applyConstraints(design, undefined)).toEqual({ design, issues: [] });
+		expect(applyConstraints(design, undefined)).toEqual({ design, issues: [], overlay: null });
+		expect(applyConstraints(design, {})).toEqual({ design, issues: [], overlay: null });
 		expect(applyConstraints(design, {}).design).toBe(design);
 	});
 
 	it('locks the Swiss QR-bill to black on white, square modules, level M and 46 mm', () => {
-		const { design, issues } = applyConstraints(fancy, {
+		const { design, issues, overlay } = applyConstraints(fancy, {
 			ecLevels: ['M'],
 			maxVersion: '25',
 			sizeMm: 46,
@@ -178,6 +179,9 @@ describe('applyConstraints', () => {
 			designLocked: true,
 			overlay: 'swiss-cross',
 		});
+		// The cross comes back beside the design, for buildScene, and is not
+		// written into a design that could be shared as a link.
+		expect(overlay).toBe('swiss-cross');
 		expect(design).toEqual({
 			...defaultDesign(),
 			symbol: { symbology: 'qr', ecLevel: 'M', maxVersion: '25', segmentation: { eci: 'utf-8' } },
@@ -187,7 +191,6 @@ describe('applyConstraints', () => {
 		expect(issues.map((found) => found.code)).toEqual([
 			'design.issue.design-locked',
 			'design.issue.size-constrained',
-			'design.issue.overlay-required',
 		]);
 		const { name: _name, ...nameless } = fancy;
 		expect(applyConstraints(nameless, { designLocked: true }).design).not.toHaveProperty('name');
@@ -223,7 +226,9 @@ describe('applyConstraints', () => {
 		expect(design.logo?.paint).toEqual({ kind: 'solid', ink: '#000000' });
 		expect(design.logo?.plate?.paint).toEqual({ kind: 'solid', ink: '#ffffff' });
 		expect(design.frame?.paint).toEqual({ kind: 'solid', ink: '#000000' });
-		expect(design.frame?.text?.paint).toEqual({ kind: 'solid', ink: '#ffffff' });
+		// The caption gives up its own paint and takes the frame's ink, white
+		// on the frame's artwork and black beside it.
+		expect(design.frame?.text).toEqual({ content: 'Scan', fontId: 'plex-sans-bold' });
 		expect(issues.map((found) => found.code)).toEqual(['design.issue.colours-constrained']);
 		const picture = applyConstraints(
 			{
@@ -335,6 +340,7 @@ describe('applyConstraints', () => {
 		expect(applyConstraints(defaultDesign(), { sizeMm: 46 })).toEqual({
 			design: { ...defaultDesign(), output: { colourSpace: 'srgb', sizeMm: 46 } },
 			issues: [],
+			overlay: null,
 		});
 		expect(applyConstraints(fancy, { sizeMm: 30 }).issues).toEqual([]);
 	});
@@ -382,7 +388,10 @@ describe('design links', () => {
 			light: null,
 		},
 		regions: { finder: { outer: { id: 'squircle' }, inner: { id: 'squircle-centre' } } },
-		frame: { ref: { id: 'rounded-card' }, text: { content: 'Scan for the menu', fontId: 'inter' } },
+		frame: {
+			ref: { id: 'rounded-card' },
+			text: { content: 'Scan for the menu', fontId: 'plex-sans-bold' },
+		},
 		name: 'Café menu',
 	});
 
