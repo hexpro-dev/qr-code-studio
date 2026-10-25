@@ -55,6 +55,26 @@ jobs:
       - name: Verify published file list
         run: pnpm pack --dry-run
 
+  browsers:
+    # The rasteriser and the PNG writer promise the same bytes in every engine,
+    # and the scan check's verdict depends on it. Node proves nothing about
+    # JavaScriptCore or SpiderMonkey, so the same digests are checked in each.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm run test:e2e
+
   secret-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 10
