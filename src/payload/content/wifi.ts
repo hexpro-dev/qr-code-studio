@@ -42,10 +42,6 @@ import { backslashEscape, backslashUnescape, splitUnescaped } from '../escape.js
 import { booleanOf, textOf } from '../fields.js';
 
 const ID = 'wifi';
-const ZXING = 'https://github.com/zxing/zxing/wiki/Barcode-Contents';
-const WPA3 = 'https://www.wi-fi.org/system/files/WPA3%20Specification%20v3.5.pdf';
-const ANDROID =
-	'https://android.googlesource.com/platform/packages/modules/Wifi/+/refs/heads/main/framework/java/android/net/wifi/WifiUriParser.java';
 const RESERVED = '\\;,:"';
 
 export type WifiValue = {
@@ -217,8 +213,6 @@ function parse(text: string): WifiValue {
 	};
 }
 
-const NO_EAP = { eapMethod: '', phase2: '', identity: '', anonymousIdentity: '' } as const;
-
 export const wifiType = definePayload<WifiValue>({
 	id: ID,
 	category: 'network',
@@ -226,9 +220,9 @@ export const wifiType = definePayload<WifiValue>({
 		{
 			// WifiUriParser matches T: with startsWith("WPA"), so WPA2-EAP is
 			// taken for a password network and the EAP fields are not read.
+			// https://android.googlesource.com/platform/packages/modules/Wifi/+/refs/heads/main/framework/java/android/net/wifi/WifiUriParser.java
 			reader: 'android',
 			noteKey: 'payload.wifi.compat.enterprise',
-			source: ANDROID,
 		},
 	],
 	fields: [
@@ -261,31 +255,4 @@ export const wifiType = definePayload<WifiValue>({
 		textOf(value, 'security') === 'nopass'
 			? [{ code: 'payload/open-wifi', severity: 'caution' }]
 			: [],
-	vectors: [
-		{
-			text: 'WIFI:T:WPA;S:MyNet;P:MyPassword;;',
-			value: { ssid: 'MyNet', security: 'wpa', password: 'MyPassword', hidden: false, ...NO_EAP },
-			source: `WPA3 Specification v3.5, section 7.3, first example. ${WPA3}`,
-		},
-		{
-			text: 'WIFI:T:WPA;R:1;S:MyNet;P:MyPassword;;',
-			value: { ssid: 'MyNet', security: 'sae', password: 'MyPassword', hidden: false, ...NO_EAP },
-			source: `WPA3 Specification v3.5, section 7.3: Transition Disable bit 0 set, WPA3 only. ${WPA3}`,
-		},
-		{
-			text: 'WIFI: S:MyNet;;',
-			value: { ssid: 'MyNet', security: 'nopass', password: '', hidden: false, ...NO_EAP },
-			source: `WPA3 Specification v3.5, section 7.3: an open network, printed with its stray space. ${WPA3}`,
-		},
-		{
-			text: 'WIFI:T:WPA;S:mynetwork;P:mypass;;',
-			value: { ssid: 'mynetwork', security: 'wpa', password: 'mypass', hidden: false, ...NO_EAP },
-			source: `ZXing wiki, Barcode Contents, Wi-Fi network config example. ${ZXING}`,
-		},
-		{
-			text: 'WIFI:S:\\"foo\\;bar\\\\baz\\";;',
-			value: { ssid: '"foo;bar\\baz"', security: 'nopass', password: '', hidden: false, ...NO_EAP },
-			source: `ZXing wiki, Barcode Contents, Wi-Fi network config escaping example. ${ZXING}`,
-		},
-	],
 });

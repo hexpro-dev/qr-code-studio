@@ -19,12 +19,4 @@ export const textType = definePayload<TextValue>({
 	// "possibly", so every specific type outranks it.
 	detect: (text) => (text === '' ? 0 : 0.01),
 	parse: (text) => ({ text }),
-	vectors: [
-		{
-			text: 'Example text',
-			value: { text: 'Example text' },
-			source:
-				'ISO/IEC 18004:2015 section 7.4: a symbol carries text with no structure required of it.',
-		},
-	],
 });

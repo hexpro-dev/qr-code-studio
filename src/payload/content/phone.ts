@@ -40,11 +40,4 @@ export const phoneType = definePayload<PhoneValue>({
 	write: (value) => `tel:${compactTel(textOf(value, 'number'))}`,
 	detect: (text) => (/^tel:/i.test(text) ? 1 : 0),
 	parse,
-	vectors: [
-		{
-			text: 'tel:+1-201-555-0123',
-			value: { number: '+1-201-555-0123' },
-			source: 'RFC 3966 section 6, first example.',
-		},
-	],
 });

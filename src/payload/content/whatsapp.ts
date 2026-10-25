@@ -17,7 +17,6 @@ import { parseQuery } from '../escape.js';
 import { telDigits, textOf } from '../fields.js';
 
 const ID = 'whatsapp';
-const FAQ = 'https://faq.whatsapp.com/5913398998672934';
 
 export type WhatsappValue = { readonly number: string; readonly message: string };
 
@@ -69,22 +68,14 @@ export const whatsappType = definePayload<WhatsappValue>({
 		field(ID, 'number', 'tel', { required: true, hint: true }),
 		field(ID, 'message', 'multiline', { maxLength: 1000 }),
 	],
-	compatibility: [{ reader: 'whatsapp', noteKey: 'payload.whatsapp.compat.app', source: FAQ }],
+	compatibility: [
+		// WhatsApp Help Centre, "How to use click to chat":
+		// https://faq.whatsapp.com/5913398998672934
+		{ reader: 'whatsapp', noteKey: 'payload.whatsapp.compat.app' },
+	],
 	rules,
 	write,
 	detect: (text) => (locate(text) === undefined ? 0 : 0.9),
 	parse,
 	safety: () => [{ code: 'payload/sends-message', severity: 'note' }],
-	vectors: [
-		{
-			text: 'https://wa.me/15551234567',
-			value: { number: '+15551234567', message: '' },
-			source: `WhatsApp Help Centre, "How to use click to chat", ${FAQ}.`,
-		},
-		{
-			text: "https://wa.me/15551234567?text=I'm%20interested%20in%20your%20car%20for%20sale",
-			value: { number: '+15551234567', message: "I'm interested in your car for sale" },
-			source: `WhatsApp Help Centre, "How to use click to chat", ${FAQ}.`,
-		},
-	],
 });

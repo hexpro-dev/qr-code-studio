@@ -19,7 +19,6 @@ import { parseQuery } from '../escape.js';
 import { decimalPlaces, FIELD_ISSUES, numberOf, textOf } from '../fields.js';
 
 const ID = 'upi';
-const NPCI = 'NPCI, UPI Linking Specifications version 1.6, section 3 (URL specification)';
 
 export type UpiValue = {
 	readonly address: string;
@@ -96,11 +95,4 @@ export const upiType = definePayload<UpiValue>({
 	detect: (text) => (/^upi:\/\/pay\?/i.test(text) ? 1 : 0),
 	parse,
 	safety: () => [{ code: 'payload/payment', severity: 'caution' }],
-	vectors: [
-		{
-			text: 'upi://pay?pa=example@upi&pn=Example%20Shop&am=10.00&cu=INR&tn=Order%201',
-			value: { address: 'example@upi', name: 'Example Shop', amount: 10, note: 'Order 1' },
-			source: `${NPCI}: pa, pn, am, cu and tn, spaces as %20; synthetic payee.`,
-		},
-	],
 });

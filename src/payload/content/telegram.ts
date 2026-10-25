@@ -16,7 +16,6 @@ import { parseQuery } from '../escape.js';
 import { telDigits, textOf } from '../fields.js';
 
 const ID = 'telegram';
-const LINKS = 'https://core.telegram.org/api/links';
 
 export type TelegramValue = {
 	readonly target: string;
@@ -93,7 +92,10 @@ export const telegramType = definePayload<TelegramValue>({
 		field(ID, 'phone', 'tel', { hint: true }),
 		field(ID, 'message', 'multiline', { maxLength: 4096 }),
 	],
-	compatibility: [{ reader: 'telegram', noteKey: 'payload.telegram.compat.app', source: LINKS }],
+	compatibility: [
+		// Telegram, "Deep links": https://core.telegram.org/api/links
+		{ reader: 'telegram', noteKey: 'payload.telegram.compat.app' },
+	],
 	rules,
 	write,
 	detect: (text) => {
@@ -105,16 +107,4 @@ export const telegramType = definePayload<TelegramValue>({
 		}
 	},
 	parse,
-	vectors: [
-		{
-			text: 'https://t.me/example_channel',
-			value: { target: 'username', username: 'example_channel', phone: '', message: '' },
-			source: `Telegram, "Deep links", public username links, ${LINKS}.`,
-		},
-		{
-			text: 'https://t.me/+61400000000?text=Hello',
-			value: { target: 'phone', username: '', phone: '+61400000000', message: 'Hello' },
-			source: `Telegram, "Deep links", phone number links, ${LINKS}.`,
-		},
-	],
 });

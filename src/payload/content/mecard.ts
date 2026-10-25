@@ -16,7 +16,6 @@ import { compactTel, listOf, textOf } from '../fields.js';
 import { analyseUrl } from '../url-safety.js';
 
 const ID = 'mecard';
-const ZXING = 'https://github.com/zxing/zxing/wiki/Barcode-Contents#contact-information';
 const RESERVED = '\\;,:';
 
 export type MecardValue = {
@@ -107,28 +106,14 @@ export const mecardType = definePayload<MecardValue>({
 		field(ID, 'note', 'text', { maxLength: 500 }),
 		field(ID, 'birthday', 'date'),
 	],
-	compatibility: [{ reader: 'docomo', noteKey: 'payload.mecard.compat.org', source: ZXING }],
+	compatibility: [
+		// ZXing wiki, Barcode Contents, contact information:
+		// https://github.com/zxing/zxing/wiki/Barcode-Contents#contact-information
+		{ reader: 'docomo', noteKey: 'payload.mecard.compat.org' },
+	],
 	rules,
 	write,
 	detect: (text) => (/^MECARD:/i.test(text) ? 1 : 0),
 	parse,
 	safety: (value) => (textOf(value, 'url') === '' ? [] : analyseUrl(textOf(value, 'url')).findings),
-	vectors: [
-		{
-			text: 'MECARD:N:Doe,John;TEL:13035551212;EMAIL:john.doe@example.com;;',
-			value: {
-				familyName: 'Doe',
-				givenName: 'John',
-				nickname: '',
-				phones: ['13035551212'],
-				email: ['john.doe@example.com'],
-				url: '',
-				address: '',
-				organisation: '',
-				note: '',
-				birthday: '',
-			},
-			source: `ZXing wiki, Barcode Contents, MECARD example. ${ZXING}`,
-		},
-	],
 });

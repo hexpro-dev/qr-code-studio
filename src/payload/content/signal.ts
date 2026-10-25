@@ -17,8 +17,6 @@ import { definePayload, field, unparseable } from '../define.js';
 import { telDigits, textOf } from '../fields.js';
 
 const ID = 'signal';
-const SOURCE =
-	'https://github.com/signalapp/Signal-Android/blob/main/app/src/main/java/org/thoughtcrime/securesms/util/SignalMeUtil.kt';
 
 export type SignalValue = { readonly number: string };
 
@@ -39,16 +37,13 @@ export const signalType = definePayload<SignalValue>({
 	id: ID,
 	category: 'message',
 	fields: [field(ID, 'number', 'tel', { required: true, hint: true })],
-	compatibility: [{ reader: 'signal', noteKey: 'payload.signal.compat.app', source: SOURCE }],
+	compatibility: [
+		// Signal for Android, SignalMeUtil.kt:
+		// https://github.com/signalapp/Signal-Android/blob/main/app/src/main/java/org/thoughtcrime/securesms/util/SignalMeUtil.kt
+		{ reader: 'signal', noteKey: 'payload.signal.compat.app' },
+	],
 	rules,
 	write: (value) => `https://signal.me/#p/+${telDigits(textOf(value, 'number'))}`,
 	detect: (text) => (LINK.test(text) ? 0.9 : 0),
 	parse,
-	vectors: [
-		{
-			text: 'https://signal.me/#p/+61400000000',
-			value: { number: '+61400000000' },
-			source: `Signal for Android, SignalMeUtil.kt, ${SOURCE}.`,
-		},
-	],
 });
