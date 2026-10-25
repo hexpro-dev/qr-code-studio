@@ -92,6 +92,10 @@
 			"types": "./dist/dom/index.d.ts",
 			"import": "./dist/dom/index.js"
 		},
+		"./dom/library": {
+			"types": "./dist/dom/library/index.d.ts",
+			"import": "./dist/dom/library/index.js"
+		},
 		"./messages": {
 			"types": "./dist/messages/en/index.d.ts",
 			"import": "./dist/messages/en/index.js"
