@@ -32,6 +32,10 @@ export default defineConfig({
 				branches: 98,
 				functions: 98,
 				lines: 98,
+				// The codecs, fields and arithmetic everything else is built on. One
+				// defensive re-check in reed-solomon.ts is excluded by a v8 hint, with
+				// the reason beside it; everything else is reached.
+				'src/core/**': { statements: 100, branches: 98, functions: 100, lines: 100 },
 			},
 		},
 	},
