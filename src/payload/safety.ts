@@ -25,6 +25,7 @@ export const SAFETY_CODES: readonly SafetyCode[] = Object.freeze([
 	'payload/open-wifi',
 	'payload/payment',
 	'payload/sends-message',
+	'payload/service-code',
 ] satisfies SafetyCode[]);
 
 /** 'host/dynamic-qr' is explained by 'payload.safety.host.dynamic-qr'. */

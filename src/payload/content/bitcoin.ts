@@ -51,7 +51,10 @@ export function bitcoinAddressNetwork(address: string): AddressNetwork | 'format
 			return decoded.reason === 'checksum' || decoded.reason === 'wrong-encoding'
 				? 'checksum'
 				: 'format';
-		return decoded.value.hrp === 'bc' ? 'mainnet' : 'testnet';
+		// A string that starts bc1 can still have a longer human-readable part
+		// ("bc1qq1..." has "bc1qq"), which no wallet pays.
+		if (decoded.value.hrp === 'bc') return 'mainnet';
+		return decoded.value.hrp === 'tb' ? 'testnet' : 'format';
 	}
 	const decoded = base58CheckDecode(address);
 	if (!decoded.ok) return decoded.reason;

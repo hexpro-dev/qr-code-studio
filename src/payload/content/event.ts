@@ -71,6 +71,43 @@ export function addDays(date: string, days: number): string {
 	return fromDayNumber(dayNumber(year, month, day) + days);
 }
 
+/**
+ * A DURATION value in seconds (RFC 5545 section 3.3.6): weeks, or days with
+ * an optional time part. Undefined for anything else, a negative duration
+ * included, which belongs to alarms rather than events.
+ */
+function durationSeconds(text: string): number | undefined {
+	const match =
+		/^\+?P(?:(\d+)W|(\d+)D(?:T(?=\d)(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?|T(?=\d)(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)$/.exec(
+			text,
+		);
+	if (!match) return undefined;
+	const [, weeks, days, hours, minutes, secs, onlyHours, onlyMinutes, onlySeconds] = match.map(
+		(part) => Number(part ?? 0),
+	);
+	return (
+		(weeks as number) * 604800 +
+		(days as number) * 86400 +
+		((hours as number) + (onlyHours as number)) * 3600 +
+		((minutes as number) + (onlyMinutes as number)) * 60 +
+		(secs as number) +
+		(onlySeconds as number)
+	);
+}
+
+/** A 'YYYY-MM-DDTHH:MM[:SS]' time moved by some seconds, written as readTime writes one. */
+function addSeconds(value: string, seconds: number): string {
+	const [date, time] = value.split('T') as [string, string];
+	const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+	const [hh, mm, ss = 0] = time.split(':').map(Number) as [number, number, number?];
+	const total = dayNumber(year, month, day) * 86400 + hh * 3600 + mm * 60 + ss + seconds;
+	const days = Math.floor(total / 86400);
+	const rest = total - days * 86400;
+	const pad = (n: number) => String(n).padStart(2, '0');
+	const s = rest % 60;
+	return `${fromDayNumber(days)}T${pad(Math.floor(rest / 3600))}:${pad(Math.floor(rest / 60) % 60)}${s === 0 ? '' : `:${pad(s)}`}`;
+}
+
 /** 'YYYY-MM-DDTHH:MM[:SS]' as 'YYYYMMDDTHHMMSS'. */
 function icalDateTime(value: string): string {
 	const [date, time] = value.split('T') as [string, string];
@@ -162,12 +199,26 @@ function parse(text: string): EventValue {
 			found[content.name] = unescapeText(content.value);
 		} else if (content.name === 'URL') {
 			found.URL = content.value;
+		} else if (content.name === 'DURATION') {
+			found.DURATION = content.value.trim();
 		}
 	}
 	if (start === undefined) throw unparseable(ID, 'missing-start');
 	const allDay = start.kind === 'date';
 	if (end !== undefined && (end.kind === 'date') !== allDay)
 		throw unparseable(ID, 'mixed-time-kinds');
+	// RFC 5545 allows DURATION in place of DTEND. A duration that cannot be
+	// read leaves the event without an end rather than refusing it.
+	const seconds = found.DURATION === undefined ? undefined : durationSeconds(found.DURATION);
+	if (end === undefined && seconds !== undefined) {
+		end = allDay
+			? { kind: 'date', text: addDays(start.text, Math.floor(seconds / 86400)) }
+			: { kind: start.kind, text: addSeconds(start.text, seconds) };
+	}
+	// An all-day DTEND is the day after the last one. One that is not after
+	// DTSTART breaks the rule but is common, and every calendar shows it as a
+	// one-day event, so it is read as one.
+	if (allDay && end !== undefined && end.text <= start.text) end = undefined;
 	return {
 		summary: found.SUMMARY ?? '',
 		timing: allDay ? 'all-day' : start.kind,

@@ -20,8 +20,13 @@ import type { SafetyFinding, UrlAnalysis } from './types.js';
 
 /**
  * Schemes that run code or reach the local machine rather than going to a
- * site: script, inline documents, local files and in-memory objects. No QR
- * code has a good reason to carry one.
+ * site: script, inline documents, local files and in-memory objects, and
+ * itms-services, which installs an app on an iPhone from a manifest anybody
+ * can host. No QR code has a good reason to carry one.
+ *
+ * Android's intent: is not here. It opens an app, which is "unusual" and
+ * worth a caution, and plenty of ordinary codes use it to open a map or a
+ * store page.
  */
 const DANGEROUS_SCHEMES: ReadonlySet<string> = new Set([
 	'javascript',
@@ -29,7 +34,13 @@ const DANGEROUS_SCHEMES: ReadonlySet<string> = new Set([
 	'vbscript',
 	'file',
 	'blob',
+	'itms-services',
 ]);
+
+/** True for a scheme (without its colon) that runs code or reaches the device. */
+export function isDangerousScheme(scheme: string): boolean {
+	return DANGEROUS_SCHEMES.has(scheme.toLowerCase());
+}
 
 /**
  * Schemes the content types in this layer read and explain themselves. They
@@ -118,7 +129,10 @@ function parseUrl(text: string): URL | undefined {
 	}
 }
 
-function matches(host: string, list: readonly RedirectHost[]): boolean {
+function matches(fqdn: string, list: readonly RedirectHost[]): boolean {
+	// "bit.ly." is the same host as "bit.ly", written as a fully qualified
+	// name, and WHATWG keeps the dot.
+	const host = fqdn.endsWith('.') ? fqdn.slice(0, -1) : fqdn;
 	return list.some((entry) => host === entry.host || host.endsWith(`.${entry.host}`));
 }
 

@@ -43,6 +43,39 @@ describe('url', () => {
 		expect(urlType.detect('not a link')).toBe(0);
 	});
 
+	it('reads a link the way a phone does: trimmed, prefixed or without a scheme', () => {
+		expect(urlType.parse('  https://example.com/a \r\n')).toMatchObject({
+			url: 'https://example.com/a',
+		});
+		expect(urlType.detect('https://bank.example@evil.example/\n')).toBe(0.5);
+		expect(urlType.parse('URL:https://example.com/')).toMatchObject({
+			url: 'https://example.com/',
+		});
+		expect(urlType.parse('uri: https://example.com/')).toMatchObject({
+			url: 'https://example.com/',
+		});
+		// ZXing opens a bare domain as http, so this reads one the same way.
+		expect(urlType.detect('bit.ly/abc')).toBe(0.3);
+		expect(urlType.parse('bit.ly/abc')).toMatchObject({ url: 'http://bit.ly/abc' });
+		expect(urlType.safety?.(urlType.parse('bit.ly/abc'))).toEqual([
+			{ code: 'url/insecure', severity: 'caution' },
+			{ code: 'host/shortener', severity: 'caution', params: { host: 'bit.ly' } },
+		]);
+		expect(urlType.parse('example.com:8080/x')).toMatchObject({ url: 'http://example.com:8080/x' });
+		expect(urlType.detect('example.com?q=1')).toBe(0.3);
+		expect(urlType.detect('example')).toBe(0);
+		expect(urlType.detect(' \t ')).toBe(0);
+	});
+
+	it('finds a dangerous scheme by what the parser makes of it', () => {
+		// The URL parser drops the leading control character, as browsers do.
+		expect(urlType.detect('\u000ejavascript:alert(1)')).toBe(0.4);
+		expect(
+			urlType.detect('itms-services://?action=download-manifest&url=https://example.com/a.plist'),
+		).toBe(0.4);
+		expect(urlType.detect('intent://scan/#Intent;end')).toBe(0.2);
+	});
+
 	it('adds campaign tags to the link as written, and takes them back off', () => {
 		const text = build(urlType, {
 			url: 'https://example.com/menu?table=4#drinks',
@@ -144,6 +177,18 @@ describe('phone', () => {
 		refuses(phoneType, 'tel:%ZZ');
 		refuses(phoneType, '+61400000000');
 		expect(phoneType.detect('+61400000000')).toBe(0);
+	});
+
+	it('warns about a star or hash service code, which it will not make', () => {
+		const forwarding = phoneType.parse('tel:*21*0400000000%23');
+		expect(forwarding).toEqual({ number: '*21*0400000000#' });
+		expect(phoneType.safety?.(forwarding)).toEqual([
+			{ code: 'payload/service-code', severity: 'danger' },
+		]);
+		expect(phoneType.validate(forwarding).map((found) => found.code)).toEqual([
+			'payload.issue.invalid-tel',
+		]);
+		expect(phoneType.safety?.(VALID.phone as never)).toEqual([]);
 	});
 });
 

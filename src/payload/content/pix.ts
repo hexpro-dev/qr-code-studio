@@ -72,14 +72,18 @@ function validCnpj(text: string): boolean {
 	return true;
 }
 
-/** The five kinds of Pix key (Manual de Padroes, section 2.6.1): CPF, CNPJ, email, phone, random (EVP). */
+/**
+ * The five kinds of Pix key (Manual de Padroes, section 2.6.1): CPF, CNPJ,
+ * email, phone, random (EVP). DICT holds email and random keys in lower
+ * case, so a key written with capitals is one the payer's bank will not find.
+ */
 export function isPixKey(key: string): boolean {
 	return (
 		validCpf(key) ||
 		validCnpj(key) ||
-		(isEmail(key) && key.length <= 77) ||
+		(isEmail(key) && key.length <= 77 && key === key.toLowerCase()) ||
 		/^\+55\d{10,11}$/.test(key) ||
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(key)
 	);
 }
 

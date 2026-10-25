@@ -12,6 +12,8 @@ export const OWN_LINK_MESSAGES: Readonly<Record<string, string>> = Object.freeze
 	'own-link.issue.from-path':
 		'Use only letters, digits, hyphens, dots, underscores and slashes in the path, so every platform matches it the same way.',
 	'own-link.issue.to': 'Enter the full destination address, starting with https://.',
+	'own-link.issue.to-userinfo':
+		'The destination has a user name or password in it. Browsers warn about these links, so leave it out.',
 	'own-link.issue.to-insecure':
 		'The destination does not use a secure connection. Use https:// if the site supports it.',
 	'own-link.issue.status':

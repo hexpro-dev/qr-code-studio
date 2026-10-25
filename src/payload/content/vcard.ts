@@ -1,6 +1,7 @@
 /**
  * A contact card: vCard, written as 3.0 (RFC 2426) and read as 3.0 or 4.0
- * (RFC 6350), and as 2.1 well enough to recover names and numbers.
+ * (RFC 6350), and as 2.1 well enough to recover names and numbers,
+ * including the quoted-printable values 2.1 writes for anything not ASCII.
  *
  * 3.0 is written rather than 4.0 because it is what the phone address books
  * import most reliably from a scan; 4.0 changed TYPE values to lower case and
@@ -107,6 +108,62 @@ function write(value: VcardValue): string {
 	return lines.map(foldLine).join('\r\n');
 }
 
+/**
+ * windows-1252's 0x80 to 0x9F, which is what WHATWG and so every browser
+ * decodes for the label ISO-8859-1. Node's TextDecoder gives C1 controls for
+ * the same bytes, so the table is here to make every engine agree.
+ */
+const WINDOWS_1252_HIGH = [
+	0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021, 0x2c6, 0x2030, 0x160, 0x2039, 0x152,
+	0x8d, 0x17d, 0x8f, 0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x2dc, 0x2122,
+	0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178,
+];
+
+function decodeBytes(bytes: Uint8Array, charset: string): string {
+	if (/^(?:iso-8859-1|latin1|windows-1252|cp1252|us-ascii|ascii)$/i.test(charset)) {
+		let out = '';
+		for (const byte of bytes) {
+			out += String.fromCharCode(
+				byte >= 0x80 && byte < 0xa0 ? (WINDOWS_1252_HIGH[byte - 0x80] as number) : byte,
+			);
+		}
+		return out;
+	}
+	let decoder: TextDecoder;
+	try {
+		decoder = new TextDecoder(charset);
+	} catch {
+		decoder = new TextDecoder('utf-8');
+	}
+	return decoder.decode(bytes);
+}
+
+/**
+ * Quoted-printable (RFC 2045 section 6.7), as vCard 2.1 writes names and
+ * notes that are not ASCII: "=C3=89" is the two UTF-8 bytes of a capital E
+ * with an acute accent.
+ * The charset comes from the CHARSET parameter; an unknown one is read as
+ * UTF-8.
+ */
+function decodeQuotedPrintable(text: string, charset: string): string {
+	const bytes: number[] = [];
+	const encoder = new TextEncoder();
+	for (let i = 0; i < text.length;) {
+		const hex = text.slice(i + 1, i + 3);
+		if (text[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+			bytes.push(Number.parseInt(hex, 16));
+			i += 3;
+		} else {
+			// A character the writer left unencoded, taken whole so that a
+			// character outside the BMP keeps both halves.
+			const char = String.fromCodePoint(text.codePointAt(i) as number);
+			bytes.push(...encoder.encode(char));
+			i += char.length;
+		}
+	}
+	return decodeBytes(Uint8Array.from(bytes), charset);
+}
+
 /** A birthday as YYYY-MM-DD, from the forms 3.0 and 4.0 allow; '' for one with no year. */
 function readDate(raw: string): string {
 	const match = /^(\d{4})-?(\d{2})-?(\d{2})(?:T.*)?$/.exec(raw.trim());
@@ -138,16 +195,30 @@ function parse(text: string): VcardValue {
 	};
 	let formatted = '';
 	let address = false;
-	for (const line of lines.slice(begin + 1)) {
+	for (let i = begin + 1; i < lines.length; i += 1) {
+		const line = lines[i] as string;
 		if (/^END:VCARD$/i.test(line.trim())) break;
 		const content = parseContentLine(line);
 		if (content === undefined) continue;
 		const types = content.params.get('TYPE') ?? [];
+		let value = content.value;
+		if (
+			[...(content.params.get('ENCODING') ?? []), ...types].some((v) =>
+				/^quoted-printable$/i.test(v),
+			)
+		) {
+			// A soft line break is "=" at the end of a line (RFC 2045 section
+			// 6.7), and the next line carries on with no leading space.
+			while (value.endsWith('=') && i + 1 < lines.length) {
+				i += 1;
+				value = `${value.slice(0, -1)}${lines[i] as string}`;
+			}
+			value = decodeQuotedPrintable(value, content.params.get('CHARSET')?.[0] ?? 'utf-8');
+		}
 		switch (content.name) {
 			case 'N': {
-				const [family = '', given = '', additional = '', prefix = '', suffix = ''] = splitCompound(
-					content.value,
-				);
+				const [family = '', given = '', additional = '', prefix = '', suffix = ''] =
+					splitCompound(value);
 				Object.assign(out, {
 					familyName: family,
 					givenName: given,
@@ -158,39 +229,39 @@ function parse(text: string): VcardValue {
 				break;
 			}
 			case 'FN':
-				formatted = unescapeText(content.value);
+				formatted = unescapeText(value);
 				break;
 			case 'ORG': {
-				const [organisation = '', ...units] = splitCompound(content.value);
+				const [organisation = '', ...units] = splitCompound(value);
 				Object.assign(out, { organisation, department: units.join(' ') });
 				break;
 			}
 			case 'TITLE':
 			case 'NOTE':
-				out[content.name === 'TITLE' ? 'title' : 'note'] = unescapeText(content.value);
+				out[content.name === 'TITLE' ? 'title' : 'note'] = unescapeText(value);
 				break;
 			case 'TEL':
 				(lists[phoneKey(types)] as string[]).push(
-					content.value.replace(/^tel:/i, '').split(';')[0] as string,
+					value.replace(/^tel:/i, '').split(';')[0] as string,
 				);
 				break;
 			case 'EMAIL':
-				lists.email?.push(content.value);
+				lists.email?.push(value);
 				break;
 			case 'URL':
-				lists.website?.push(content.value);
+				lists.website?.push(value);
 				break;
 			case 'ADR': {
 				if (address) break;
 				address = true;
 				const [, , street = '', locality = '', region = '', postcode = '', country = ''] =
-					splitCompound(content.value);
+					splitCompound(value);
 				Object.assign(out, { street, locality, region, postcode, country });
 				out.addressType = types.some((type) => /home/i.test(type)) ? 'home' : 'work';
 				break;
 			}
 			case 'BDAY':
-				out.birthday = readDate(content.value);
+				out.birthday = readDate(value);
 				break;
 			default:
 				break;

@@ -76,6 +76,8 @@ export const PAYLOAD_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 		'This network has no password, so anyone nearby can join it and may see what you send over it.',
 	'payload.safety.payload.payment':
 		'This code starts a payment. Check who is being paid and how much before you confirm.',
+	'payload.safety.payload.service-code':
+		'This code dials a service code with * or #, which can change phone settings such as call forwarding. Do not call it.',
 	'payload.safety.payload.sends-message':
 		'This code prepares a message. Nothing is sent until you choose to send it.',
 
@@ -223,6 +225,10 @@ export const PAYLOAD_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 		'This password is {length} characters. A WPA password is {min} to {max}.',
 	'payload.wifi.issue.eap-ignored':
 		'The enterprise settings are only used when Security is Enterprise.',
+	'payload.wifi.issue.hex-ssid':
+		'Some Android apps read a network name made only of the digits 0 to 9 and the letters A to F as raw bytes, and will not find this network.',
+	'payload.wifi.compat.enterprise':
+		'The camera built into Android treats an enterprise network as one with a password and may not join it. Apps based on ZXing read the enterprise settings.',
 	'payload.wifi.issue.password-ignored': 'A network with no password ignores the password.',
 
 	// vCard.
@@ -369,6 +375,10 @@ export const PAYLOAD_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 	'payload.epc.option.version.002': 'Version 2',
 	'payload.epc.option.version.001': 'Version 1 (needs a BIC)',
 	'payload.epc.issue.bic-required': 'Version 1 needs a BIC.',
+	'payload.epc.issue.bic-outside-eea':
+		'This IBAN is from a SEPA country outside the European Economic Area, so the transfer needs a BIC.',
+	'payload.epc.issue.not-sepa':
+		'This IBAN is not from a SEPA country, so a SEPA transfer may not reach it.',
 	'payload.epc.issue.purpose': 'A purpose code is four capital letters or digits.',
 	'payload.epc.issue.reference-and-message':
 		'Use either a creditor reference or a message, not both.',
@@ -427,7 +437,12 @@ export const PAYLOAD_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 		'This bill uses combined address lines, which QR-bills stopped accepting in November 2025. Split the address into its lines before making the bill again.',
 	'payload.swiss-qr-bill.issue.qrr-needs-qr-iban': 'A QR reference needs a QR-IBAN.',
 	'payload.swiss-qr-bill.issue.qr-iban-needs-qrr': 'A QR-IBAN needs a QR reference.',
-	'payload.swiss-qr-bill.issue.qrr-chf-only': 'A QR reference is only for bills in Swiss francs.',
+	'payload.swiss-qr-bill.issue.qrr-chf-only':
+		'From QR-bill version 2.4 a QR reference is only for bills in Swiss francs. A bill in euros made this way is accepted until November 2027.',
+	'payload.swiss-qr-bill.issue.notification':
+		'An amount of 0.00 makes a notification, not a bill to pay. Put DO NOT USE FOR PAYMENT in the additional information.',
+	'payload.swiss-qr-bill.issue.bytes':
+		'This bill is {length} bytes once its accented letters are encoded, and the code holds {max}. It may not fit.',
 	'payload.swiss-qr-bill.issue.qr-reference':
 		'A QR reference is 27 digits and this one fails its check digit.',
 	'payload.swiss-qr-bill.issue.reference-not-allowed':

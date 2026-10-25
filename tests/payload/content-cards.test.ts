@@ -263,6 +263,39 @@ describe('vcard', () => {
 		expect(bday('--0131')).toBe('');
 	});
 
+	it('decodes vCard 2.1 quoted-printable values, soft line breaks included', () => {
+		const card = [
+			'BEGIN:VCARD',
+			'VERSION:2.1',
+			'N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Exampl=C3=A9;Ren=C3=A9',
+			'NOTE;ENCODING=QUOTED-PRINTABLE:First line=0D=0Aand a long note that wraps=',
+			'here and=',
+			'finishes',
+			'ORG;CHARSET=ISO-8859-1;QUOTED-PRINTABLE:Caf=E9 =80=9F',
+			'TITLE;ENCODING=QUOTED-PRINTABLE;CHARSET=X-UNKNOWN:Chef =3D head',
+			'END:VCARD',
+		].join('\r\n');
+		expect(vcardType.parse(card)).toMatchObject({
+			familyName: 'Exampl\u00e9',
+			givenName: 'Ren\u00e9',
+			note: 'First line\r\nand a long note that wrapshere andfinishes',
+			// ISO-8859-1 as WHATWG decodes it, which is windows-1252.
+			organisation: 'Caf\u00e9 \u20ac\u0178',
+			title: 'Chef = head',
+		});
+		expect(
+			vcardType.parse('BEGIN:VCARD\nN;ENCODING=QUOTED-PRINTABLE:A=\nEND:VCARD').familyName,
+		).toBe('AEND:VCARD');
+		expect(
+			vcardType.parse('BEGIN:VCARD\nN;ENCODING=QUOTED-PRINTABLE:\ud83d\ude00 =4\nEND:VCARD')
+				.familyName,
+		).toBe('\ud83d\ude00 =4');
+		expect(
+			vcardType.parse('BEGIN:VCARD\nN;CHARSET=UTF-16LE;ENCODING=QUOTED-PRINTABLE:A=00\nEND:VCARD')
+				.familyName,
+		).toBe('A');
+	});
+
 	it('reads vCard 2.1 bare types and refuses what is not a card', () => {
 		expect(
 			vcardType.parse('BEGIN:VCARD\nVERSION:2.1\nN:Example;Alex\nTEL;CELL:+61400000000\nEND:VCARD'),
@@ -405,6 +438,43 @@ describe('event', () => {
 		});
 		expect(eventType.detect('BEGIN:VCALENDAR\nBEGIN:VEVENT')).toBe(1);
 		expect(eventType.detect('BEGIN:VCALENDAR\nBEGIN:VTODO')).toBe(0);
+	});
+
+	it('reads DURATION in place of DTEND', () => {
+		const read = (lines: string) => eventType.parse(`BEGIN:VEVENT\n${lines}\nEND:VEVENT`);
+		expect(read('DTSTART:20261103T233000Z\nDURATION:PT1H45M30S')).toMatchObject({
+			start: '2026-11-03T23:30',
+			end: '2026-11-04T01:15:30',
+		});
+		expect(read('DTSTART:20261103T090000\nDURATION:P1W')).toMatchObject({
+			end: '2026-11-10T09:00',
+		});
+		expect(read('DTSTART:20261103T090000\nDURATION:P1DT2H')).toMatchObject({
+			end: '2026-11-04T11:00',
+		});
+		expect(read('DTSTART:20261103T090000\nDURATION:+PT30M')).toMatchObject({
+			end: '2026-11-03T09:30',
+		});
+		expect(read('DTSTART;VALUE=DATE:20261103\nDURATION:P3D')).toMatchObject({
+			startDate: '2026-11-03',
+			endDate: '2026-11-05',
+		});
+		// A duration that cannot be read, or a negative one, leaves no end.
+		for (const duration of ['-PT1H', 'P', 'PT', 'P1H', 'soon']) {
+			expect(read(`DTSTART:20261103T090000\nDURATION:${duration}`).end, duration).toBe('');
+		}
+		// DTEND wins over DURATION.
+		expect(read('DTSTART:20261103T090000\nDTEND:20261103T100000\nDURATION:PT5H').end).toBe(
+			'2026-11-03T10:00',
+		);
+	});
+
+	it('reads an all-day event that does not move its end on as a single day', () => {
+		const read = (lines: string) => eventType.parse(`BEGIN:VEVENT\n${lines}\nEND:VEVENT`);
+		expect(read('DTSTART;VALUE=DATE:20261103\nDTEND;VALUE=DATE:20261103')).toMatchObject({
+			endDate: '',
+		});
+		expect(read('DTSTART;VALUE=DATE:20261103\nDURATION:PT1H')).toMatchObject({ endDate: '' });
 	});
 
 	it('refuses an event it cannot place in time', () => {

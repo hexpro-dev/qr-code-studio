@@ -44,6 +44,8 @@ import { booleanOf, textOf } from '../fields.js';
 const ID = 'wifi';
 const ZXING = 'https://github.com/zxing/zxing/wiki/Barcode-Contents';
 const WPA3 = 'https://www.wi-fi.org/system/files/WPA3%20Specification%20v3.5.pdf';
+const ANDROID =
+	'https://android.googlesource.com/platform/packages/modules/Wifi/+/refs/heads/main/framework/java/android/net/wifi/WifiUriParser.java';
 const RESERVED = '\\;,:"';
 
 export type WifiValue = {
@@ -129,6 +131,14 @@ function rules(value: WifiValue, flagged: (key: string) => boolean): Issue[] {
 			}),
 		);
 	}
+	// ZXing's Android app joins an SSID made only of hexadecimal digits as raw
+	// bytes (WifiConfigManager's quoteNonHex), so "12345678" becomes the four
+	// bytes 12 34 56 78. Android's own reader does not, and quoting it the way
+	// ZXing's wiki suggests breaks Android's newer reader, so the readers
+	// cannot all be satisfied and the person is told.
+	if (!flagged('ssid') && /^[0-9A-Fa-f]+$/.test(ssid)) {
+		found.push(issue('payload.wifi.issue.hex-ssid', ['fields', 'ssid'], 'warning'));
+	}
 	const security = textOf(value, 'security');
 	if (!flagged('security') && !flagged('password'))
 		found.push(...passwordIssues(security, textOf(value, 'password')));
@@ -212,6 +222,15 @@ const NO_EAP = { eapMethod: '', phase2: '', identity: '', anonymousIdentity: '' 
 export const wifiType = definePayload<WifiValue>({
 	id: ID,
 	category: 'network',
+	compatibility: [
+		{
+			// WifiUriParser matches T: with startsWith("WPA"), so WPA2-EAP is
+			// taken for a password network and the EAP fields are not read.
+			reader: 'android',
+			noteKey: 'payload.wifi.compat.enterprise',
+			source: ANDROID,
+		},
+	],
 	fields: [
 		field(ID, 'ssid', 'text', { required: true, hint: true }),
 		field(ID, 'security', 'select', {

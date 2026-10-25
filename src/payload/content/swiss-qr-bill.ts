@@ -91,10 +91,18 @@ export function isQrIban(iban: string): boolean {
 	return /^(?:CH|LI)\d{7}/.test(compact) && iid >= 30000 && iid <= 31999;
 }
 
-/** 27 digits, the last a modulo 10 recursive check over the other 26 (section 2.12.1). */
+/**
+ * 27 digits, the last a modulo 10 recursive check over the other 26, and not
+ * all zeros, which the check digit alone would allow (section 2.12.1: "The
+ * reference must not consist exclusively of zeros").
+ */
 export function isQrReference(reference: string): boolean {
 	const compact = reference.replace(/ /g, '');
-	return /^\d{27}$/.test(compact) && mod10Recursive(compact.slice(0, 26)) === Number(compact[26]);
+	return (
+		/^\d{27}$/.test(compact) &&
+		!/^0+$/.test(compact) &&
+		mod10Recursive(compact.slice(0, 26)) === Number(compact[26])
+	);
 }
 
 /** A debtor is given when any line other than the country is, so a form that fills in a default country does not invent one. */
@@ -182,8 +190,13 @@ function referenceIssues(value: SwissQrBillValue, flagged: (key: string) => bool
 			found.push(
 				issue('payload.swiss-qr-bill.issue.qrr-needs-qr-iban', ['fields', 'referenceType']),
 			);
+		// Version 2.4 keeps the QR reference for francs, but version 2.3, which
+		// allows it in euros, stays valid until November 2027. So this is a
+		// warning: a bill made this way works now and will stop working.
 		if (textOf(value, 'currency') !== 'chf')
-			found.push(issue('payload.swiss-qr-bill.issue.qrr-chf-only', ['fields', 'currency']));
+			found.push(
+				issue('payload.swiss-qr-bill.issue.qrr-chf-only', ['fields', 'currency'], 'warning'),
+			);
 		if (text === '') found.push(issue(FIELD_ISSUES.required, path));
 		else if (!flagged('reference') && !isQrReference(text))
 			found.push(issue('payload.swiss-qr-bill.issue.qr-reference', path));
@@ -238,7 +251,8 @@ function rules(value: SwissQrBillValue, flagged: (key: string) => boolean): Issu
 			position += 1;
 		}
 	}
-	const length = charLength(write(value));
+	const text = write(value);
+	const length = charLength(text);
 	if (length > SWISS_MAX_CHARACTERS) {
 		found.push(
 			issue('payload.swiss-qr-bill.issue.too-long', ['fields'], 'error', {
@@ -246,6 +260,22 @@ function rules(value: SwissQrBillValue, flagged: (key: string) => boolean): Issu
 				max: SWISS_MAX_CHARACTERS,
 			}),
 		);
+	} else {
+		// The limit is in characters, and version 25 at level M holds 997
+		// bytes. A bill near the limit with accented letters can be within the
+		// one and over the other, which only the encoder can settle.
+		const bytes = new TextEncoder().encode(text).length;
+		if (bytes > SWISS_MAX_CHARACTERS) {
+			found.push(
+				issue('payload.swiss-qr-bill.issue.bytes', ['fields'], 'warning', {
+					length: bytes,
+					max: SWISS_MAX_CHARACTERS,
+				}),
+			);
+		}
+	}
+	if (amount === 0) {
+		found.push(issue('payload.swiss-qr-bill.issue.notification', ['fields', 'amount'], 'warning'));
 	}
 	return found;
 }
@@ -266,7 +296,9 @@ function readAddress(rows: readonly string[], start: number): ReadAddress {
 }
 
 function parse(text: string): SwissQrBillValue {
-	const rows = text.split(/\r?\n/);
+	// Section 4.1.4 puts no line end after the last line, but plenty of
+	// generators write one, and a bill is no less readable for it.
+	const rows = text.replace(/\r?\n$/, '').split(/\r?\n/);
 	if (rows[0] !== 'SPC') throw unparseable(ID, 'not-swiss-qr-bill');
 	if (rows[1] !== '0200' || rows[2] !== '1' || rows[30] !== 'EPD' || rows.length > 34)
 		throw unparseable(ID, 'header');
@@ -329,7 +361,9 @@ export const swissQrBillType = definePayload<SwissQrBillValue>({
 	fields: [
 		field(ID, 'iban', 'iban', { required: true, hint: true }),
 		...addressFields('creditor'),
-		field(ID, 'amount', 'amount', { min: 0.01, max: 999999999.99 }),
+		// 0.00 is allowed: it makes a notification rather than a bill to pay
+		// (section 4.4, table 10).
+		field(ID, 'amount', 'amount', { min: 0, max: 999999999.99 }),
 		field(ID, 'currency', 'select', { required: true, options: ['chf', 'eur'], default: 'chf' }),
 		...addressFields('debtor'),
 		field(ID, 'referenceType', 'select', {

@@ -30,6 +30,7 @@ describe('analyseUrl', () => {
 			'vbscript:msgbox',
 			'file:///etc/hosts',
 			'blob:https://example.com/0',
+			'itms-services://?action=download-manifest&url=https://example.com/app.plist',
 		]) {
 			expect(analyseUrl(text).findings, JSON.stringify(text)).toEqual([
 				{
@@ -115,6 +116,9 @@ describe('analyseUrl', () => {
 			{ code: 'host/dynamic-qr', severity: 'caution', params: { host: 'qrco.de' } },
 		]);
 		expect(codes('https://notbit.ly/')).toEqual([]);
+		// A fully qualified name with its trailing dot is the same host.
+		expect(codes('https://bit.ly./abc')).toEqual(['host/shortener']);
+		expect(codes('https://qrco.de./x')).toEqual(['host/dynamic-qr']);
 	});
 
 	it('counts tracking parameters and notes a very long link', () => {

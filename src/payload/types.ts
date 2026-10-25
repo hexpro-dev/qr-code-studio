@@ -144,7 +144,9 @@ export type SafetyCode =
 	| 'url/very-long'
 	| 'payload/open-wifi'
 	| 'payload/payment'
-	| 'payload/sends-message';
+	| 'payload/sends-message'
+	// A contract addition: a tel: link that dials a star or hash service code.
+	| 'payload/service-code';
 
 export type SafetySeverity = 'danger' | 'caution' | 'note';
 

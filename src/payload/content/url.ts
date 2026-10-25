@@ -10,6 +10,14 @@
  * type that lives at a specific host (wa.me, t.me, a GS1 Digital Link) can
  * outrank it. A link with a scheme that runs code is detected too, with a
  * lower score, so that the inspector explains it rather than calling it text.
+ *
+ * Text is read the way the phone will read it, because a link that only
+ * looks harmless to a stricter reader is the one to explain. Leading and
+ * trailing spaces and control characters are dropped, as the WHATWG parser
+ * and ZXing both drop them, and so is ZXing's "URL:" or "URI:" prefix. A
+ * domain with no scheme ("bit.ly/abc") is opened by ZXing as http, using the
+ * pattern in its URIResultParser, so it is read as http here too, with a
+ * lower score than a link that says what it is.
  */
 
 import { issue } from '../../core/issue.js';
@@ -17,7 +25,7 @@ import type { Issue } from '../../core/issue.js';
 import { definePayload, field, unparseable } from '../define.js';
 import { textOf } from '../fields.js';
 import { takeQueryParams, withQueryParams } from '../uri.js';
-import { analyseUrl } from '../url-safety.js';
+import { analyseUrl, isDangerousScheme } from '../url-safety.js';
 
 const ID = 'url';
 
@@ -62,28 +70,52 @@ function rules(value: UrlValue): Issue[] {
 	);
 }
 
-const DANGEROUS = /^(?:javascript|data|vbscript|file|blob):/i;
+/** ZXing's URL_WITHOUT_PROTOCOL_PATTERN, matched from the start as ZXing matches it. */
+const WITHOUT_SCHEME = /^(?:[a-zA-Z0-9-]+\.){1,6}[a-zA-Z]{2,}(?::\d{1,5})?(?:\/|\?|$)/;
 
-function detect(text: string): number {
-	if (/\s/.test(text)) return 0;
-	let parsed: URL;
+/** What WHATWG strips from both ends before parsing: C0 controls and the space. */
+function trimEnds(text: string): string {
+	let start = 0;
+	let end = text.length;
+	while (start < end && text.charCodeAt(start) <= 0x20) start += 1;
+	while (end > start && text.charCodeAt(end - 1) <= 0x20) end -= 1;
+	return text.slice(start, end);
+}
+
+interface Reading {
+	/** The link as a phone will open it. */
+	readonly url: string;
+	readonly score: number;
+}
+
+function read(text: string): Reading | undefined {
+	const trimmed = trimEnds(trimEnds(text).replace(/^UR[IL]:/i, ''));
+	if (trimmed === '' || /\s/.test(trimmed)) return undefined;
+	let parsed: URL | undefined;
 	try {
-		parsed = new URL(text);
+		parsed = new URL(trimmed);
 	} catch {
-		return 0;
+		parsed = undefined;
 	}
-	if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return 0.5;
-	if (DANGEROUS.test(text)) return 0.4;
+	if (parsed === undefined || /^[A-Za-z0-9-]+\.[^:]*:\d/.test(trimmed)) {
+		// "example.com:8080/x" parses with "example.com" as its scheme; ZXing
+		// and phones take it for a host and port.
+		return WITHOUT_SCHEME.test(trimmed) ? { url: `http://${trimmed}`, score: 0.3 } : undefined;
+	}
+	const scheme = parsed.protocol.slice(0, -1);
+	if (scheme === 'https' || scheme === 'http') return { url: trimmed, score: 0.5 };
+	if (isDangerousScheme(scheme)) return { url: trimmed, score: 0.4 };
 	// Any other scheme written as an authority ("intent://", "ftp://") is a
 	// link a phone may hand to some app. Anything else with a colon is more
 	// likely a sentence.
-	return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(text) ? 0.2 : 0;
+	return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(trimmed) ? { url: trimmed, score: 0.2 } : undefined;
 }
 
 function parse(text: string): UrlValue {
-	if (detect(text) === 0) throw unparseable(ID, 'not-a-url');
+	const reading = read(text);
+	if (reading === undefined) throw unparseable(ID, 'not-a-url');
 	const { url, taken } = takeQueryParams(
-		text,
+		reading.url,
 		UTM.map(([, name]) => name),
 	);
 	const get = (name: string) => taken.get(name) ?? '';
@@ -114,7 +146,7 @@ export const urlType = definePayload<UrlValue>({
 	],
 	rules,
 	write: (value) => withQueryParams(textOf(value, 'url'), utmParams(value)),
-	detect,
+	detect: (text) => read(text)?.score ?? 0,
 	parse,
 	// The campaign tags are the person's own, added on purpose, so only the
 	// link they typed is analysed.

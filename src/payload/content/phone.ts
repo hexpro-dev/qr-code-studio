@@ -31,6 +31,12 @@ export const phoneType = definePayload<PhoneValue>({
 	id: ID,
 	category: 'contact',
 	fields: [field(ID, 'number', 'tel', { required: true, hint: true })],
+	// A star or hash code read from a code is the danger the header describes:
+	// the number field refuses one for making, and reading one says so.
+	safety: (value) =>
+		/[*#]/.test(textOf(value, 'number'))
+			? [{ code: 'payload/service-code', severity: 'danger' }]
+			: [],
 	write: (value) => `tel:${compactTel(textOf(value, 'number'))}`,
 	detect: (text) => (/^tel:/i.test(text) ? 1 : 0),
 	parse,

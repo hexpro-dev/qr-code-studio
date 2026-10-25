@@ -41,6 +41,25 @@ export type EpcValue = {
 
 export const EPC_MAX_BYTES = 331;
 
+/**
+ * IBAN country codes of the SEPA schemes' geographical scope (EPC409-09,
+ * "EPC List of SEPA Scheme Countries", version 8.0, December 2025): the 27
+ * EU members and Iceland, Liechtenstein and Norway, which make up the EEA,
+ * and the eleven countries outside it. Territories bank under a country's
+ * IBAN (the French overseas departments under FR, Aland under FI, Jersey,
+ * Guernsey and the Isle of Man under GB), so the country code is what counts.
+ *
+ * EPC069-12 makes the BIC optional only inside the EEA: "The BIC will
+ * continue to be mandatory for SEPA payment transactions involving SCT
+ * scheme participants from non-EEA countries."
+ */
+const EEA = new Set(
+	'AT BE BG CY CZ DE DK EE ES FI FR GR HR HU IE IS IT LI LT LU LV MT NL NO PL PT RO SE SI SK'.split(
+		' ',
+	),
+);
+const SEPA_OUTSIDE_EEA = new Set('AD AL CH GB MC MD ME MK RS SM VA'.split(' '));
+
 function elements(value: EpcValue): string[] {
 	const amount = numberOf(value, 'amount');
 	const reference = textOf(value, 'reference');
@@ -68,8 +87,19 @@ function write(value: EpcValue): string {
 
 function rules(value: EpcValue, flagged: (key: string) => boolean): Issue[] {
 	const found: Issue[] = [];
-	if (textOf(value, 'version') === '001' && textOf(value, 'bic') === '') {
+	const bic = textOf(value, 'bic');
+	if (textOf(value, 'version') === '001' && bic === '') {
 		found.push(issue('payload.epc.issue.bic-required', ['fields', 'bic']));
+	}
+	if (!flagged('iban')) {
+		const country = compactIban(textOf(value, 'iban')).slice(0, 2);
+		if (SEPA_OUTSIDE_EEA.has(country)) {
+			if (bic === '') found.push(issue('payload.epc.issue.bic-outside-eea', ['fields', 'bic']));
+		} else if (country !== '' && !EEA.has(country)) {
+			// A warning rather than an error: the list grows, and a country that
+			// joins after this was written should not be refused outright.
+			found.push(issue('payload.epc.issue.not-sepa', ['fields', 'iban'], 'warning'));
+		}
 	}
 	const purpose = textOf(value, 'purpose');
 	if (purpose !== '' && !flagged('purpose') && !/^[A-Z0-9]{4}$/.test(purpose)) {
@@ -103,7 +133,9 @@ function rules(value: EpcValue, flagged: (key: string) => boolean): Issue[] {
 }
 
 function parse(text: string): EpcValue {
-	const lines = text.split(/\r?\n/);
+	// EPC069-12 puts nothing after the last element, but a trailing line end
+	// is common and changes nothing.
+	const lines = text.replace(/\r?\n$/, '').split(/\r?\n/);
 	if (lines[0] !== 'BCD' || lines[3] !== 'SCT') throw unparseable(ID, 'not-epc');
 	const [
 		,

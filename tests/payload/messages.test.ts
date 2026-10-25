@@ -52,6 +52,7 @@ function emittedIssues(): Issue[] {
 		{ from: 'https://example.com/a?b', to: 'http://example.org/', status: 301 },
 		{ from: 'https://example.com/a:b', to: 'https://example.org/', status: 999, targets: ['x'] },
 		{ from: 'https://example.com/a', to: 'https://example.com/a' },
+		{ from: 'https://example.com/a', to: 'https://user@example.org/' },
 	]) {
 		issues.push(...redirectRules(input as never).issues);
 	}
@@ -121,6 +122,7 @@ describe('the message catalogues', () => {
 			'payload/open-wifi': true,
 			'payload/payment': true,
 			'payload/sends-message': true,
+			'payload/service-code': true,
 		};
 		expect([...SAFETY_CODES].sort()).toEqual(Object.keys(all).sort());
 	});

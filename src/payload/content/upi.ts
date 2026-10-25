@@ -61,7 +61,9 @@ function write(value: UpiValue): string {
 function parse(text: string): UpiValue {
 	const match = /^upi:\/\/pay\?(.*)$/i.exec(text);
 	if (!match) throw unparseable(ID, 'not-upi');
-	const pairs = parseQuery(match[1] as string);
+	// UPI apps on Android read parameters with Uri.getQueryParameter, which
+	// takes + as a space, so this does too.
+	const pairs = parseQuery(match[1] as string, true);
 	if (pairs === undefined) throw unparseable(ID, 'malformed-escape');
 	const get = (name: string) => pairs.find(([key]) => key === name)?.[1];
 	const address = get('pa');

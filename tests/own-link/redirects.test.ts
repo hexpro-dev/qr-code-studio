@@ -93,6 +93,34 @@ describe('redirectRules', () => {
 		).toContain('https://example.org/a/b?c=d%5Ce');
 	});
 
+	it('keeps an apostrophe from ending the refresh URL', () => {
+		// The HTML standard cuts a quoted refresh URL at its first matching quote.
+		const page = rule(
+			redirectRules({ ...INPUT, to: "https://example.org/it's/here", targets: ['html'] }).rules,
+			'qr/menu/index.html',
+		);
+		expect(page.contents).toContain(`content="0; url='https://example.org/it%27s/here'"`);
+	});
+
+	it('keeps Netlify and Vercel from reading the destination as a pattern', () => {
+		const { rules } = redirectRules({
+			...INPUT,
+			to: 'https://en.wikipedia.org:443/wiki/Mercury_(planet)/Help:Contents/*/a+b{c}?q=a:b(c)+d#x:y',
+		});
+		const inert =
+			'https://en.wikipedia.org/wiki/Mercury_%28planet%29/Help%3AContents/%2A/a%2Bb%7Bc%7D?q=a%3Ab%28c%29+d#x%3Ay';
+		expect(rule(rules, '_redirects').contents).toBe(`/qr/menu  ${inert}  302!\n`);
+		expect(JSON.parse(rule(rules, 'vercel.json').contents).redirects[0].destination).toBe(inert);
+		const port = redirectRules({
+			...INPUT,
+			to: 'https://example.org:8443/a:b',
+			targets: ['vercel'],
+		});
+		expect(JSON.parse(port.rules[0]?.contents ?? '').redirects[0].destination).toBe(
+			'https://example.org:8443/a%3Ab',
+		);
+	});
+
 	it('names the page after the path', () => {
 		const html = (from: string) =>
 			redirectRules({ ...INPUT, from, targets: ['html'] }).rules[0]?.filename;
@@ -148,6 +176,10 @@ describe('redirectRules', () => {
 		expect(codes({ to: 'http://example.org/' })).toEqual(['own-link.issue.to-insecure']);
 		expect(codes({ status: 303 as never })).toEqual(['own-link.issue.status']);
 		expect(codes({ to: 'https://example.com/qr/menu' })).toEqual(['own-link.issue.loop']);
+		// Netlify matches with or without a trailing slash, so this loops too.
+		expect(codes({ to: 'https://example.com/qr/menu/' })).toEqual(['own-link.issue.loop']);
+		expect(codes({ from: 'https://example.com/qr//menu' })).toEqual(['own-link.issue.from-path']);
+		expect(codes({ to: 'https://user:pass@example.org/' })).toEqual(['own-link.issue.to-userinfo']);
 		expect(codes({ targets: ['iis' as never] })).toEqual(['own-link.issue.target']);
 		const both = redirectRules({ from: 'nope', to: 'nope' });
 		expect(both.rules).toEqual([]);

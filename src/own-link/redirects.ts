@@ -75,7 +75,13 @@ interface Parsed {
 }
 
 const STATUSES: readonly number[] = [301, 302, 307, 308];
-const SAFE_PATH = /^\/[A-Za-z0-9._~/-]*$/;
+/** Segments of the safe characters, with no empty segment: nginx merges "//", so a rule for one would never match. */
+const SAFE_PATH = /^(?:\/[A-Za-z0-9._~-]+)*\/?$/;
+
+/** A path compared the way Netlify matches one: with or without its trailing slash. */
+function samePath(a: string, b: string): boolean {
+	return a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
+}
 
 function parseWebUrl(text: unknown): URL | undefined {
 	if (typeof text !== 'string' || /\s/.test(text)) return undefined;
@@ -99,6 +105,8 @@ function validate(input: RedirectInput): { readonly parsed?: Parsed; readonly is
 	}
 	const to = parseWebUrl(input.to);
 	if (to === undefined) issues.push(issue('own-link.issue.to', ['to']));
+	else if (to.username !== '' || to.password !== '')
+		issues.push(issue('own-link.issue.to-userinfo', ['to']));
 	else if (to.protocol === 'http:')
 		issues.push(issue('own-link.issue.to-insecure', ['to'], 'warning'));
 	const status = input.status ?? 302;
@@ -109,7 +117,7 @@ function validate(input: RedirectInput): { readonly parsed?: Parsed; readonly is
 		from !== undefined &&
 		to !== undefined &&
 		from.host === to.host &&
-		from.pathname === to.pathname
+		samePath(from.pathname, to.pathname)
 	) {
 		issues.push(issue('own-link.issue.loop', ['to']));
 	}
@@ -127,6 +135,23 @@ function validate(input: RedirectInput): { readonly parsed?: Parsed; readonly is
 /** "$" and "\" as percent-escapes: nginx and Apache would read them as syntax, and a URL means the same either way. */
 function safeUrl(href: string): string {
 	return href.replace(/\$/g, '%24').replace(/\\/g, '%5C');
+}
+
+/**
+ * The destination with the characters Netlify and Vercel read as pattern
+ * syntax percent-encoded. Both substitute named segments into a destination
+ * (Netlify's ":placeholder" and ":splat", Vercel's path-to-regexp segments,
+ * which also give "(", ")", "*", "+", "{" and "}" meaning), so a Wikipedia
+ * link such as /wiki/Help:Contents would otherwise be rewritten or refused.
+ * The scheme, host and port are left alone; in the query "+" is kept,
+ * because there it may mean a space.
+ */
+function inertDestination(href: string): string {
+	const url = new URL(href);
+	const escape = (text: string, set: RegExp) =>
+		text.replace(set, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+	const path = /[:()*+{}]/g;
+	return `${url.protocol}//${url.host}${escape(url.pathname, path)}${escape(url.search, /[:()*{}]/g)}${escape(url.hash, path)}`;
 }
 
 /** A CSV field per RFC 4180: quoted when it holds a comma or a quote, with quotes doubled. */
@@ -196,7 +221,7 @@ function netlify({ path, to, status }: Parsed): RedirectRule {
 	return {
 		target: 'netlify',
 		filename: '_redirects',
-		contents: `${path}  ${to}  ${written}!\n`,
+		contents: `${path}  ${inertDestination(to)}  ${written}!\n`,
 		noteKey: written === status ? 'own-link.note.netlify' : 'own-link.note.netlify-status',
 	};
 }
@@ -207,7 +232,9 @@ function netlify({ path, to, status }: Parsed): RedirectRule {
  * so that 302 and 301 can be written as well as 307 and 308.
  */
 function vercel({ path, to, status }: Parsed): RedirectRule {
-	const config = { redirects: [{ source: path, destination: to, statusCode: status }] };
+	const config = {
+		redirects: [{ source: path, destination: inertDestination(to), statusCode: status }],
+	};
 	return {
 		target: 'vercel',
 		filename: 'vercel.json',
@@ -258,7 +285,10 @@ function html({ path, to }: Parsed): RedirectRule {
 	const trimmed = path.replace(/^\/+|\/+$/g, '');
 	const filename =
 		trimmed === '' ? 'index.html' : /\.html?$/.test(trimmed) ? trimmed : `${trimmed}/index.html`;
-	const href = htmlAttribute(to);
+	// The refresh URL is quoted with apostrophes, and the HTML standard ends a
+	// quoted refresh URL at the first matching quote, so an apostrophe in the
+	// destination (WHATWG leaves one in a path) is percent-encoded first.
+	const href = htmlAttribute(to.replace(/'/g, '%27'));
 	const title = htmlAttribute(new URL(to).hostname);
 	const contents = [
 		'<!doctype html>',

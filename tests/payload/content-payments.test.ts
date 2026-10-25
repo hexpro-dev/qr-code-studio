@@ -146,6 +146,8 @@ describe('epc', () => {
 			name: 'Example',
 			amount: null,
 		});
+		// A trailing line end breaks the letter of section 2.2 and nothing else.
+		expect(epcType.parse(`${build(epcType)}\r\n`)).toEqual(VALID.epc);
 		refuses(epcType, 'BCD\n003\n1\nSCT');
 		refuses(epcType, 'BCD\n002\n9\nSCT');
 		refuses(epcType, 'BCD\n002\n1\nSCX');
@@ -204,6 +206,12 @@ describe('swiss-qr-bill', () => {
 		const codes = swissQrBillType.validate(value).map((found) => [found.code, found.severity]);
 		expect(codes).toContainEqual(['payload.swiss-qr-bill.issue.combined-address', 'warning']);
 		expect(codes).toContainEqual(['payload.issue.required', 'error']);
+	});
+
+	it('makes a notification bill with an amount of 0.00, and reads a trailing line end', () => {
+		const text = build(swissQrBillType, { amount: 0 });
+		expect(text.split('\n')[18]).toBe('0.00');
+		expect(swissQrBillType.parse(`${text}\n`)).toMatchObject({ amount: 0 });
 	});
 
 	it('refuses a bill it cannot read', () => {
@@ -291,7 +299,9 @@ describe('pix', () => {
 		expect(isPixKey('+61400000000')).toBe(false);
 		expect(isPixKey('someone@example.com')).toBe(true);
 		expect(isPixKey(`${'a'.repeat(70)}@example.com`)).toBe(false);
-		expect(isPixKey('123E4567-E12B-12D1-A456-426655440000')).toBe(true);
+		// DICT holds email and random keys in lower case.
+		expect(isPixKey('123E4567-E12B-12D1-A456-426655440000')).toBe(false);
+		expect(isPixKey('Someone@example.com')).toBe(false);
 	});
 });
 
@@ -310,6 +320,8 @@ describe('upi', () => {
 			amount: null,
 			note: '',
 		});
+		// Android's Uri.getQueryParameter, which UPI apps use, reads + as a space.
+		expect(upiType.parse('upi://pay?pa=a@b&pn=Example+Shop').name).toBe('Example Shop');
 		refuses(upiType, 'upi://pay?pn=x');
 		refuses(upiType, 'upi://pay?pa=a@b&cu=USD');
 		refuses(upiType, 'upi://pay?pa=a@b&am=ten');
