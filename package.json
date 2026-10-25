@@ -64,6 +64,10 @@
 			"types": "./dist/conformance/index.d.ts",
 			"import": "./dist/conformance/index.js"
 		},
+		"./decode": {
+			"types": "./dist/decode/index.d.ts",
+			"import": "./dist/decode/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [

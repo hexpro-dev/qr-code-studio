@@ -70,6 +70,11 @@ export default defineConfig({
 				// tree.
 				'src/symbology/micro/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/symbology/rmqr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// The reader. Every line is reached. The branches left over are
+				// defensive ones a picture does not reach: a finder frame whose normal
+				// equations are singular, and a plain reader's module coming out under
+				// a pixel. Branches sit just under what the suite reaches.
+				'src/decode/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
 			},
 		},
 	},
