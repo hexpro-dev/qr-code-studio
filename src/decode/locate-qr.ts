@@ -9,9 +9,8 @@
  * is cheap and safe, because format information and then Reed-Solomon refuse
  * it almost at once, and they are exact where everything here is estimated.
  *
- * The strict profile offers one grid at most: the size a phone reader would
- * compute, through the alignment pattern found close to where the finders put
- * it, or no grid when it is not there.
+ * The strict profile offers one grid at most, chosen by the symbol's own
+ * timing patterns from the same candidates (see `strictHypothesis`).
  *
  * Lifted from the authenticator package's reader
  * (google-auth-secret-retriever, `src/qr/decode/decoder.ts`).
@@ -23,7 +22,7 @@ import type { Binarised } from './binarise.js';
 import type { FinderTriple } from './finder.js';
 import { moduleSizeAcross } from './finder.js';
 import type { Homography } from './transform.js';
-import { apply, quadToQuad } from './transform.js';
+import { apply, fitHomography, quadToQuad } from './transform.js';
 import type { Point } from './types.js';
 
 export interface GridHypothesis {
@@ -37,14 +36,40 @@ export interface GridHypothesis {
 /** Below this, in pixels, a re-search has landed on the same centre. */
 const REFIT_MIN_SHIFT = 0.5;
 
-/**
- * How far the strict search looks for the alignment pattern, in modules,
- * around where the three finders put it. A reader that takes the nearest
- * plausible pattern to that prediction, as jsQR does, picks a data module
- * once the real pattern is further off than this, and the grid it lays then
- * misses the symbol: so the strict reader requires it this close, found.
- */
-const STRICT_ALIGNMENT_RADIUS = 2;
+/** How near its prediction, in modules, the strict reader looks for the alignment pattern first. */
+const NEAR_ALIGNMENT = 2;
+/** How far from each prediction, in modules, the walk down the diagonal looks. */
+const WALK_RADIUS = 4;
+/** The worst bullseye score the walk takes for a pattern: a real one scores under 0.1, a patch of data over 0.29. */
+const WALK_MAX_SCORE = 0.25;
+/** Alignment candidates the strict reader weighs from each window. */
+const STRICT_CANDIDATES = 3;
+
+/** The timing patterns' agreement with their alternation, read through a transform from the thresholded picture. */
+function timingThrough(image: Binarised, transform: Homography, size: number): number {
+	let matched = 0;
+	let total = 0;
+	for (let i = 8; i < size - 8; i += 1) {
+		const dark = i % 2 === 0;
+		for (const [u, v] of [
+			[i, 6],
+			[6, i],
+		] as const) {
+			const p = apply(transform, u + 0.5, v + 0.5);
+			const x = Math.floor(p.x);
+			const y = Math.floor(p.y);
+			const bit =
+				x >= 0 &&
+				y >= 0 &&
+				x < image.width &&
+				y < image.height &&
+				image.bits[y * image.width + x] === 1;
+			if (bit === dark) matched += 1;
+			total += 1;
+		}
+	}
+	return matched / total;
+}
 
 /**
  * Module size for a triple, measured along the two axes joining the finders
@@ -60,32 +85,22 @@ export function tripleModuleSize(image: Binarised, triple: FinderTriple): number
 }
 
 /** The size the finders imply, before it is made legal: finder centres sit 3.5 modules in from each edge. */
-function estimateSize(triple: FinderTriple, moduleSize: number): number {
+function estimateSize(image: Binarised, triple: FinderTriple): number {
 	const { topLeft, topRight, bottomLeft } = triple;
-	const across = hypot(topRight.x - topLeft.x, topRight.y - topLeft.y) / moduleSize;
-	const down = hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y) / moduleSize;
+	// Each axis by its own module size, measured along it at both ends: under
+	// perspective the two axes are foreshortened differently.
+	const fallback = tripleModuleSize(image, triple);
+	const across =
+		hypot(topRight.x - topLeft.x, topRight.y - topLeft.y) /
+		(moduleSizeAcross(image, topLeft, topRight) ?? fallback);
+	const down =
+		hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y) /
+		(moduleSizeAcross(image, topLeft, bottomLeft) ?? fallback);
 	return (across + down) / 2 + 7;
 }
 
-/**
- * Sizes worth trying, best first. Lenient: the nearest legal size and its
- * neighbours four and eight away. Strict: the one size a phone reader
- * computes, rounding the estimate and moving one module to a legal size, or
- * none when the estimate lands on 3 mod 4, which zxing and jsQR both refuse.
- */
-export function candidateSizes(
-	estimate: number,
-	legal: ReadonlySet<number>,
-	strict: boolean,
-): number[] {
-	if (strict) {
-		let size = Math.round(estimate);
-		const remainder = size % 4;
-		if (remainder === 0) size += 1;
-		else if (remainder === 2) size -= 1;
-		else if (remainder === 3) return [];
-		return legal.has(size) ? [size] : [];
-	}
+/** Sizes worth trying, best first: the nearest legal size and its neighbours four and eight away. */
+export function candidateSizes(estimate: number, legal: ReadonlySet<number>): number[] {
 	const nearest = Math.round((estimate - 17) / 4) * 4 + 17;
 	return [nearest, nearest - 4, nearest + 4, nearest - 8, nearest + 8].filter((size) =>
 		legal.has(size),
@@ -158,38 +173,141 @@ function alignmentCandidates(
 }
 
 /**
- * Every grid hypothesis for a triple, lazily, best first.
+ * The centres of the alignment patterns on the diagonal of a QR symbol of
+ * `size` modules, smallest first, past the top left finder: ISO/IEC 18004's
+ * table, as the usual formula derives it (version 32 is the one irregular
+ * step).
+ */
+export function diagonalAlignments(size: number): number[] {
+	const version = (size - 17) / 4;
+	if (version < 2) return [];
+	const count = Math.floor(version / 7) + 2;
+	const step = version === 32 ? 26 : Math.ceil((version * 4 + 4) / (count * 2 - 2)) * 2;
+	const out: number[] = [];
+	for (let at = size - 7; out.length < count - 1; at -= step) out.unshift(at);
+	return out;
+}
+
+/**
+ * The grid fitted by walking the alignment patterns down the diagonal: each
+ * one predicted from the fit through the last, found close to the
+ * prediction, and fitted through in turn. Under perspective the three
+ * finders alone put the far corner of a large symbol tens of modules out,
+ * but the next pattern along from a good fit is never more than a module or
+ * two away. Null when not one pattern is found.
+ */
+function walkedTransform(image: Binarised, triple: FinderTriple, size: number): Homography | null {
+	const { topLeft, topRight, bottomLeft } = triple;
+	const source: Point[] = [
+		{ x: 3.5, y: 3.5 },
+		{ x: size - 3.5, y: 3.5 },
+		{ x: 3.5, y: size - 3.5 },
+	];
+	const destination: Point[] = [topLeft, topRight, bottomLeft];
+	let transform = samplingTransform(size, triple, null);
+	let found = false;
+	for (const centre of diagonalAlignments(size)) {
+		const at = centre + 0.5;
+		const expected = apply(transform, at, at);
+		const module = moduleAt(transform, at);
+		// A grid collapsed to a line or a point measures no module, or NaN.
+		if (!(module > 0)) break;
+		const [best] = searchBullseye(
+			image,
+			expected,
+			Math.max(2, Math.round(WALK_RADIUS * module)),
+			module,
+			1,
+		);
+		// A pattern that looks like one: a patch of data that happens to ring would
+		// throw every later prediction off. The first is up to three modules from
+		// where the finders put it on a large symbol tilted 20 degrees; from then
+		// on each prediction is through every pattern already found.
+		if (best === undefined || best.score > WALK_MAX_SCORE) continue;
+		source.push({ x: at, y: at });
+		destination.push(best.point);
+		// Least squares through all of them: a pattern in the middle of the symbol
+		// is on the line between the top right and bottom left finders, and four
+		// points with three on a line fix no projective map.
+		const fitted = fitHomography(source, destination);
+		if (fitted === null) continue;
+		transform = fitted;
+		found = true;
+	}
+	return found ? transform : null;
+}
+
+/**
+ * The strict reader's one grid for a triple, or null.
  *
- * The plain three-point fit comes first in the scanner: it is right for a
- * flat scan and the only answer for version 1. Then each scored alignment
- * candidate, refitted where a tight second search moves it: once a pattern
- * is found the four-point fit through it is projective, so its prediction is
- * sub-module accurate and the re-search either confirms the centre or lands
- * it properly. Both are kept, because the read downstream is exact and can
- * refuse the wrong one.
+ * Of the legal sizes nearest the estimate and a step either side, and for
+ * each (from version 2) the alignment pattern candidates near the
+ * prediction and the best of the scanner's wide window, each refitted once,
+ * the grid that lays the timing patterns down straightest. The symbol's own
+ * ruler decides, where rounding an estimate or nearness to an affine guess
+ * would not: a version 30 symbol tilted 20 degrees measures two modules
+ * short, and under perspective the patch of data nearest the guess is often
+ * not the pattern. Whether a plain reader would get the same grid is asked
+ * later, of the grid it would lay (see plain.ts); the symbology's strict
+ * read then requires the version information to agree with the size.
+ */
+export function strictHypothesis(
+	image: Binarised,
+	triple: FinderTriple,
+	legal: ReadonlySet<number>,
+): GridHypothesis | null {
+	let chosen: GridHypothesis | null = null;
+	let straightest = -1;
+	for (const size of candidateSizes(estimateSize(image, triple), legal).slice(0, 3)) {
+		const initial = samplingTransform(size, triple, null);
+		const transforms: Homography[] = [];
+		// Version 1 has no alignment pattern and reads from the three finders.
+		if (size < 25) transforms.push(initial);
+		for (const found of size < 25
+			? []
+			: [
+					...alignmentCandidates(image, initial, size, NEAR_ALIGNMENT, STRICT_CANDIDATES),
+					...alignmentCandidates(image, initial, size, null, STRICT_CANDIDATES),
+				]) {
+			const fitted = samplingTransform(size, triple, found);
+			const [refined] = alignmentCandidates(image, fitted, size, 2, 1);
+			transforms.push(
+				refined !== undefined && hypot(refined.x - found.x, refined.y - found.y) > REFIT_MIN_SHIFT
+					? samplingTransform(size, triple, refined)
+					: fitted,
+			);
+		}
+		const walked = size < 25 ? null : walkedTransform(image, triple, size);
+		if (walked !== null) transforms.push(walked);
+		for (const transform of transforms) {
+			const agreement = timingThrough(image, transform, size);
+			if (agreement > straightest) {
+				straightest = agreement;
+				chosen = { width: size, height: size, transform };
+			}
+		}
+	}
+	return chosen;
+}
+
+/**
+ * Every grid hypothesis for a triple, lazily, best first: the scanner's.
+ *
+ * The plain three-point fit comes first: it is right for a flat scan and the
+ * only answer for version 1. Then each scored alignment candidate, refitted
+ * where a tight second search moves it: once a pattern is found the
+ * four-point fit through it is projective, so its prediction is sub-module
+ * accurate and the re-search either confirms the centre or lands it properly.
+ * Both are kept, because the read downstream is exact and can refuse the
+ * wrong one.
  */
 export function* qrHypotheses(
 	image: Binarised,
 	triple: FinderTriple,
 	legal: ReadonlySet<number>,
-	strict: boolean,
 ): Generator<GridHypothesis> {
-	const moduleSize = tripleModuleSize(image, triple);
-	for (const size of candidateSizes(estimateSize(triple, moduleSize), legal, strict)) {
+	for (const size of candidateSizes(estimateSize(image, triple), legal)) {
 		const initial = samplingTransform(size, triple, null);
-		if (strict) {
-			// Version 1 has no alignment pattern and reads from the three finders; from
-			// version 2 the pattern has to be there, where it belongs.
-			if (size < 25) {
-				yield { width: size, height: size, transform: initial };
-				continue;
-			}
-			const [best] = alignmentCandidates(image, initial, size, STRICT_ALIGNMENT_RADIUS, 1);
-			if (best !== undefined) {
-				yield { width: size, height: size, transform: samplingTransform(size, triple, best) };
-			}
-			continue;
-		}
 		yield { width: size, height: size, transform: initial };
 		for (const found of alignmentCandidates(image, initial, size, null, 3)) {
 			const transform = samplingTransform(size, triple, found);

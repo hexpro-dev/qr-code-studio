@@ -10,8 +10,8 @@
  * Lifted from the authenticator package's reader
  * (google-auth-secret-retriever, `src/qr/decode/finder.ts`), with the ratio
  * tolerance made a parameter: half a module for the scanner, as there, and
- * 0.35 of a module for the strict profile, which must refuse a pattern before
- * a phone does.
+ * 0.35 of a module along the rows and columns for the strict profile, which
+ * must refuse a pattern before a phone does.
  */
 
 import { hypot } from '../core/math.js';
@@ -33,10 +33,37 @@ export interface FinderTriple {
 	readonly bottomLeft: FinderPattern;
 }
 
+/** Slack per run, in modules: along the rows and columns, and along the two diagonal checks. */
+export interface FinderTolerance {
+	readonly runs: number;
+	readonly diagonals: number;
+}
+
 /** Half a module of slack per run: tighter loses real patterns on a soft photograph, looser starts matching text. */
-export const LENIENT_FINDER_TOLERANCE = 0.5;
-/** The strict profile's slack, a third tighter than the scanner's and than zxing's half module. */
-export const STRICT_FINDER_TOLERANCE = 0.35;
+export const LENIENT_FINDER_TOLERANCE: FinderTolerance = Object.freeze({
+	runs: 0.5,
+	diagonals: 0.5,
+});
+
+/**
+ * The strict profile's slack: a third tighter than the scanner's, and than
+ * zxing's half module, along the rows and columns.
+ *
+ * Half a module on the diagonals, as the scanner has it and still tighter
+ * than zxing's three quarters (jsQR does not check them at all). A diagonal
+ * is walked a pixel step at a time, each step root two pixels long, from a
+ * centre known only to the nearest pixel, so its runs carry a quantisation
+ * error the axes do not: at 6 pixels a module one step is a quarter of a
+ * module. Held to 0.35 there, the check refused the round, octagonal and
+ * squircle finders the design layer draws, on some sub-pixel phases and not
+ * others, with every reader that matters reading them; measured over the
+ * styled corpus, 0.5 refuses none of them and the conservativeness property
+ * holds.
+ */
+export const STRICT_FINDER_TOLERANCE: FinderTolerance = Object.freeze({
+	runs: 0.35,
+	diagonals: 0.5,
+});
 
 function isDark(image: Binarised, x: number, y: number): boolean {
 	return image.bits[y * image.width + x] === 1;
@@ -84,7 +111,7 @@ interface Candidate {
  */
 export function findFinderPatterns(
 	image: Binarised,
-	tolerance: number,
+	tolerance: FinderTolerance,
 	limit = 32,
 ): FinderPattern[] {
 	const candidates: Candidate[] = [];
@@ -102,11 +129,17 @@ export function findFinderPatterns(
 		runs.fill(0);
 		let state = 0;
 		const consider = (end: number): boolean => {
-			if (!matchesRatio(runs, tolerance)) return false;
+			if (!matchesRatio(runs, tolerance.runs)) return false;
 			const cx = centreOfRuns(end, runs);
 			const moduleSize = runs.reduce((sum, run) => sum + run, 0) / 7;
-			const cy = verticalCentre(image, Math.floor(cx), y, Math.round(moduleSize * 7), tolerance);
-			if (cy === null || !diagonalCheck(image, Math.floor(cx), Math.floor(cy), tolerance)) {
+			const cy = verticalCentre(
+				image,
+				Math.floor(cx),
+				y,
+				Math.round(moduleSize * 7),
+				tolerance.runs,
+			);
+			if (cy === null || !diagonalCheck(image, cx, cy, tolerance.diagonals)) {
 				return false;
 			}
 			addCandidate(candidates, cx, cy, moduleSize);
@@ -230,12 +263,32 @@ function runsThrough(image: Binarised, cx: number, cy: number, dx: number, dy: n
 	return runs;
 }
 
-/** A real bullseye shows the ratio along both diagonals too, which text and noise rarely do. */
+/**
+ * A real bullseye shows the ratio along both diagonals too, which text and
+ * noise rarely do.
+ *
+ * Walked from each of the four pixels nearest the centre, and passed when
+ * both diagonals hold from any one of them. The centre is known to a fraction
+ * of a pixel and a diagonal is walked from a whole one, and through a round
+ * or octagonal pattern the runs a pixel off the centre are not the runs
+ * through it: from one pixel a light ring reads two steps where from the next
+ * it reads three, which at 6 pixels a module is a whole quarter of a module.
+ */
 function diagonalCheck(image: Binarised, cx: number, cy: number, tolerance: number): boolean {
-	return (
-		matchesRatio(runsThrough(image, cx, cy, 1, 1), tolerance) &&
-		matchesRatio(runsThrough(image, cx, cy, 1, -1), tolerance)
-	);
+	const left = Math.floor(cx - 0.5);
+	const top = Math.floor(cy - 0.5);
+	for (let y = top; y <= top + 1; y += 1) {
+		for (let x = left; x <= left + 1; x += 1) {
+			if (x < 0 || y < 0 || x >= image.width || y >= image.height || !isDark(image, x, y)) continue;
+			if (
+				matchesRatio(runsThrough(image, x, y, 1, 1), tolerance) &&
+				matchesRatio(runsThrough(image, x, y, 1, -1), tolerance)
+			) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 function addCandidate(candidates: Candidate[], x: number, y: number, moduleSize: number): void {
@@ -322,7 +375,12 @@ export function moduleSizeAcross(image: Binarised, a: Point, b: Point): number |
 	const here = moduleSizeBetween(image, a, b);
 	const there = moduleSizeBetween(image, b, a);
 	if (here === null) return there;
-	return there === null ? here : (here + there) / 2;
+	// The geometric mean of the two ends, not the arithmetic: along a line seen
+	// in perspective, the modules between two points number exactly their
+	// distance over the geometric mean of the module sizes at the ends. The
+	// arithmetic mean put a version 30 symbol tilted 20 degrees two modules
+	// short, at a size no symbol has.
+	return there === null ? here : Math.sqrt(here * there);
 }
 
 /**

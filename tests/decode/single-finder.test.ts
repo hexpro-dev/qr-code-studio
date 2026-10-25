@@ -87,7 +87,7 @@ function best(
 				hypothesis.width,
 				hypothesis.height,
 				{
-					robust: false,
+					majorityVote: false,
 					outside: 0,
 				},
 			);

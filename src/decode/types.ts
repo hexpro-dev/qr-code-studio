@@ -17,7 +17,7 @@ export interface Point {
 /**
  * Which reader to be.
  *
- * `lenient` is the scanner: every binariser, scale and polarity, a robust
+ * `lenient` is the scanner: every binariser, scale and polarity, a
  * five-point vote per module, mirrored reads and erasures. `strict-v1` is the
  * scan check, and exists to be at least as hard to satisfy as the phone
  * readers people use; `strict.ts` lists what it gives up and why.
@@ -30,7 +30,8 @@ export type Polarity = 'dark-on-light' | 'light-on-dark';
 export interface DecodeBudget {
 	/**
 	 * Reduce the picture to at most this many pixels before any work, by area
-	 * averaging. Default 2,500,000.
+	 * averaging. Default 2,500,000 for the scanner and 12,000,000 for the
+	 * strict profile, which reads at the picture's own scale.
 	 */
 	readonly maxPixels?: number;
 	/** Rungs of the ladder to try. Default all of them: nine lenient, one strict. */
@@ -102,7 +103,7 @@ export interface Rung {
 	readonly scale: 'half' | 'one' | 'double';
 	readonly inverted: boolean;
 	/** A five-point vote per module rather than one centre sample. */
-	readonly robust: boolean;
+	readonly majorityVote: boolean;
 }
 
 /**

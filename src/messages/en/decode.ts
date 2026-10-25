@@ -20,7 +20,7 @@ export const DECODE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'decode.unreadable.segments':
 		'A code was found here, but it was not made correctly, so what it holds cannot be read.',
 	'decode.unreadable.margin':
-		'This code reads here, but without enough to spare for every phone. The picture may be too noisy or too washed out in places, or something in it may look like the corner squares of a code.',
+		'This code reads here, but without enough to spare for every phone. The picture may be too coarse, taken at too steep an angle, smeared by a moving camera, or too noisy or washed out in places. The corner squares may be dotted, or too round or too cut away at the corners for some phones to follow. Or something else in the picture may look like them.',
 	'decode.unsupported': 'This code uses a feature this tool cannot read.',
 	'decode.unsupported.eci': 'This code uses a character set this tool cannot read.',
 	'decode.unsupported.kanji':

@@ -26,7 +26,7 @@ import type { Binarised } from './binarise.js';
 import { binarise, binariseHybrid } from './binarise.js';
 import type { MatrixRead, SymbologyEntry } from '../symbology/types.js';
 import { erasureFlags } from './erasures.js';
-import type { FinderPattern } from './finder.js';
+import type { FinderPattern, FinderTolerance } from './finder.js';
 import {
 	LENIENT_FINDER_TOLERANCE,
 	STRICT_FINDER_TOLERANCE,
@@ -37,15 +37,23 @@ import { finderFrame } from './frame.js';
 import type { GreyImage } from './grey.js';
 import { downscaleHalf, fitPixels, looksInverted, toGrey, upscaleSmooth } from './grey.js';
 import type { GridHypothesis } from './locate-qr.js';
-import { qrHypotheses, qrTimingAgreement } from './locate-qr.js';
+import { qrHypotheses, qrTimingAgreement, strictHypothesis } from './locate-qr.js';
 import { TIMING_AGREEMENT, microHypotheses, rmqrHypotheses } from './locate-single.js';
 import type { SampledGrid } from './sample.js';
 import { sampleGrid } from './sample.js';
 import type { PlainLocation } from './plain.js';
-import { plainReaderGrid, plainReaderLocations, plainThreshold } from './plain.js';
-import { STRICT_MAX_SPECKLE, fixedPatternsAgree, speckle } from './strict.js';
+import { plainLuminance, plainReaderGrid, plainReaderLocations, plainThreshold } from './plain.js';
+import {
+	STRICT_MAX_SPECKLE,
+	finderCentresClosed,
+	finderRingsTraceable,
+	fixedPatternsAgree,
+	speckle,
+	strictSamples,
+} from './strict.js';
 import type { Homography } from './transform.js';
-import { apply } from './transform.js';
+import { apply, moduleWidth } from './transform.js';
+import { TILED_EXTRA_ERRORS, TILED_SHARP_PIXELS, TILED_SIZE, tiledGrids } from './tiled.js';
 import type {
 	DecodeFrame,
 	DecodeOptions,
@@ -64,6 +72,16 @@ import type {
  */
 export const DEFAULT_MAX_PIXELS = 2_500_000;
 
+/**
+ * The strict profile's working ceiling. It reads at the picture's own scale,
+ * as the readers it is held to do: fitted to the scanner's ceiling, a version
+ * 40 symbol drawn at 10 pixels a module came down to 7, and its size measured
+ * off by two modules where zxing-cpp and jsQR, at full resolution, read it.
+ * Twelve megapixels holds such a symbol whole and keeps one strict read under
+ * a couple of seconds.
+ */
+export const STRICT_MAX_PIXELS = 12_000_000;
+
 /** The binarised frame handed to telemetry is a picture for a person: a megapixel is more than any overlay shows. */
 export const TELEMETRY_PIXELS = 1_000_000;
 
@@ -79,19 +97,19 @@ export const TELEMETRY_PIXELS = 1_000_000;
  * still picture's budget reaches it.
  */
 const LADDER: readonly Rung[] = [
-	{ binariser: 'hybrid', scale: 'one', inverted: false, robust: false },
-	{ binariser: 'hybrid', scale: 'one', inverted: true, robust: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: false, majorityVote: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: true, majorityVote: false },
 	// Half scale is the cheapest rung and the one that reads a dim capture: the
 	// 2x2 average takes sensor noise out from under the binariser.
-	{ binariser: 'hybrid', scale: 'half', inverted: false, robust: true },
-	{ binariser: 'hybrid', scale: 'half', inverted: true, robust: true },
+	{ binariser: 'hybrid', scale: 'half', inverted: false, majorityVote: true },
+	{ binariser: 'hybrid', scale: 'half', inverted: true, majorityVote: true },
 	// A global threshold, for the scene the local one over-fits.
-	{ binariser: 'otsu', scale: 'one', inverted: false, robust: false },
-	{ binariser: 'hybrid', scale: 'one', inverted: false, robust: true },
-	{ binariser: 'sauvola', scale: 'one', inverted: false, robust: true },
-	{ binariser: 'sauvola', scale: 'one', inverted: true, robust: true },
+	{ binariser: 'otsu', scale: 'one', inverted: false, majorityVote: false },
+	{ binariser: 'hybrid', scale: 'one', inverted: false, majorityVote: true },
+	{ binariser: 'sauvola', scale: 'one', inverted: false, majorityVote: true },
+	{ binariser: 'sauvola', scale: 'one', inverted: true, majorityVote: true },
 	// A symbol too small to sample, interpolated up.
-	{ binariser: 'hybrid', scale: 'double', inverted: false, robust: false },
+	{ binariser: 'hybrid', scale: 'double', inverted: false, majorityVote: false },
 ];
 
 /**
@@ -127,7 +145,7 @@ function stageOf(error: QrStudioError): DecodeStage {
 interface Profile {
 	readonly strict: boolean;
 	readonly rungs: readonly Rung[];
-	readonly tolerance: number;
+	readonly tolerance: FinderTolerance;
 	readonly erasures: boolean;
 }
 
@@ -155,6 +173,8 @@ interface Run {
 	/** A grid landed on a symbol somewhere: the difference between not found and unreadable. */
 	landed: boolean;
 	finders: number;
+	/** The picture as given, for the plain reader's own look at it. */
+	readonly source: RgbaImage;
 }
 
 /** One rung's thresholded picture and how its coordinates map back to the source. */
@@ -163,7 +183,7 @@ interface Stage {
 	readonly binarised: Binarised;
 	readonly bits: Uint8Array;
 	readonly inverted: boolean;
-	readonly robust: boolean;
+	readonly majorityVote: boolean;
 	/** Source pixels per stage pixel, per axis. */
 	readonly scaleX: number;
 	readonly scaleY: number;
@@ -225,7 +245,7 @@ function resolveProfile(options: DecodeOptions): Profile {
 					binariser: 'hybrid-mean',
 					scale: 'one',
 					inverted: (polarity ?? 'dark-on-light') === 'light-on-dark',
-					robust: false,
+					majorityVote: false,
 				},
 			],
 			tolerance: STRICT_FINDER_TOLERANCE,
@@ -271,20 +291,20 @@ function resolveTargets(
 /* Masking what was found, so the next look finds something else. */
 
 /**
- * Paint a found symbol's quad light in a rung's bits, grown by a module, so
- * its finders vanish and the next search finds the next symbol. Pixels are
- * tested at their centres against the four edges of the convex quad.
+ * Paint a quad light in a picture's bits, grown by a module, the quad given in
+ * source pixels and the bits `scaleX` and `scaleY` source pixels to one.
+ * Pixels are tested at their centres against the four edges of the convex
+ * quad.
  */
-function maskQuad(
-	stage: Stage,
+function paintQuad(
+	target: Binarised,
+	scaleX: number,
+	scaleY: number,
 	quad: readonly [Point, Point, Point, Point],
 	modules: number,
 ): void {
-	const { bits } = stage;
-	const plainBits = stage.plainBits?.bits;
-	const width = stage.binarised.width;
-	const height = stage.binarised.height;
-	const local = quad.map((p) => ({ x: p.x / stage.scaleX, y: p.y / stage.scaleY }));
+	const { bits, width, height } = target;
+	const local = quad.map((p) => ({ x: p.x / scaleX, y: p.y / scaleY }));
 	const cx = (local[0]!.x + local[1]!.x + local[2]!.x + local[3]!.x) / 4;
 	const cy = (local[0]!.y + local[1]!.y + local[2]!.y + local[3]!.y) / 4;
 	const grow = 1 + 2 / Math.max(1, modules);
@@ -312,12 +332,23 @@ function maskQuad(
 				const cross = (b.x - a.x) * (y + 0.5 - a.y) - (b.y - a.y) * (x + 0.5 - a.x);
 				if (cross * sign < 0) inside = false;
 			}
-			if (inside) {
-				bits[y * width + x] = 0;
-				if (plainBits !== undefined) plainBits[y * width + x] = 0;
-			}
+			if (inside) bits[y * width + x] = 0;
 		}
 	}
+}
+
+/**
+ * Paint a found symbol out of a rung's bits, and out of the plain reader's
+ * own picture (which is at the source's scale), so the next search finds the
+ * next symbol.
+ */
+function maskQuad(
+	stage: Stage,
+	quad: readonly [Point, Point, Point, Point],
+	modules: number,
+): void {
+	paintQuad(stage.binarised, stage.scaleX, stage.scaleY, quad, modules);
+	if (stage.plainBits !== undefined) paintQuad(stage.plainBits, 1, 1, quad, modules);
 	// A plain reader shown the picture with this symbol covered picks again.
 	stage.plain = undefined;
 }
@@ -403,29 +434,43 @@ function cornersOf(stage: Stage, transform: Homography, width: number, height: n
 }
 
 /**
- * The strict profile's margins, for a symbol that read: the picture is not
- * speckled, its fixed patterns read the same under both common thresholds
- * (see `strict.ts`), and for QR the grid a plain reader would sample reads to
- * the same bytes (see `plain.ts`).
+ * The strict profile's margins, for a symbol that read: its modules wide
+ * enough and not drawn out too far, the picture not speckled, its fixed
+ * patterns reading the same under both common thresholds (see `strict.ts`),
+ * and for QR finder rings a reader can trace with centres it can settle on,
+ * from version 7 the grid
+ * zxing-cpp lays in tiles reading as well (see `tiled.ts`), and the grid a
+ * plain reader would sample reading to the same bytes (see `plain.ts`).
  */
 function keepsMargin(
+	run: Run,
 	stage: Stage,
 	target: Target,
 	hypothesis: GridHypothesis,
 	read: MatrixRead,
 ): boolean {
+	const tiled = target.kind === 'qr' && hypothesis.width >= TILED_SIZE;
+	if (!strictSamples(hypothesis.transform, hypothesis.width, hypothesis.height, tiled)) {
+		return false;
+	}
 	stage.speckle ??= speckle(stage.binarised);
 	if (stage.speckle > STRICT_MAX_SPECKLE) return false;
-	stage.midrange ??= binariseHybrid(stage.grey);
+	const midrange = (stage.midrange ??= binariseHybrid(stage.grey));
 	const layout = target.entry.layout(read.version);
-	if (!fixedPatternsAgree(stage.binarised, stage.midrange, hypothesis.transform, layout)) {
+	if (!fixedPatternsAgree(stage.binarised, midrange, stage.grey, hypothesis.transform, layout)) {
 		return false;
 	}
 	if (target.kind !== 'qr') return true;
-	stage.plainBits ??= plainThreshold(
-		stage.inverted ? invertGrey(stage.grey) : stage.grey,
-		stage.inverted,
-	);
+	if (!finderRingsTraceable(stage.grey, midrange, hypothesis.transform, hypothesis.width)) {
+		return false;
+	}
+	if (!finderCentresClosed(midrange, hypothesis.transform, hypothesis.width)) return false;
+	if (tiled && !tiledGridReads(target, midrange, hypothesis, read)) {
+		return false;
+	}
+	// At the source's own size, as the plain reader takes a picture: its
+	// scores are in pixels, so its choices change with the scale.
+	stage.plainBits ??= plainThreshold(plainLuminance(run.source), stage.inverted);
 	stage.plain ??= plainReaderLocations(stage.plainBits);
 	for (const location of stage.plain) {
 		const grid = plainReaderGrid(stage.plainBits, location);
@@ -443,6 +488,38 @@ function keepsMargin(
 		}
 	}
 	return false;
+}
+
+/**
+ * Whether the grids zxing-cpp might lay in tiles from version 7 (see
+ * `tiled.ts`), on its own threshold and from each finder centre it might
+ * take, all read to the same bytes with no block more than
+ * `TILED_EXTRA_ERRORS` worse than this read, or below `TILED_SHARP_PIXELS` a
+ * module no block worse at all.
+ */
+function tiledGridReads(
+	target: Target,
+	midrange: Binarised,
+	hypothesis: GridHypothesis,
+	read: MatrixRead,
+): boolean {
+	const { transform, width, height } = hypothesis;
+	const extra =
+		moduleWidth(transform, width / 2, height / 2) >= TILED_SHARP_PIXELS ? TILED_EXTRA_ERRORS : 0;
+	return tiledGrids(midrange, transform, width).every((matrix) => {
+		try {
+			const tiled = target.entry.read(matrix, { strict: false });
+			return (
+				sameBytes(tiled.bitstream.bytes, read.bitstream.bytes) &&
+				tiled.errorsPerBlock.every(
+					(errors, i) => errors <= (read.errorsPerBlock[i] as number) + extra,
+				)
+			);
+		} catch (error) {
+			if (!(error instanceof QrStudioError)) throw error;
+			return false;
+		}
+	});
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -467,7 +544,7 @@ function attemptGrid(
 		hypothesis.transform,
 		hypothesis.width,
 		hypothesis.height,
-		{ robust: stage.robust, outside: run.profile.strict ? 0 : LENIENT_OUTSIDE },
+		{ majorityVote: stage.majorityVote, outside: run.profile.strict ? 0 : LENIENT_OUTSIDE },
 	);
 	if (grid === null) {
 		remember(run, 'geometry');
@@ -491,7 +568,7 @@ function attemptGrid(
 	}
 	if (read === null) return null;
 	run.landed = true;
-	if (run.profile.strict && !keepsMargin(stage, target, hypothesis, read)) {
+	if (run.profile.strict && !keepsMargin(run, stage, target, hypothesis, read)) {
 		remember(run, 'margin');
 		return null;
 	}
@@ -555,8 +632,15 @@ function findOne(run: Run, stage: Stage, patterns: readonly FinderPattern[]): Fo
 		// Three finders that could be one symbol's: past the finders, whatever
 		// the grids make of them.
 		if (triples.length > 0) remember(run, 'geometry');
-		for (const triple of profile.strict ? triples.slice(0, 1) : triples) {
-			for (const hypothesis of qrHypotheses(stage.binarised, triple, legal, profile.strict)) {
+		if (profile.strict) {
+			const best = triples[0];
+			const hypothesis = best === undefined ? null : strictHypothesis(stage.binarised, best, legal);
+			const symbol = hypothesis === null ? null : attemptGrid(run, stage, target, hypothesis);
+			if (symbol !== null) return symbol;
+			continue;
+		}
+		for (const triple of triples) {
+			for (const hypothesis of qrHypotheses(stage.binarised, triple, legal)) {
 				const symbol = attemptGrid(run, stage, target, hypothesis);
 				if (symbol !== null) return symbol;
 			}
@@ -618,7 +702,7 @@ function prepareStage(
 		binarised,
 		bits: binarised.bits,
 		inverted: rung.inverted,
-		robust: rung.robust,
+		majorityVote: rung.majorityVote,
 		scaleX: source.width / grey.width,
 		scaleY: source.height / grey.height,
 		singleFinder: run.profile.strict || attempt <= SINGLE_FINDER_RUNGS,
@@ -666,7 +750,9 @@ export function decodeImage(
 	const registry = symbologies ?? defaultSymbologies();
 	const targets = resolveTargets(registry, options.symbologies);
 	const budget = options.budget ?? {};
-	const maxPixels = positiveInteger(budget.maxPixels, 'budget.maxPixels') ?? DEFAULT_MAX_PIXELS;
+	const maxPixels =
+		positiveInteger(budget.maxPixels, 'budget.maxPixels') ??
+		(profile.strict ? STRICT_MAX_PIXELS : DEFAULT_MAX_PIXELS);
 	const maxAttempts =
 		positiveInteger(budget.maxAttempts, 'budget.maxAttempts') ?? profile.rungs.length;
 	const maxSymbols = positiveInteger(options.maxSymbols, 'maxSymbols') ?? 8;
@@ -710,6 +796,7 @@ export function decodeImage(
 		refusal: undefined,
 		landed: false,
 		finders: 0,
+		source: image,
 	};
 	let attempts = 0;
 	for (const listed of profile.rungs.slice(0, maxAttempts)) {
