@@ -41,7 +41,11 @@ export interface PdfOptions {
 	readonly colour: 'srgb' | 'cmyk';
 	/** The trimmed width. */
 	readonly widthMm: number;
-	/** The trimmed height. Defaults to the width times the scene's aspect ratio. */
+	/**
+	 * The trimmed height. Defaults to the width times the scene's aspect
+	 * ratio; a height that differs stretches the scene to fit, as `rasterise`
+	 * does when it is given both sizes.
+	 */
 	readonly heightMm?: number;
 	/** Background drawn this far past the trim on every side. Default 0. */
 	readonly bleedMm?: number;
@@ -151,8 +155,9 @@ function writePdf(pages: readonly PageSpec[], space: PrintSpace, title: string |
 	const tree = doc.reserve();
 	const info = doc.reserve();
 	const kids: number[] = [];
+	const images: PrintContext['images'] = new Map();
 	for (const page of pages) {
-		const context: PrintContext = { doc, space, transparency: false, images: new Map() };
+		const context: PrintContext = { doc, space, transparency: false, images };
 		const stream = new ContentStream(context);
 		for (const placement of page.placements) place(stream, placement);
 		if (page.marks.length > 0) {

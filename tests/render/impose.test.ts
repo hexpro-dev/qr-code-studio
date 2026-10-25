@@ -329,6 +329,20 @@ describe('sheets as PDF', () => {
 		);
 	});
 
+	it('writes an image once for every page that draws it, each page declaring its transparency', () => {
+		const logo = { width: 2, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255, 0, 0, 0, 100]) };
+		const scene: Scene = {
+			...sized(10),
+			layers: [{ kind: 'image', image: logo, x: 0, y: 0, width: 20, height: 10 }],
+		};
+		const t = builtInSheets()[0] as SheetTemplate;
+		const pdf = readPdf(sheetToPdf(imposeCopies(scene, 25, t), { colour: 'srgb' }));
+		expect(objectsWhere(pdf, /\/Subtype \/Image/)).toHaveLength(2);
+		const pages = objectsWhere(pdf, /\/Type \/Page /);
+		expect(pages).toHaveLength(2);
+		for (const page of pages) expect(page.text).toContain('/S /Transparency');
+	});
+
 	it('draws bleed into the gap and crop marks in registration', () => {
 		const t = printSheetTemplate({ paper: 'a4', widthMm: 30, bleedMm: 2 });
 		const scene = {

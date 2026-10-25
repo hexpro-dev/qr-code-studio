@@ -333,10 +333,10 @@ async function licence(): Promise<string> {
 	return bytes.toString('utf8').replace(/\r\n/g, '\n').trimEnd();
 }
 
-/** Blocks as a list in a sentence, with a comma before the last when there are three or more. */
+/** Blocks as a list in a sentence. */
 function blockList(blocks: readonly Block[]): string {
-	if (blocks.length < 3) return blocks.join(' and ');
-	return `${blocks.slice(0, -1).join(', ')}, and ${blocks[blocks.length - 1] as string}`;
+	if (blocks.length < 2) return blocks.join('');
+	return `${blocks.slice(0, -1).join(', ')} and ${blocks[blocks.length - 1] as string}`;
 }
 
 export interface BuiltFonts {
@@ -361,8 +361,8 @@ export async function buildFonts(): Promise<BuiltFonts> {
 	lines.push(' * compiled to the table format described in src/text/compiled.ts.');
 	for (const weight of weights) {
 		lines.push(` * ${weight.source.name}:`);
-		lines.push(` *   ${blockList(weight.source.blocks)}, and the ${EXTRAS.length} extras`);
-		lines.push(' *   listed in scripts/build-fonts.ts.');
+		lines.push(` *   ${blockList(weight.source.blocks)},`);
+		lines.push(` *   with the ${EXTRAS.length} extras listed in scripts/build-fonts.ts.`);
 	}
 	lines.push(' *');
 	lines.push(' * This is a Modified Version of the Font Software under the SIL Open Font');

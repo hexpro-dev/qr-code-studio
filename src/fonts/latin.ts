@@ -5,11 +5,11 @@
  * IBM Plex Sans 3.005, from the @ibm/plex-sans 1.1.0 release (see fonts/README.md),
  * compiled to the table format described in src/text/compiled.ts.
  * PLEX_SANS_REGULAR:
- *   Basic Latin, Latin-1 Supplement, and Latin Extended-A, and the 25 extras
- *   listed in scripts/build-fonts.ts.
+ *   Basic Latin, Latin-1 Supplement and Latin Extended-A,
+ *   with the 25 extras listed in scripts/build-fonts.ts.
  * PLEX_SANS_BOLD:
- *   Basic Latin, Latin-1 Supplement, Latin Extended-A, Greek and Coptic, and Cyrillic, and the 25 extras
- *   listed in scripts/build-fonts.ts.
+ *   Basic Latin, Latin-1 Supplement, Latin Extended-A, Greek and Coptic and Cyrillic,
+ *   with the 25 extras listed in scripts/build-fonts.ts.
  *
  * This is a Modified Version of the Font Software under the SIL Open Font
  * Licence, so it is not presented under the Reserved Font Name: its labels say

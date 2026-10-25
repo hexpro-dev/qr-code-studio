@@ -52,8 +52,12 @@ export interface PrintContext {
 	readonly space: PrintSpace;
 	/** Set once anything drawn uses transparency, so the page can declare its blending space. */
 	transparency: boolean;
-	/** Image XObjects already written, by the pixels they hold. */
-	readonly images: Map<RgbaImage, number>;
+	/**
+	 * Image XObjects already written, by the pixels they hold, for the whole
+	 * file: a logo on thirty labels is written once. Whether each has a soft
+	 * mask is kept with it, since every page that draws one uses transparency.
+	 */
+	readonly images: Map<RgbaImage, { readonly id: number; readonly translucent: boolean }>;
 }
 
 type ResourceKind = 'ExtGState' | 'Shading' | 'XObject';
@@ -298,7 +302,10 @@ export function fillPaint(stream: ContentStream, shape: Path, paint: DrawnPaint,
  */
 function imageObject(context: PrintContext, image: RgbaImage): number {
 	const known = context.images.get(image);
-	if (known !== undefined) return known;
+	if (known !== undefined) {
+		if (known.translucent) context.transparency = true;
+		return known.id;
+	}
 	const { width, height, data } = image;
 	const pixels = width * height;
 	const rgb = new Uint8Array(pixels * 3);
@@ -350,7 +357,7 @@ function imageObject(context: PrintContext, image: RgbaImage): number {
 		`${size} /ColorSpace ${deviceSpace(context.space)} /Interpolate true${mask}`,
 		samples,
 	);
-	context.images.set(image, id);
+	context.images.set(image, { id, translucent });
 	return id;
 }
 
