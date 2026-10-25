@@ -86,6 +86,12 @@ export default defineConfig({
 				// Every line and branch is reached; branches are gated at 99 with
 				// the other layers.
 				'src/text/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// The scan check and the inspector. Every line is reached, by the
+				// static and runner tests with stand-in readers, the strict reader's
+				// own runs, and the inspector's text, image, set and fuzz suites.
+				// Branches sit one point under, as for the layers above.
+				'src/verify/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/inspect/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

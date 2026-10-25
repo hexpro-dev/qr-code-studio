@@ -72,6 +72,14 @@
 			"types": "./dist/text/index.d.ts",
 			"import": "./dist/text/index.js"
 		},
+		"./verify": {
+			"types": "./dist/verify/index.d.ts",
+			"import": "./dist/verify/index.js"
+		},
+		"./inspect": {
+			"types": "./dist/inspect/index.d.ts",
+			"import": "./dist/inspect/index.js"
+		},
 		"./fonts/latin": {
 			"types": "./dist/fonts/latin.d.ts",
 			"import": "./dist/fonts/latin.js"
