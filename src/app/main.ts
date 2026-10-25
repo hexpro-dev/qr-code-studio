@@ -17,6 +17,7 @@
 import { decodeDesignLink } from '../design/link.js';
 import type { QrDesignV1 } from '../design/types.js';
 import { LIBRARY_EXTENSION, createFileLibrary } from '../dom/file-library.js';
+import { copyText } from '../dom/output.js';
 import { canvasRasterEncoder } from '../dom/raster-encoder.js';
 import { FONT_LICENCE } from '../fonts/latin.js';
 import { createRegistries } from '../registries.js';
@@ -216,12 +217,12 @@ const linkButton = button(t('app.link.copy'), {
 		// The fragment alone: the address of a file opened from disk names the
 		// folder it is in, which is nobody else's business.
 		const text = `#${result.value.link}`;
-		try {
-			await navigator.clipboard.writeText(text);
-			ctx.announce([t('app.link.copied'), ...result.value.issues.map(issueText)].join(' '));
-		} catch {
-			ctx.announce(t('app.link.copy-failed'));
-		}
+		const copied = await copyText(text);
+		ctx.announce(
+			copied.ok
+				? [t('app.link.copied'), ...result.value.issues.map(issueText)].join(' ')
+				: t('app.link.copy-failed'),
+		);
 	},
 });
 
@@ -445,10 +446,18 @@ window.addEventListener('dragleave', () => {
 window.addEventListener('dragover', (event) => {
 	if (hasFiles(event)) event.preventDefault();
 });
+// In the capture phase, so a drop that a drop zone keeps for itself still
+// takes the veil away.
+window.addEventListener(
+	'drop',
+	() => {
+		dragDepth = 0;
+		veil.dataset.shown = 'false';
+	},
+	true,
+);
 window.addEventListener('drop', (event) => {
 	event.preventDefault();
-	dragDepth = 0;
-	veil.dataset.shown = 'false';
 	const file = event.dataTransfer?.files[0];
 	if (file !== undefined) void openDropped(file);
 });

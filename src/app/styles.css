@@ -1693,13 +1693,16 @@ p.note {
 	grid-template-rows: 18px 14px max-content;
 }
 
+/* Where the two rulers meet: their zero, marked the way a ruler's corner is. */
 .proof__corner {
 	grid-column: 1;
 	grid-row: 1;
 	align-self: end;
 	justify-self: end;
-	color: var(--paper-dim);
-	font: 600 8px/1 var(--mono);
+	width: 7px;
+	height: 7px;
+	border-right: 1px solid var(--paper-dim);
+	border-bottom: 1px solid var(--paper-dim);
 }
 
 .ruler {

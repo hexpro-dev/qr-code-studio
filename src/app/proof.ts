@@ -139,7 +139,7 @@ export function createProof(ctx: AppContext, actions: HTMLElement, strip: HTMLEl
 		h('span', { className: `crop crop--${corner}`, attrs: { 'aria-hidden': 'true' } }),
 	);
 	const frame = h('div', { className: 'proof__frame' }, [
-		h('span', { className: 'proof__corner', attrs: { 'aria-hidden': 'true' }, text: 'mm' }),
+		h('span', { className: 'proof__corner', attrs: { 'aria-hidden': 'true' } }),
 		rulerTop,
 		rulerLeft,
 		stage,
