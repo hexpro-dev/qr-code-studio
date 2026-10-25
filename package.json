@@ -28,6 +28,14 @@
 			"types": "./dist/core/index.d.ts",
 			"import": "./dist/core/index.js"
 		},
+		"./payload": {
+			"types": "./dist/payload/index.d.ts",
+			"import": "./dist/payload/index.js"
+		},
+		"./own-link": {
+			"types": "./dist/own-link/index.d.ts",
+			"import": "./dist/own-link/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
