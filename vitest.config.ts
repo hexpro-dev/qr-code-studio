@@ -86,6 +86,12 @@ export default defineConfig({
 				// Every line and branch is reached; branches are gated at 99 with
 				// the other layers.
 				'src/text/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// Bulk generation reads a stranger's spreadsheet and writes file names
+				// from it, so every refusal and every cleaning rule is reached by a
+				// file built to provoke it. Every line and branch is reached today,
+				// without Ghostscript or Poppler (the renderer comparisons add
+				// evidence, not lines); branches are gated at 99 with the other layers.
+				'src/batch/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},
