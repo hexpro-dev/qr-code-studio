@@ -1,0 +1,6 @@
+# Findings gitleaks reports that are not secrets. Each line is a fingerprint
+# from `gitleaks detect --verbose`, and each needs a reason beside it.
+#
+# A synthetic 26 digit hex WEP key in a Wi-Fi validation test, written as a
+# literal in this commit and assembled in code since. Not a real network.
+5ae1ce33af98e7ed6d907ba7a563c3aa84bbdaa1:tests/payload/content-cards.test.ts:generic-api-key:78

@@ -493,7 +493,10 @@ describe('pow', () => {
 		expect(pow(Math.E, 710)).toBe(Infinity);
 		expect(pow(Math.E, -745.5)).toBe(0);
 		expect(pow(2, 1024)).toBe(Infinity);
-		expect(pow(2, 1023.5)).toBe(Math.pow(2, 1023.5));
+		// The correctly rounded answer is sqrt(2) scaled by an exact power of two.
+		// Not Math.pow: V8 changed its last bit here between Node 22 and Node 24,
+		// which is exactly why this package does not call it.
+		expect(error(pow(2, 1023.5), Math.SQRT2 * 2 ** 1023)).toBeLessThanOrEqual(2.3e-16);
 		expect(pow(2, -1074)).toBe(5e-324);
 		expect(pow(2, -1076)).toBe(0);
 		expect(error(pow(Math.E, 709.78), Math.pow(Math.E, 709.78))).toBeLessThanOrEqual(1e-13);
