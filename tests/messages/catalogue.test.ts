@@ -314,8 +314,8 @@ describe('the English catalogue', () => {
 		if (svg.ok) issues.push(...svg.value.issues);
 		expect(narrow.ok).toBe(false);
 		studio.dispatch({ type: 'payload/type', typeId: 'swiss-qr-bill' });
-		const vector = (await import('../../src/payload/content/swiss-qr-bill.js')).swissQrBillType
-			.vectors[0];
+		const vector = (await import('../../src/payload/vectors/swiss-qr-bill.js'))
+			.swissQrBillVectors[0];
 		studio.dispatch({ type: 'payload/raw', text: vector?.text as string });
 		const pdf = await studio.run({ type: 'export', format: 'pdf', options: { sizeMm: 30 } });
 		if (pdf.ok) issues.push(...pdf.value.issues);

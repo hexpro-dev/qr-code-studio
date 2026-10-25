@@ -15,6 +15,7 @@ import { QrStudioError } from '../../src/core/errors.js';
 import { detectPayload } from '../../src/payload/detect.js';
 import { BUILT_IN_PAYLOAD_TYPES, createPayloadRegistry } from '../../src/payload/registry.js';
 import { analyseUrl, cleanUrl } from '../../src/payload/url-safety.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 import { guardUnhandledRejections } from '../fuzz/setup.js';
 import { startWatchdog } from '../fuzz/watchdog.js';
 
@@ -23,7 +24,9 @@ const watchdog = startWatchdog();
 afterAll(() => watchdog.stop());
 
 const registry = createPayloadRegistry();
-const SEEDS = BUILT_IN_PAYLOAD_TYPES.flatMap((type) => type.vectors.map((vector) => vector.text));
+const SEEDS = BUILT_IN_PAYLOAD_TYPES.flatMap((type) =>
+	BUILT_IN_VECTORS[type.id].map((vector) => vector.text),
+);
 
 /** A seed with a few edits: deletions, insertions of syntax characters, duplicated slices. */
 const mutated = fc

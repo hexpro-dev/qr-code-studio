@@ -28,9 +28,6 @@ import { charLength, decimalPlaces, FIELD_ISSUES, isEmail, numberOf, textOf } fr
 
 const ID = 'pix';
 const GUI = 'br.gov.bcb.pix';
-const MANUAL =
-	'https://www.bcb.gov.br/content/estabilidadefinanceira/pix/Regulamento_Pix/II_ManualdePadroesparaIniciacaodoPix.pdf';
-
 export type PixValue = {
 	readonly key: string;
 	readonly name: string;
@@ -199,24 +196,14 @@ export const pixType = definePayload<PixValue>({
 		field(ID, 'description', 'text', { maxLength: 72 }),
 		field(ID, 'txid', 'text', { maxLength: 25, advanced: true, hint: true }),
 	],
-	compatibility: [{ reader: 'pix', noteKey: 'payload.pix.compat.banking-apps', source: MANUAL }],
+	compatibility: [
+		// BCB, Manual de Padroes para Iniciacao do Pix:
+		// https://www.bcb.gov.br/content/estabilidadefinanceira/pix/Regulamento_Pix/II_ManualdePadroesparaIniciacaodoPix.pdf
+		{ reader: 'pix', noteKey: 'payload.pix.compat.banking-apps' },
+	],
 	rules,
 	write,
 	detect: (text) => (/^000201/.test(text) && /br\.gov\.bcb\.pix/i.test(text) ? 1 : 0),
 	parse,
 	safety: () => [{ code: 'payload/payment', severity: 'caution' }],
-	vectors: [
-		{
-			text: '00020126580014br.gov.bcb.pix0136123e4567-e12b-12d1-a456-4266554400005204000053039865802BR5913Fulano de Tal6008BRASILIA62070503***63041D3D',
-			value: {
-				key: '123e4567-e12b-12d1-a456-426655440000',
-				name: 'Fulano de Tal',
-				city: 'BRASILIA',
-				amount: null,
-				description: '',
-				txid: '',
-			},
-			source: `BCB, Manual de Padroes para Iniciacao do Pix v2.10.0, the static BR Code example. ${MANUAL}`,
-		},
-	],
 });

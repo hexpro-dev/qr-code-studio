@@ -22,6 +22,7 @@ import { redirectRules } from '../../src/own-link/redirects.js';
 import { utmLink } from '../../src/own-link/utm.js';
 import { FIELD_ISSUES } from '../../src/payload/fields.js';
 import { BUILT_IN_PAYLOAD_TYPES, createPayloadRegistry } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 import { SAFETY_CODES, safetyMessageKey } from '../../src/payload/safety.js';
 import type { SafetyCode } from '../../src/payload/types.js';
 import { ISSUE_CASES, VALID } from './cases.js';
@@ -43,7 +44,7 @@ function emittedIssues(): Issue[] {
 	for (const [id, change] of ISSUE_CASES)
 		issues.push(...registry.require(id).validate({ ...VALID[id], ...change } as never));
 	for (const type of BUILT_IN_PAYLOAD_TYPES) {
-		for (const vector of type.vectors) issues.push(...type.validate(vector.value));
+		for (const vector of BUILT_IN_VECTORS[type.id]) issues.push(...type.validate(vector.value));
 		for (const value of fc.sample(valueArbitrary(type), { numRuns: 60, seed: 1 }))
 			issues.push(...type.validate(value));
 	}

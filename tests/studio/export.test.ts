@@ -296,8 +296,8 @@ describe('pdf and eps', () => {
 	it('keep the size the content fixes: the Swiss QR-bill is 46 mm', async () => {
 		const { studio } = studioWith();
 		studio.dispatch({ type: 'payload/type', typeId: 'swiss-qr-bill' });
-		const vector = (await import('../../src/payload/content/swiss-qr-bill.js')).swissQrBillType
-			.vectors[0];
+		const vector = (await import('../../src/payload/vectors/swiss-qr-bill.js'))
+			.swissQrBillVectors[0];
 		studio.dispatch({ type: 'payload/raw', text: vector?.text as string });
 		expect(studio.getSnapshot().symbol.status).toBe('ok');
 		const pdf = await studio.run({ type: 'export', format: 'pdf', options: { sizeMm: 30 } });

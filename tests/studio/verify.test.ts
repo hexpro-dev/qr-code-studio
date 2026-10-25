@@ -440,8 +440,8 @@ describe('the entries a job requires', () => {
 	it("names the overlay the content prints, so the worker draws the bill's cross too", async () => {
 		const runner = new FakeRunner();
 		const { studio, time } = studioWith({ verifyRunner: runner });
-		const { swissQrBillType } = await import('../../src/payload/content/swiss-qr-bill.js');
-		studio.dispatch({ type: 'payload/raw', text: swissQrBillType.vectors[0]?.text as string });
+		const { swissQrBillVectors } = await import('../../src/payload/vectors/swiss-qr-bill.js');
+		studio.dispatch({ type: 'payload/raw', text: swissQrBillVectors[0]?.text as string });
 		studio.dispatch({ type: 'verify/request' });
 		time.advance(250);
 		expect(runner.last.job.overlay).toBe('swiss-cross');

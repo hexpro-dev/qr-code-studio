@@ -22,6 +22,7 @@ import { buildScene } from '../../src/design/scene.js';
 import type { DesignOverlay, QrDesignV1 } from '../../src/design/types.js';
 import { encode } from '../../src/encode/encode.js';
 import { swissQrBillType } from '../../src/payload/content/swiss-qr-bill.js';
+import { swissQrBillVectors } from '../../src/payload/vectors/swiss-qr-bill.js';
 import { rasterise } from '../../src/render/raster.js';
 import { sceneToSvg } from '../../src/render/svg.js';
 import type { Scene } from '../../src/render/types.js';
@@ -62,7 +63,7 @@ const URL_TEXT = 'https://example.com/golden';
 function swissBill(): Scene {
 	const type = swissQrBillType;
 	const { design, overlay } = applyConstraints(defaultDesign(), type.constraints);
-	const text = type.build(type.vectors[0]!.value).text;
+	const text = type.build(swissQrBillVectors[0]!.value).text;
 	const symbol = encode(text, {
 		ecLevel: design.symbol.ecLevel,
 		maxVersion: design.symbol.maxVersion,

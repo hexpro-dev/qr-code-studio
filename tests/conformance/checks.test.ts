@@ -6,6 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { checkFrame } from '../../src/conformance/frame.js';
 import { checkModuleShape } from '../../src/conformance/module-shape.js';
+import { checkPayloadType } from '../../src/conformance/payload-type.js';
+import type { PayloadTypeLike, PayloadVectorLike } from '../../src/conformance/payload-type.js';
 import {
 	checkPreset,
 	contrast,
@@ -26,6 +28,8 @@ import type {
 	Preset,
 	RegionShape,
 } from '../../src/design/types.js';
+import { QrStudioError } from '../../src/core/errors.js';
+import { issue } from '../../src/core/issue.js';
 import { PathBuilder } from '../../src/geometry/path.js';
 import { assetOf, discImage } from '../design/helpers.js';
 
@@ -548,5 +552,186 @@ describe('checkPreset', () => {
 		expect(symbol.version).toBe('3');
 		expect(symbol.matrix.width).toBe(29);
 		expect(emptySymbol('1').ecLevel).toBe('M');
+	});
+});
+
+describe('checkPayloadType', () => {
+	type Value = { readonly name: string; readonly tags: readonly string[] };
+
+	/** A content type that writes `NOTE:<name>|<tag>,<tag>` and reads it back, done properly. */
+	function noteType(overrides: Partial<PayloadTypeLike<Value>> = {}): PayloadTypeLike<Value> {
+		return {
+			id: 'note',
+			validate: (value) => (value.name === '' ? [issue('example.empty', ['fields', 'name'])] : []),
+			build: (value) => {
+				if (value.name === '') throw new TypeError('a value with error issues');
+				return { text: `NOTE:${value.name}|${value.tags.join(',')}` };
+			},
+			parse: (text) => {
+				const match = /^NOTE:([^|]*)\|(.*)$/.exec(text);
+				if (match === null) {
+					throw new QrStudioError('payload/unparseable', 'not a note', { type: 'note' });
+				}
+				const tags = match[2] as string;
+				return { name: match[1] as string, tags: tags === '' ? [] : tags.split(',') };
+			},
+			...overrides,
+		};
+	}
+
+	const vector = (
+		text: string,
+		value: Value,
+		source = 'Example specification, section 1',
+	): PayloadVectorLike<Value> => ({
+		text,
+		value,
+		source,
+	});
+	const good = vector('NOTE:Example|a,b', { name: 'Example', tags: ['a', 'b'] });
+
+	it('passes a type that reads and writes its vectors, its own or the ones it is given', () => {
+		expect(checkPayloadType(noteType(), [good])).toEqual([]);
+		// Left out, the vectors come from the type, which is how a type from
+		// outside this package carries them.
+		expect(checkPayloadType(noteType({ vectors: [good] }))).toEqual([]);
+		// Given, they replace the type's own.
+		const wrong = vector('NOTE:Other|', { name: 'Example', tags: [] });
+		expect(checkPayloadType(noteType({ vectors: [wrong] }), [good])).toEqual([]);
+		expect(rules(checkPayloadType(noteType({ vectors: [wrong] })))).toEqual(['vector-parse']);
+		// A type with no vectors anywhere has nothing to check.
+		expect(checkPayloadType(noteType())).toEqual([]);
+		expect(checkPayloadType(noteType({ vectors: [good] }), [])).toEqual([]);
+	});
+
+	it('finds a vector that cites nothing', () => {
+		const found = checkPayloadType(noteType(), [good, { ...good, source: '  ' }]);
+		expect(found).toEqual([
+			{ entry: 'note', rule: 'vector-source', detail: 'vector 1 cites no source' },
+		]);
+	});
+
+	it('finds a vector that reads as some other value, and names the fields but not their content', () => {
+		const found = checkPayloadType(noteType(), [
+			vector('NOTE:Secret|x', { name: 'Example', tags: ['x'] }),
+			vector('NOTE:Example|x,y', { name: 'Example', tags: ['x'] }),
+		]);
+		expect(found.map((violation) => violation.rule)).toEqual(['vector-parse', 'vector-parse']);
+		expect(found[0]?.detail).toBe('vector 0 reads as a different value (fields name)');
+		expect(found[1]?.detail).toBe('vector 1 reads as a different value (fields tags)');
+		expect(JSON.stringify(found)).not.toContain('Secret');
+		const scalar = noteType({ parse: () => 'just text' as unknown as Value });
+		expect(checkPayloadType(scalar, [good])[0]?.detail).toBe(
+			'vector 0 reads as a different value (not a record)',
+		);
+	});
+
+	it('finds a vector that does not read, and says what was thrown without its message', () => {
+		const unreadable = vector('NOT A NOTE', { name: 'Example', tags: [] });
+		expect(checkPayloadType(noteType(), [unreadable])).toEqual([
+			{
+				entry: 'note',
+				rule: 'vector-parse',
+				detail: 'vector 0 does not read: parse threw QrStudioError payload/unparseable',
+			},
+		]);
+		const plain = noteType({
+			parse: () => {
+				throw new RangeError('NOT A NOTE was here');
+			},
+		});
+		const detail = checkPayloadType(plain, [unreadable]).map((violation) => violation.detail);
+		expect(detail[0]).toBe('vector 0 does not read: parse threw RangeError');
+		expect(detail.join()).not.toContain('NOT A NOTE');
+		const odd = noteType({
+			parse: () => {
+				throw 'NOT A NOTE';
+			},
+		});
+		expect(checkPayloadType(odd, [unreadable])[0]?.detail).toBe(
+			'vector 0 does not read: parse threw a non-error value',
+		);
+	});
+
+	it('holds a vector that does not validate to reading, and to build refusing it', () => {
+		// The shape of BIP 21's example: a published text that fails its own
+		// check. Reading it is still required, writing it is not.
+		const broken = vector('NOTE:|a', { name: '', tags: ['a'] });
+		expect(checkPayloadType(noteType(), [broken])).toEqual([]);
+		const writesAnyway = noteType({ build: (value) => ({ text: `NOTE:${value.name}|` }) });
+		expect(checkPayloadType(writesAnyway, [broken])).toEqual([
+			{
+				entry: 'note',
+				rule: 'vector-build',
+				detail: 'vector 0: build returned a text for a value with error issues, not a TypeError',
+			},
+		]);
+		const wrongError = noteType({
+			build: () => {
+				throw new Error('no');
+			},
+		});
+		expect(checkPayloadType(wrongError, [broken])[0]?.detail).toBe(
+			'vector 0: build threw Error for a value with error issues, not a TypeError',
+		);
+	});
+
+	it('holds a type that cannot be made to refusing every value', () => {
+		const readOnly = noteType({
+			generate: false,
+			build: () => {
+				throw new TypeError('This type is read only.');
+			},
+		});
+		expect(checkPayloadType(readOnly, [good])).toEqual([]);
+		expect(checkPayloadType(noteType({ generate: false }), [good])).toEqual([
+			{
+				entry: 'note',
+				rule: 'vector-build',
+				detail: 'vector 0: build returned a text for a type that cannot be made, not a TypeError',
+			},
+		]);
+	});
+
+	it('finds a value that does not survive being written and read back', () => {
+		const lossy = noteType({ build: (value) => ({ text: `NOTE:${value.name}|` }) });
+		expect(checkPayloadType(lossy, [good])).toEqual([
+			{
+				entry: 'note',
+				rule: 'vector-round-trip',
+				detail: 'vector 0: what build writes reads back differently (fields tags)',
+			},
+		]);
+		const garbled = noteType({ build: () => ({ text: 'garbled' }) });
+		expect(checkPayloadType(garbled, [good])).toEqual([
+			{
+				entry: 'note',
+				rule: 'vector-round-trip',
+				detail: 'vector 0: writing and reading back threw QrStudioError payload/unparseable',
+			},
+		]);
+	});
+
+	it('compares values as the suite does: no key and an undefined one agree, and 0 is not -0', () => {
+		type Loose = { readonly n: number; readonly extra?: string; readonly list: readonly string[] };
+		const loose = (parsed: Loose): PayloadTypeLike<Loose> => ({
+			id: 'loose',
+			generate: false,
+			validate: () => [],
+			build: () => {
+				throw new TypeError('read only');
+			},
+			parse: () => parsed,
+		});
+		const check = (parsed: Loose, value: Loose) =>
+			checkPayloadType(loose(parsed), [{ text: 'x', value, source: 'Example specification' }]);
+		expect(check({ n: 1, extra: undefined, list: [] }, { n: 1, list: [] })).toEqual([]);
+		expect(check({ n: Number.NaN, list: ['a'] }, { n: Number.NaN, list: ['a'] })).toEqual([]);
+		expect(rules(check({ n: -0, list: [] }, { n: 0, list: [] }))).toEqual(['vector-parse']);
+		expect(rules(check({ n: 1, list: ['a'] }, { n: 1, list: ['b'] }))).toEqual(['vector-parse']);
+		const notAList = { n: 1, list: { 0: 'a', length: 1 } } as unknown as Loose;
+		expect(rules(check(notAList, { n: 1, list: ['a'] }))).toEqual(['vector-parse']);
+		const nothing = { n: 1, list: null } as unknown as Loose;
+		expect(rules(check(nothing, { n: 1, list: [] }))).toEqual(['vector-parse']);
 	});
 });

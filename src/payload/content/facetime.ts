@@ -14,9 +14,6 @@ import { percentDecode } from '../escape.js';
 import { booleanOf, compactTel, isEmail, isTel, textOf } from '../fields.js';
 
 const ID = 'facetime';
-const SOURCE =
-	'https://developer.apple.com/library/archive/featuredarticles/iPhoneURLScheme_Reference/FacetimeLinks/FacetimeLinks.html';
-
 export type FacetimeValue = { readonly contact: string; readonly audioOnly: boolean };
 
 /**
@@ -51,23 +48,13 @@ export const facetimeType = definePayload<FacetimeValue>({
 		field(ID, 'audioOnly', 'boolean', { default: false }),
 	],
 	compatibility: [
-		{ reader: 'apple', noteKey: 'payload.facetime.compat.apple-only', source: SOURCE },
+		// Apple URL Scheme Reference, "FaceTime Links":
+		// https://developer.apple.com/library/archive/featuredarticles/iPhoneURLScheme_Reference/FacetimeLinks/FacetimeLinks.html
+		{ reader: 'apple', noteKey: 'payload.facetime.compat.apple-only' },
 	],
 	rules,
 	write: (value) =>
 		`${booleanOf(value, 'audioOnly') ? 'facetime-audio' : 'facetime'}:${contactText(textOf(value, 'contact'))}`,
 	detect: (text) => (/^facetime(?:-audio)?:/i.test(text) ? 1 : 0),
 	parse,
-	vectors: [
-		{
-			text: 'facetime:14085551234',
-			value: { contact: '14085551234', audioOnly: false },
-			source: `Apple URL Scheme Reference, "FaceTime Links", ${SOURCE}.`,
-		},
-		{
-			text: 'facetime-audio:user@example.com',
-			value: { contact: 'user@example.com', audioOnly: true },
-			source: `Apple URL Scheme Reference, "FaceTime Links", ${SOURCE}.`,
-		},
-	],
 });

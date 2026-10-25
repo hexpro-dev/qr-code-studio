@@ -1,7 +1,8 @@
 /**
  * The public shape of a content type, as docs/CONTRACTS.md (`payload`) gives it.
  *
- * Three additions to the contract, all listed in the branch report:
+ * Three additions to the contract, all listed in the branch report, and two
+ * fields made optional:
  *
  * - `FieldSchema.multiple` and `maxItems`. A contact card has several phone
  *   numbers and an email has several recipients, and `FieldValue` already
@@ -15,6 +16,13 @@
  * - The safety code 'payload/service-code', for a tel: link that dials a
  *   star or hash code (call forwarding, settings), which the contract's
  *   union had no code for.
+ * - `PayloadType.vectors` and `CompatibilityNote.source` are optional. Both
+ *   are evidence for the people maintaining a type rather than anything a
+ *   view needs, and carried on the runtime objects they put tens of
+ *   kilobytes of test data and dozens of document addresses into every
+ *   bundle that offers a content type. The built-in types carry neither:
+ *   their vectors are `BUILT_IN_VECTORS` in `./payload/vectors`, and each
+ *   note cites its source in a comment beside it.
  */
 
 import type { Issue, MessageKey } from '../core/issue.js';
@@ -94,7 +102,8 @@ export interface PayloadConstraints {
 export interface CompatibilityNote {
 	readonly reader: string;
 	readonly noteKey: MessageKey;
-	readonly source: string;
+	/** Where the behaviour is documented. The built-in notes cite theirs in a comment instead. */
+	readonly source?: string;
 }
 
 export type PayloadValue = Readonly<Record<string, FieldValue>>;
@@ -128,8 +137,13 @@ export interface PayloadType<V extends PayloadValue = PayloadValue> {
 	/** Throws QrStudioError 'payload/unparseable', or 'payload/invalid' when an integrity check over the whole text fails. */
 	parse(text: string): V;
 	safety?(value: V): readonly SafetyFinding[];
-	/** Spec vectors, run by the conformance suite. `source` cites where each came from. */
-	readonly vectors: readonly PayloadVector<V>[];
+	/**
+	 * Spec vectors, which `checkPayloadType` in `./conformance` runs when they
+	 * are present. `source` cites where each came from. The built-in types
+	 * carry none, so their test data stays out of every bundle: theirs are
+	 * `BUILT_IN_VECTORS` in `./payload/vectors`.
+	 */
+	readonly vectors?: readonly PayloadVector<V>[];
 }
 
 export type SafetyCode =

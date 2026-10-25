@@ -7,6 +7,7 @@ import { detectPayload } from '../../src/payload/detect.js';
 import { BUILT_IN_PAYLOAD_TYPES, createPayloadRegistry } from '../../src/payload/registry.js';
 import type { PayloadRegistry } from '../../src/payload/registry.js';
 import type { PayloadType } from '../../src/payload/types.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 
 const EXPECTED_IDS = [
 	'wifi',
@@ -92,7 +93,7 @@ describe('createPayloadRegistry', () => {
 			expect(type.id).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 			expect(type.labelKey).toBe(`payload.${type.id}.label`);
 			expect(type.actionKey).toBe(`payload.${type.id}.action`);
-			expect(type.vectors.length, type.id).toBeGreaterThan(0);
+			expect(BUILT_IN_VECTORS[type.id]?.length, type.id).toBeGreaterThan(0);
 			const keys = type.fields.map((field) => field.key);
 			expect(new Set(keys).size, type.id).toBe(keys.length);
 		}
@@ -110,7 +111,7 @@ describe('detectPayload', () => {
 
 	it('recognises every built-in type from its own vectors', () => {
 		for (const type of BUILT_IN_PAYLOAD_TYPES) {
-			for (const vector of type.vectors) {
+			for (const vector of BUILT_IN_VECTORS[type.id]) {
 				const found = detectPayload(vector.text, registry);
 				expect(found.type.id, vector.text.slice(0, 60)).toBe(type.id);
 				expect(found.confidence).toBeGreaterThan(0);

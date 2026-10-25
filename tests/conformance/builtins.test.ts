@@ -1,22 +1,26 @@
 /**
  * The gate: every built-in entry passes its conformance checks.
  *
- * Adding a shape, frame or preset that fails here fails the suite, which is
- * the point. A failing entry is cut or fixed, never let through by loosening
+ * Adding a shape, frame, preset or content type that fails here fails the
+ * suite, which is the point. A failing entry is cut or fixed, never let through by loosening
  * a rule. The region shapes are checked against every built-in partner of
  * the other part, and the whole pair table is recorded below, so a change
  * that loses a pair shows up as a diff of the table rather than as a
- * mystery in a scan test.
+ * mystery in a scan test. The content types are checked against the
+ * vectors in `BUILT_IN_VECTORS`, because the types themselves carry none.
  */
 
 import { describe, expect, it } from 'vitest';
 import { checkFrame } from '../../src/conformance/frame.js';
 import { checkModuleShape } from '../../src/conformance/module-shape.js';
+import { checkPayloadType } from '../../src/conformance/payload-type.js';
 import { checkPreset, contrast, darkInks, paintInks } from '../../src/conformance/preset.js';
 import { checkRegionShape } from '../../src/conformance/region-shape.js';
 import { regionPairConforms } from '../../src/design/finder.js';
 import { resolveParams } from '../../src/design/params.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
+import { BUILT_IN_PAYLOAD_TYPES } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/index.js';
 
 const registries = createDesignRegistries();
 
@@ -87,4 +91,14 @@ describe('presets', () => {
 		}
 		expect(under).toEqual([]);
 	});
+});
+
+describe('content types', () => {
+	for (const type of BUILT_IN_PAYLOAD_TYPES) {
+		it(type.id, () => {
+			const vectors = BUILT_IN_VECTORS[type.id];
+			expect(vectors?.length, 'no vectors to check').toBeGreaterThan(0);
+			expect(checkPayloadType(type, vectors)).toEqual([]);
+		});
+	}
 });
