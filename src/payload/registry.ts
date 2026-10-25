@@ -1,14 +1,12 @@
 /**
  * The content type registry and the built-in types.
  *
- * TEMPORARY: `LocalRegistry` stands in for `core/registry.ts`'s `Registry`,
- * which is being written on another branch to the contract in
- * docs/CONTRACTS.md (`core`). It has the same constructor and members and
- * the same errors, so switching is an import change and the removal of this
- * class. Nothing outside this file names it.
+ * A fresh `Registry` from core per call, filled with the built-ins, so a
+ * caller that registers a type of its own changes no other registry and
+ * nothing is registered at import.
  */
 
-import { QrStudioError } from '../core/errors.js';
+import { Registry } from '../core/registry.js';
 import { bitcoinType } from './content/bitcoin.js';
 import { emailType } from './content/email.js';
 import { epcType } from './content/epc.js';
@@ -33,73 +31,8 @@ import { wifiType } from './content/wifi.js';
 import { zatcaType } from './content/zatca.js';
 import type { PayloadType } from './types.js';
 
-/** The shape of `core/registry.ts`'s `Registry`, which this module depends on. */
-export interface PayloadRegistry {
-	readonly kind: string;
-	register(entry: PayloadType): void;
-	get(id: string): PayloadType | undefined;
-	require(id: string): PayloadType;
-	has(id: string): boolean;
-	list(): readonly PayloadType[];
-	ids(): readonly string[];
-	readonly version: number;
-}
-
-const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-class LocalRegistry implements PayloadRegistry {
-	readonly kind: string;
-	readonly #entries = new Map<string, PayloadType>();
-	#version = 0;
-
-	constructor(kind: string, entries: readonly PayloadType[] = []) {
-		this.kind = kind;
-		for (const entry of entries) this.register(entry);
-	}
-
-	get version(): number {
-		return this.#version;
-	}
-
-	register(entry: PayloadType): void {
-		if (!KEBAB.test(entry.id)) throw new TypeError(`A ${this.kind} id is lower-case kebab-case.`);
-		if (this.#entries.has(entry.id))
-			throw new TypeError(`That ${this.kind} id is already registered.`);
-		this.#entries.set(entry.id, entry);
-		this.#version += 1;
-	}
-
-	get(id: string): PayloadType | undefined {
-		return this.#entries.get(id);
-	}
-
-	require(id: string): PayloadType {
-		const entry = this.#entries.get(id);
-		if (entry === undefined) {
-			throw new QrStudioError(
-				'design/unknown-entry',
-				'That needs something this copy does not have.',
-				{
-					kind: this.kind,
-					id,
-				},
-			);
-		}
-		return entry;
-	}
-
-	has(id: string): boolean {
-		return this.#entries.has(id);
-	}
-
-	list(): readonly PayloadType[] {
-		return Object.freeze([...this.#entries.values()]);
-	}
-
-	ids(): readonly string[] {
-		return Object.freeze([...this.#entries.keys()]);
-	}
-}
+/** A registry of content types. */
+export type PayloadRegistry = Registry<PayloadType>;
 
 /**
  * The built-in content types, most specific first. Detection breaks a tie in
@@ -133,5 +66,5 @@ export const BUILT_IN_PAYLOAD_TYPES: readonly PayloadType[] = Object.freeze([
 
 /** A new registry holding every built-in content type. Each call returns a fresh instance. */
 export function createPayloadRegistry(): PayloadRegistry {
-	return new LocalRegistry('payload type', BUILT_IN_PAYLOAD_TYPES);
+	return new Registry<PayloadType>('payload-type', BUILT_IN_PAYLOAD_TYPES);
 }

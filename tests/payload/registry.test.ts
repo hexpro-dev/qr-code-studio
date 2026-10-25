@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { QrStudioError } from '../../src/core/errors.js';
+import { QrStudioError, UnknownEntryError } from '../../src/core/errors.js';
+import { Registry } from '../../src/core/registry.js';
 import { textType } from '../../src/payload/content/text.js';
 import { definePayload } from '../../src/payload/define.js';
 import { detectPayload } from '../../src/payload/detect.js';
@@ -46,14 +47,7 @@ function stub(id: string, detect: (text: string) => number): PayloadType {
 
 /** A registry with only the given entries, for detection tests. */
 function only(entries: readonly PayloadType[]): PayloadRegistry {
-	const registry = createPayloadRegistry();
-	return {
-		...registry,
-		kind: registry.kind,
-		version: 0,
-		list: () => entries,
-		get: (id: string) => entries.find((entry) => entry.id === id),
-	} as PayloadRegistry;
+	return new Registry<PayloadType>('payload-type', entries);
 }
 
 describe('createPayloadRegistry', () => {
@@ -61,7 +55,7 @@ describe('createPayloadRegistry', () => {
 		const registry = createPayloadRegistry();
 		expect(registry.ids()).toEqual(EXPECTED_IDS);
 		expect(registry.list()).toEqual(BUILT_IN_PAYLOAD_TYPES);
-		expect(registry.kind).toBe('payload type');
+		expect(registry.kind).toBe('payload-type');
 		expect(registry.version).toBe(EXPECTED_IDS.length);
 	});
 
@@ -87,9 +81,9 @@ describe('createPayloadRegistry', () => {
 			registry.require('missing-type');
 			expect.unreachable();
 		} catch (error) {
-			expect(error).toBeInstanceOf(QrStudioError);
+			expect(error).toBeInstanceOf(UnknownEntryError);
 			expect((error as QrStudioError).code).toBe('design/unknown-entry');
-			expect((error as QrStudioError).params).toEqual({ kind: 'payload type', id: 'missing-type' });
+			expect((error as QrStudioError).params).toEqual({ kind: 'payload-type', id: 'missing-type' });
 		}
 	});
 
