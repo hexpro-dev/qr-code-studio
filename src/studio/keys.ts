@@ -6,7 +6,8 @@
  * reaches a person goes through `studioError`, which picks the most specific
  * sentence there is. An encoding failure has its own keys in the encode
  * layer's catalogue, found by the param that says why; a reading failure has
- * the reader's, by `decodeFailureKey`; a spreadsheet the batch layer cannot
+ * the reader's, by `decodeFailureKey`; the library's, by the reason a store
+ * gives; a spreadsheet the batch layer cannot
  * read has that layer's, by its reason; a font or a print refusal has the
  * text layer's; anything else has the generic sentence for its code,
  * `error.<area>.<detail>`.
@@ -82,8 +83,26 @@ function param(error: QrStudioError, name: string): string | undefined {
 	return typeof value === 'string' && /^[a-z0-9-]+$/.test(value) ? value : undefined;
 }
 
+/**
+ * The library's specific sentences, by code and reason: a delete another tab
+ * holds up, an item that has gone, a library file that is full, a brand kit
+ * the studio cannot keep. Both stores give these reasons
+ * (src/dom/file-library.ts, src/dom/library); keyed by code as well, so the
+ * same reason from another layer means nothing here.
+ */
+export const LIBRARY_REASON_KEYS: Readonly<Record<string, MessageKey>> = Object.freeze({
+	'library/unavailable:blocked': 'dom.library.error.blocked',
+	'library/corrupt:missing': 'dom.library.error.missing',
+	'library/quota:file-full': 'dom.library.error.file-full',
+	'design/invalid:kit': 'dom.library.error.kit',
+});
+
 /** The most specific key there is for an error. */
 export function errorKey(error: QrStudioError): MessageKey {
+	const reasoned = `${error.code}:${String(error.params.reason)}`;
+	if (Object.prototype.hasOwnProperty.call(LIBRARY_REASON_KEYS, reasoned)) {
+		return LIBRARY_REASON_KEYS[reasoned] as MessageKey;
+	}
 	switch (error.code) {
 		case 'encode/too-much-data':
 			return 'encode.too-much-data';

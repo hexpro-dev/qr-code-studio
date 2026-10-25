@@ -15,8 +15,15 @@ export type {
 	FormView,
 	FrameCatalogueEntry,
 	InspectState,
+	BrandKit,
+	KitItem,
+	KitSummary,
+	LibraryContents,
+	LibraryFileOpened,
 	LibraryItem,
 	LibraryItemSummary,
+	LibraryProbeState,
+	LibraryShelves,
 	LibraryState,
 	LibraryStore,
 	PayloadTypeEntry,
@@ -68,6 +75,7 @@ export {
 	categoryKey,
 	checkKey,
 	errorKey,
+	LIBRARY_REASON_KEYS,
 	errorMessageKey,
 	groupKey,
 	presetCategoryKey,
@@ -84,6 +92,13 @@ export {
 	removeLogoPatches,
 } from './logo.js';
 export { exportName, fileStem } from './names.js';
+export {
+	KIT_CONTRAST,
+	KIT_GROUND_LUMINANCE,
+	KIT_PALETTE_MAX,
+	applyKit,
+	kitFromDesign,
+} from './kit.js';
 export { SHUFFLE_CONTRAST, contrastRatio, luminance } from './contrast.js';
 export { UNAVAILABLE_RUNNER, requiredEntries, slicedVerifyRunner } from './verify.js';
 export type { DesignAsset, QrDesignV1 } from '../design/types.js';

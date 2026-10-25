@@ -68,6 +68,7 @@ import {
 	undo,
 } from './history.js';
 import type { History, Work } from './history.js';
+import { applyKit } from './kit.js';
 import { STUDIO_KEYS, asStudioError, studioError } from './keys.js';
 import { applyPatch, pathProblem } from './patch.js';
 import type { DesignPatch, Fix, Printer, VerifyConditions, VerifyProgress } from './seams.js';
@@ -84,7 +85,9 @@ import type {
 	DesignState,
 	FormView,
 	InspectState,
-	LibraryItemSummary,
+	KitItem,
+	LibraryContents,
+	LibraryProbeState,
 	LibraryState,
 	PresetThumbnails,
 	PreviewState,
@@ -615,25 +618,29 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	 * shared with the old one where they agree, and refused if the content's
 	 * constraints would undo it.
 	 */
-	function changeDesign(
-		action: Refusal['action'],
-		input: unknown,
-		coalesce: string | null,
-		path: readonly (string | number)[],
-	): void {
+	/** What a new design for the document comes to: a change, a refusal, or nothing at all. */
+	type Prepared =
+		| { readonly kind: 'change'; readonly next: QrDesignV1 }
+		| { readonly kind: 'refuse'; readonly issues: readonly Issue[] }
+		| { readonly kind: 'same' };
+
+	/**
+	 * A new design for the document, from anything: migrated, validated,
+	 * shared with the old one where they agree, and refused if the content's
+	 * constraints would undo it.
+	 */
+	function prepareDesign(input: unknown, path: readonly (string | number)[]): Prepared {
 		const checked = designFrom(input, registries, fonts);
-		if (checked.design === null) {
-			refuse(action, checked.issues);
-			return;
-		}
+		if (checked.design === null) return { kind: 'refuse', issues: checked.issues };
 		const current = document.design;
 		const next = share(current, checked.design);
 		if (next === current) {
 			// Nothing a design holds changed: an unknown key the validator
 			// dropped, say. Said, so the view does not seem to ignore the person.
 			const said = checked.issues.filter((found) => found.severity !== 'info');
-			if (said.length > 0 && !sameJson(input, current)) refuse(action, said);
-			return;
+			return said.length > 0 && !sameJson(input, current)
+				? { kind: 'refuse', issues: said }
+				: { kind: 'same' };
 		}
 		const type = typeOf(document.typeId);
 		const { constraints } = type;
@@ -645,14 +652,27 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			)
 		) {
 			const locked = constraints.designLocked === true;
-			refuse(action, [
-				issue(locked ? STUDIO_KEYS.designLocked : STUDIO_KEYS.constrained, path, 'warning', {
-					type: type.id,
-				}),
-			]);
-			return;
+			return {
+				kind: 'refuse',
+				issues: [
+					issue(locked ? STUDIO_KEYS.designLocked : STUDIO_KEYS.constrained, path, 'warning', {
+						type: type.id,
+					}),
+				],
+			};
 		}
-		changeWork({ design: next }, coalesce);
+		return { kind: 'change', next };
+	}
+
+	function changeDesign(
+		action: Refusal['action'],
+		input: unknown,
+		coalesce: string | null,
+		path: readonly (string | number)[],
+	): void {
+		const prepared = prepareDesign(input, path);
+		if (prepared.kind === 'refuse') refuse(action, prepared.issues);
+		else if (prepared.kind === 'change') changeWork({ design: prepared.next }, coalesce);
 	}
 
 	function presetDesign(preset: Preset, current: QrDesignV1): QrDesignV1 {
@@ -1041,13 +1061,45 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		}
 	}
 
-	async function refreshLibrary(): Promise<Result<readonly LibraryItemSummary[]>> {
+	// What the store is, from its probe: a library kept in the browser, or a
+	// file the person saves and opens. The kit last applied, and the records
+	// the last opened file had to leave out, are the studio's to remember.
+	let libraryKind: 'on' | 'file' = 'on';
+	let activeKit: KitItem | null = null;
+	let openSkipped: readonly Issue[] = [];
+
+	/** Reads the whole library back into the snapshot, after anything that may have changed it. */
+	async function refreshLibrary(): Promise<Result<LibraryContents>> {
 		const store = library as NonNullable<typeof library>;
-		const listed = await store.list();
+		const contents = await store.contents();
 		if (disposed) return err(new CancelledError());
-		if (listed.ok) setLibrary({ status: 'on', items: frozen([...listed.value]) });
-		else setLibrary({ status: 'failed', error: studioError(listed.error) });
-		return listed;
+		if (!contents.ok) {
+			setLibrary({ status: 'failed', error: studioError(contents.error) });
+			return contents;
+		}
+		const shelves = {
+			items: frozen([...contents.value.designs]),
+			kits: frozen([...contents.value.kits]),
+			skipped: frozen([...contents.value.skipped, ...openSkipped]),
+			kit: activeKit,
+		};
+		setLibrary(
+			libraryKind === 'file'
+				? { status: 'file', unsaved: store.hasUnsavedChanges?.() === true, ...shelves }
+				: { status: 'on', ...shelves },
+		);
+		return contents;
+	}
+
+	/** The library's view of a probe, from its state, or from its two flags for an older store. */
+	function probedState(probe: {
+		readonly available: boolean;
+		readonly enabled: boolean;
+		readonly state?: LibraryProbeState;
+	}): LibraryProbeState {
+		if (probe.state !== undefined) return probe.state;
+		if (!probe.available) return 'unavailable';
+		return probe.enabled ? 'on' : 'off';
 	}
 
 	function notEnabled(): QrStudioError {
@@ -1086,6 +1138,144 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			},
 			command.format,
 			command.options ?? {},
+		);
+	}
+
+	type LibraryCommand = Extract<StudioCommand, { type: `library/${string}` }>;
+
+	/** Applies a design from the library or a kit, with conditions beside it, as one change. */
+	function applyFromLibrary(
+		action: Refusal['action'],
+		design: unknown,
+		conditions: VerifyConditions | null,
+	): void {
+		const prepared = prepareDesign(design, []);
+		const next: { -readonly [K in keyof StudioDocument]?: StudioDocument[K] } = {};
+		if (prepared.kind === 'change') next.design = prepared.next;
+		if (conditions !== null && !sameJson(conditions, document.conditions)) {
+			next.conditions = conditions;
+		}
+		if (next.design !== undefined) {
+			history = recordChange(breakRun(history), work(), null, historyLimit);
+		}
+		if (Object.keys(next).length > 0) changed({ ...document, ...next });
+		if (prepared.kind === 'refuse') refuse(action, prepared.issues);
+	}
+
+	async function libraryCommand(command: LibraryCommand): Promise<Result<unknown>> {
+		if (library === null) {
+			return err(
+				new QrStudioError('library/unavailable', 'This copy of the studio has no library.'),
+			);
+		}
+		const cancelled = (): Result<never> => err(new CancelledError());
+		switch (command.type) {
+			case 'library/enable': {
+				const enabled = await library.enable();
+				if (disposed) return cancelled();
+				if (!enabled.ok) {
+					setLibrary({ status: 'failed', error: studioError(enabled.error) });
+					return enabled;
+				}
+				const contents = await refreshLibrary();
+				return contents.ok ? ok(contents.value.designs) : contents;
+			}
+			case 'library/disable': {
+				const disabled = await library.disable();
+				if (disposed) return cancelled();
+				if (!disabled.ok) return disabled;
+				activeKit = null;
+				openSkipped = [];
+				// The file library is always there; switching it off forgets what the page holds.
+				if (libraryKind === 'file') await refreshLibrary();
+				else setLibrary({ status: 'off' });
+				return ok(null);
+			}
+			default:
+				break;
+		}
+		if (libraryState.status !== 'on' && libraryState.status !== 'file') return err(notEnabled());
+		switch (command.type) {
+			case 'library/save': {
+				const name = typeof command.name === 'string' ? command.name : '';
+				const saved = await library.save({ name, document });
+				if (disposed) return cancelled();
+				if (saved.ok) await refreshLibrary();
+				return saved;
+			}
+			case 'library/remove': {
+				const removed = await library.remove(command.id);
+				if (disposed) return cancelled();
+				if (!removed.ok) return removed;
+				const contents = await refreshLibrary();
+				return contents.ok ? ok(contents.value.designs) : contents;
+			}
+			case 'library/load': {
+				const loaded = await library.load(command.id);
+				if (disposed) return cancelled();
+				if (!loaded.ok) return loaded;
+				// A record holds the look and the sizes, never the content: what the
+				// person typed, and the kind of content it is, stay as they are.
+				const saved = loaded.value.document;
+				const { conditions } = conditionsFrom(saved.conditions, document.conditions);
+				applyFromLibrary(command.type, saved.design, frozen(conditions));
+				const { document: _document, ...summary } = loaded.value;
+				return ok(frozen(summary));
+			}
+			case 'library/list-kits': {
+				const contents = await refreshLibrary();
+				return contents.ok ? ok(contents.value.kits) : contents;
+			}
+			case 'library/save-kit': {
+				const name = typeof command.name === 'string' ? command.name : '';
+				const saved = await library.saveKit({ name, kit: command.kit });
+				if (disposed) return cancelled();
+				if (saved.ok) await refreshLibrary();
+				return saved;
+			}
+			case 'library/load-kit': {
+				const loaded = await library.loadKit(command.id);
+				if (disposed) return cancelled();
+				if (!loaded.ok) return loaded;
+				activeKit = loaded.value;
+				applyFromLibrary(command.type, applyKit(document.design, loaded.value.kit), null);
+				await refreshLibrary();
+				return loaded;
+			}
+			case 'library/remove-kit': {
+				const removed = await library.removeKit(command.id);
+				if (disposed) return cancelled();
+				if (!removed.ok) return removed;
+				if (activeKit?.id === command.id) activeKit = null;
+				const contents = await refreshLibrary();
+				return contents.ok ? ok(contents.value.kits) : contents;
+			}
+			case 'library/save-file': {
+				if (library.saveFile === undefined) return err(notAFile());
+				const saved = library.saveFile(command.name);
+				if (saved.ok) await refreshLibrary();
+				return saved;
+			}
+			case 'library/open-file': {
+				if (library.openFile === undefined) return err(notAFile());
+				const opened = await library.openFile(command.file);
+				if (disposed) return cancelled();
+				if (opened.opened) {
+					// The kits of the library this page held are gone with it.
+					activeKit = null;
+					openSkipped = frozen(opened.issues.filter((found) => found.severity !== 'error'));
+					await refreshLibrary();
+				}
+				return ok(opened);
+			}
+		}
+	}
+
+	function notAFile(): QrStudioError {
+		return new QrStudioError(
+			'library/unavailable',
+			'This library is kept in the browser, not in a file.',
+			{ reason: 'not-a-file' },
 		);
 	}
 
@@ -1142,53 +1332,14 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			case 'library/disable':
 			case 'library/save':
 			case 'library/load':
-			case 'library/remove': {
-				if (library === null) {
-					return err(
-						new QrStudioError('library/unavailable', 'This copy of the studio has no library.'),
-					);
-				}
-				if (command.type === 'library/enable') {
-					const enabled = await library.enable();
-					if (disposed) return err(new CancelledError());
-					if (!enabled.ok) {
-						setLibrary({ status: 'failed', error: studioError(enabled.error) });
-						return enabled;
-					}
-					return refreshLibrary();
-				}
-				if (command.type === 'library/disable') {
-					const disabled = await library.disable();
-					if (disposed) return err(new CancelledError());
-					if (!disabled.ok) return disabled;
-					setLibrary({ status: 'off' });
-					return ok(null);
-				}
-				if (libraryState.status !== 'on') return err(notEnabled());
-				if (command.type === 'library/save') {
-					const name = typeof command.name === 'string' ? command.name : '';
-					const saved = await library.save({ name, document });
-					if (disposed) return err(new CancelledError());
-					if (!saved.ok) return saved;
-					await refreshLibrary();
-					return saved;
-				}
-				if (command.type === 'library/remove') {
-					const removed = await library.remove(command.id);
-					if (disposed) return err(new CancelledError());
-					if (!removed.ok) return removed;
-					return refreshLibrary();
-				}
-				const loaded = await library.load(command.id);
-				if (disposed) return err(new CancelledError());
-				if (!loaded.ok) return loaded;
-				const opened = documentFrom(loaded.value.document, registries, fonts);
-				history = recordChange(breakRun(history), work(), null, historyLimit);
-				changed({ ...opened.document, mode: document.mode });
-				if (opened.issues.length > 0) refuse('initial', opened.issues);
-				const { document: _document, ...summary } = loaded.value;
-				return ok(frozen(summary));
-			}
+			case 'library/remove':
+			case 'library/list-kits':
+			case 'library/save-kit':
+			case 'library/load-kit':
+			case 'library/remove-kit':
+			case 'library/save-file':
+			case 'library/open-file':
+				return libraryCommand(command);
 			default:
 				throw new TypeError('run: that is not a command the studio knows.');
 		}
@@ -1202,12 +1353,12 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		library.probe().then(
 			async (probed) => {
 				if (!probed.ok) return answered({ status: 'failed', error: studioError(probed.error) });
-				if (!probed.value.available) return answered({ status: 'unavailable' });
-				if (!probed.value.enabled) return answered({ status: 'off' });
-				if (!disposed) {
-					setLibrary({ status: 'on', items: frozen([]) });
-					await refreshLibrary();
+				const state = probedState(probed.value);
+				if (state === 'unavailable' || state === 'off' || state === 'unknown') {
+					return answered({ status: state });
 				}
+				libraryKind = state;
+				if (!disposed) await refreshLibrary();
 			},
 			(thrown: unknown) =>
 				answered({
