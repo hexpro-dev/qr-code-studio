@@ -23,6 +23,7 @@ import {
 } from '../../src/decode/finder.js';
 import type { GreyImage } from '../../src/decode/grey.js';
 import { toGrey } from '../../src/decode/grey.js';
+import type { Preset } from '../../src/design/types.js';
 import { strictHypothesis } from '../../src/decode/locate-qr.js';
 import { plainLuminance } from '../../src/decode/plain.js';
 import {
@@ -273,7 +274,19 @@ describe('fixed patterns under two thresholds', () => {
 });
 
 describe('finder rings under a smear', () => {
-	const midnight = presets().find((preset) => preset.id === 'midnight-dots')!;
+	// Midnight dots with the round ring it had before the presets were given
+	// cornered ones: the catalogue still offers the ring, with a warning.
+	const dots = presets().find((preset) => preset.id === 'midnight-dots')!;
+	const midnight: Preset = {
+		...dots,
+		design: {
+			...dots.design,
+			regions: {
+				...dots.design.regions,
+				finder: { outer: { id: 'circle' }, inner: { id: 'circle-centre' } },
+			},
+		},
+	};
 	const classic = presets().find((preset) => preset.id === 'classic-black')!;
 	const shot = (preset: typeof midnight): RgbaImage =>
 		styledCapture({ preset, modulePixels: 10, version: 2, seed: 3 }).image;

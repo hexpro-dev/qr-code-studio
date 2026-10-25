@@ -41,7 +41,7 @@ import type { FontRegistry } from '../text/types.js';
 import { base64Decode } from './base64.js';
 import { codePoints } from './caption.js';
 import { DESIGN_VERSION, LIMITS, MIN_QUIET_ZONE } from './document.js';
-import { regionPairConforms } from './finder.js';
+import { regionPairConforms, ringKindOf } from './finder.js';
 import { paramProblem, resolveParams } from './params.js';
 import type {
 	DesignAsset,
@@ -538,6 +538,9 @@ function checkRegions(checker: Checker, value: unknown): Checked<QrDesignV1['reg
 		}
 		if (
 			(kind === 'concentric-7' || kind === 'concentric-5') &&
+			// A ring of dots pairs with nothing as the QR finder, for a reason
+			// of its own, given with the symbology below.
+			!(kind === 'concentric-7' && ringKindOf(outer.entry) === 'dotted') &&
 			outer.entry.kinds.includes(kind) &&
 			inner.entry.kinds.includes(kind) &&
 			!regionPairConforms(
@@ -946,6 +949,26 @@ export function validateDesign(
 		return kept;
 	};
 	const usedAssets = assets === BAD ? null : keepUsed(assets);
+
+	// A reader that traces the finder's sides (zxing-cpp, inside many phones)
+	// cannot trace a ring of dots, and loses a round ring at a slant; see
+	// `ringKind` in decode. Micro QR and rMQR draw their finder's ring square
+	// whatever the style, so this is a question for QR only.
+	const finderStyle = regions === BAD ? undefined : regions.finder;
+	const ringShape =
+		finderStyle === undefined ? undefined : registries.regionShapes.get(finderStyle.outer.id);
+	if (
+		ringShape !== undefined &&
+		ringShape.kinds.includes('concentric-7') &&
+		!(symbol !== BAD && (symbol.symbology === 'micro' || symbol.symbology === 'rmqr'))
+	) {
+		const traced = ringKindOf(ringShape);
+		if (traced === 'dotted') {
+			checker.error('design.issue.ring-not-traceable', ['regions', 'finder', 'outer']);
+		} else if (traced === 'round') {
+			checker.warn('design.issue.ring-round', ['regions', 'finder', 'outer']);
+		}
+	}
 
 	// What the scene builder will change on Micro QR and rMQR, said up front.
 	if (
