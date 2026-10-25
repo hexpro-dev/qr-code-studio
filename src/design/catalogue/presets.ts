@@ -29,7 +29,8 @@ import type {
 
 const ALL: readonly EcLevel[] = ['L', 'M', 'Q', 'H'];
 const MEDIUM_UP: readonly EcLevel[] = ['M', 'Q', 'H'];
-const HIGH: readonly EcLevel[] = ['Q', 'H'];
+/** Presets with a logo and plate: the plate's whole box is lost to the reader. */
+const LOGO: readonly EcLevel[] = ['H'];
 
 function solid(ink: Ink): DesignPaint {
 	return { kind: 'solid', ink };
@@ -224,8 +225,11 @@ function specs(): readonly PresetSpec[] {
 			id: 'rounded-link',
 			category: 'rounded',
 			minSizeMm: 22,
-			ecLevels: HIGH,
-			ecLevel: 'Q',
+			// A logo with a plate hides every codeword under the plate's box, and
+			// at Q a short link's blocks run out of correction before any print
+			// size can help. H keeps a margin for every length of content.
+			ecLevels: LOGO,
+			ecLevel: 'H',
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: solid('#0a3d62'),
 			background: WHITE,
@@ -607,15 +611,17 @@ function specs(): readonly PresetSpec[] {
 			id: 'shop-tag',
 			category: 'colour',
 			minSizeMm: 24,
-			ecLevels: HIGH,
-			ecLevel: 'Q',
+			// The same reason as rounded-link: the circular plate costs its whole
+			// box in codewords, so a logo preset is held at H.
+			ecLevels: LOGO,
+			ecLevel: 'H',
 			shape: { id: 'squircle' },
 			paint: solid('#14532d'),
 			background: WHITE,
 			eyes: eyes('squircle', 'squircle-centre'),
 			logo: {
 				source: { kind: 'icon', id: 'shop' },
-				size: 0.22,
+				size: 0.2,
 				clear: 'shape',
 				padding: 1,
 				plate: { paint: WHITE, shape: 'circle' },
