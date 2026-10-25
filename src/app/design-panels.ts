@@ -168,18 +168,36 @@ export function createGallery(ctx: AppContext, card: HTMLDetailsElement): Panel 
 			h('p', { className: 'field__hint', text: t('app.style.shuffle-hint') }),
 		]),
 	]);
-	const images = new Map<string, HTMLImageElement>();
-	const inputs = new Map<string, HTMLInputElement>();
+	// A preset can appear twice, under the brand kit and in its own category,
+	// so each id keeps every picture and every input that shows it.
+	const images: [string, HTMLImageElement][] = [];
+	const inputs: [string, HTMLInputElement][] = [];
+	let shownKit = '';
 	let shownCatalogue: unknown = null;
 	let thumbs: StudioSnapshot['presetThumbnails'] | null = null;
 	let drawnThumbs: StudioSnapshot['presetThumbnails'] | null = null;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 
+	/** The presets of the brand kit last applied, offered first. */
+	function kitPresets(snapshot: StudioSnapshot): readonly string[] {
+		const library = snapshot.library;
+		if (library.status !== 'on' && library.status !== 'file') return [];
+		return library.kit?.kit.presets ?? [];
+	}
+
 	function build(snapshot: StudioSnapshot): void {
-		images.clear();
-		inputs.clear();
+		images.length = 0;
+		inputs.length = 0;
 		const children: HTMLElement[] = [];
-		for (const group of snapshot.catalogue.presets) {
+		const all = snapshot.catalogue.presets.flatMap((group) => group.presets);
+		const kit = kitPresets(snapshot)
+			.map((id) => all.find((preset) => preset.id === id))
+			.filter((preset) => preset !== undefined);
+		const groups = [
+			...(kit.length === 0 ? [] : [{ labelKey: 'app.style.from-kit', presets: kit }]),
+			...snapshot.catalogue.presets,
+		];
+		for (const group of groups) {
 			children.push(h('p', { className: 'gallery__category', text: t(group.labelKey) }));
 			for (const preset of group.presets) {
 				const img = h('img', {
@@ -195,8 +213,8 @@ export function createGallery(ctx: AppContext, card: HTMLDetailsElement): Panel 
 						},
 					},
 				});
-				images.set(preset.id, img);
-				inputs.set(preset.id, input);
+				images.push([preset.id, img]);
+				inputs.push([preset.id, input]);
 				children.push(
 					h('label', { className: 'choice choice--preset' }, [
 						input,
@@ -217,7 +235,7 @@ export function createGallery(ctx: AppContext, card: HTMLDetailsElement): Panel 
 		if (!card.open || thumbs === null || thumbs === drawnThumbs) return;
 		const set = thumbs;
 		drawnThumbs = set;
-		const queue = [...images.entries()];
+		const queue = [...images];
 		const step = (): void => {
 			if (set !== thumbs) return;
 			const started = performance.now();
@@ -238,8 +256,10 @@ export function createGallery(ctx: AppContext, card: HTMLDetailsElement): Panel 
 	return {
 		root,
 		update(snapshot) {
-			if (shownCatalogue !== snapshot.catalogue) {
+			const kit = kitPresets(snapshot).join(',');
+			if (shownCatalogue !== snapshot.catalogue || kit !== shownKit) {
 				shownCatalogue = snapshot.catalogue;
+				shownKit = kit;
 				build(snapshot);
 				drawnThumbs = null;
 			}

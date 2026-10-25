@@ -38,7 +38,7 @@ const OUTCOME_KEY: Readonly<Record<Outcome, string>> = {
 	fail: 'app.strip.fail',
 	unknown: 'app.strip.unknown',
 	running: 'app.strip.running',
-	unavailable: 'app.strip.unavailable',
+	unavailable: 'app.strip.unknown',
 };
 
 interface Tile {

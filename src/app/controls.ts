@@ -66,7 +66,7 @@ export function card(number: number, title: string, open: boolean, id?: string):
 			h('span', { className: 'card__num', text: String(number).padStart(2, '0') }),
 			h('h2', { className: 'card__title', text: title }),
 			meta,
-			icon('plus', 'card__chevron'),
+			icon('chevron', 'card__chevron'),
 		]),
 		body,
 	]);

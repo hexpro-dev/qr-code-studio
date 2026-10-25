@@ -572,6 +572,12 @@ export function createContent(ctx: AppContext): ContentView {
 		h('span', { className: 'content__action-text' }),
 	]);
 	const formHost = h('div', { className: 'form' });
+	// SEAM(own-link): a panel for people who want to change where a printed code
+	// goes later (a redirect they host, written by src/own-link's redirectRules)
+	// belongs here, under the form for a web link. The studio has no action or
+	// command for it yet, so it is left out rather than built beside the
+	// studio. The UTM half is already here: a web link's "Campaign tracking"
+	// fields, under More options, are the studio's own.
 	const formIssues = h('ul', { className: 'field__issues' });
 	formIssues.hidden = true;
 	const notes = h('div', { className: 'content__notes' });

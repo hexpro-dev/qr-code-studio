@@ -39,7 +39,7 @@ import {
 	matchPreset,
 } from './design-panels.js';
 import type { Panel } from './design-panels.js';
-import { byId, h, replace, setText } from './dom.js';
+import { byId, h, icon, replace, setText } from './dom.js';
 import { createLibrary } from './library-view.js';
 import { createProof } from './proof.js';
 import { createSaver } from './save.js';
@@ -157,6 +157,7 @@ setText(byId('source-label'), t('app.about.source'));
 setText(byId('licence-title'), t('app.about.licence'));
 setText(byId('licence-intro'), t('app.about.licence-intro'));
 setText(byId('check-it'), t('app.about.check'));
+byId('about-title').parentElement?.appendChild(icon('chevron', 'card__chevron'));
 
 const printImg = h('img', { className: 'print-sheet__img', attrs: { alt: '' } });
 document.body.appendChild(h('div', { className: 'print-sheet' }, [printImg]));

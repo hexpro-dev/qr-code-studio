@@ -137,3 +137,45 @@ test('makes a ZIP of codes from a five row spreadsheet', async ({ page }) => {
 	expect(names.filter((name) => name.endsWith('.png'))).toHaveLength(5);
 	await expect(page.locator('.bulk__summary').last()).toContainText('Made 5 codes');
 });
+
+test('keeps designs in a library file that never holds what a code says', async ({ page }) => {
+	const content = 'https://example.com/library';
+	await page.goto(url);
+	await page.getByLabel('Web address').fill(content);
+	await page.locator('#card-style input[value="midnight-dots"]').check();
+	await page.locator('#card-library > summary').click();
+	const card = page.locator('#card-library');
+	await card.getByLabel('Name').fill('Night');
+	await card.getByRole('button', { name: 'Save this design' }).click();
+	await expect(card.locator('.library__item')).toHaveCount(1);
+	await expect(card.getByText('changes that are not in a file yet')).toBeVisible();
+	await card.getByLabel('Name').fill('Brand');
+	await card.getByRole('button', { name: 'Save as brand kit' }).click();
+	await expect(card.locator('.library__item')).toHaveCount(2);
+
+	const [saved] = await Promise.all([
+		page.waitForEvent('download'),
+		card.getByRole('button', { name: 'Save library file' }).click(),
+	]);
+	expect(saved.suggestedFilename()).toMatch(/\.qrlibrary\.json$/);
+	const path = await saved.path();
+	if (path === null) throw new Error('the download was not saved');
+	const file = await readFile(path);
+	expect(file.toString('utf8')).toContain('"qr-library"');
+	expect(file.toString('utf8'), 'the library file holds the content').not.toContain(content);
+	await expect(card.getByText('changes that are not in a file yet')).toBeHidden();
+
+	// A fresh page: open the file, and use the design on a code typed there.
+	await page.goto(url);
+	await page.getByLabel('Web address').fill('https://example.com/other');
+	await page.locator('#card-library > summary').click();
+	await card.locator('input[type="file"]').first().setInputFiles({
+		name: saved.suggestedFilename(),
+		mimeType: 'application/json',
+		buffer: file,
+	});
+	await expect(card.locator('.library__item')).toHaveCount(2);
+	await card.getByRole('button', { name: 'Use Night' }).click();
+	await expect(page.locator('#card-style .card__meta')).toHaveText('Midnight dots');
+	await expect(page.getByLabel('Web address')).toHaveValue('https://example.com/other');
+});

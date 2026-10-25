@@ -533,7 +533,7 @@ fieldset {
 }
 
 .card[open] > .card__head .card__chevron {
-	transform: rotate(45deg);
+	transform: rotate(180deg);
 }
 
 .card[open] > .card__head {
@@ -1493,12 +1493,13 @@ p.note {
 .library__save {
 	display: flex;
 	flex-wrap: wrap;
-	align-items: flex-end;
-	gap: 0.6rem;
+	align-items: center;
+	gap: 0.5rem;
 }
 
 .library__save .field {
-	flex: 1 1 13rem;
+	flex: 1 1 100%;
+	margin-bottom: 0.25rem;
 }
 
 .library__list {
@@ -1669,6 +1670,7 @@ p.note {
 }
 
 .proof__sheet[data-size='true'] {
+	min-width: min(100%, 20rem);
 	overflow: auto;
 }
 
@@ -1983,7 +1985,7 @@ p.note {
 
 .strip__row {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr));
+	grid-template-columns: repeat(7, minmax(0, 1fr));
 	gap: 0.35rem;
 	margin: 0;
 	padding: 0;
@@ -2109,10 +2111,15 @@ p.note {
 /* A phone: the proof pinned at the top, shrinking once the page scrolls. */
 
 @media (max-width: 699px) {
+	.strip__row {
+		grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr));
+	}
+
 	.create {
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
+		gap: 0;
 	}
 
 	.create__proof {
@@ -2731,6 +2738,13 @@ p.note {
 .actions-host,
 .proof__bar-host {
 	display: grid;
+}
+
+/* Emptied on a phone, where what they hold moves into the cards. */
+.strip-host:empty,
+.actions-host:empty,
+.proof__bar-host:empty {
+	display: none;
 }
 
 /* Forced colours: the system draws the controls, and the selections stay visible. */

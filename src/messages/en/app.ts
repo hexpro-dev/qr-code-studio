@@ -66,7 +66,7 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.capacity.label': 'Space used',
 	'app.capacity.empty': 'No code yet',
 	'app.capacity.value': 'Uses {used} of {total} bits, {percent}%',
-	'app.capacity.largest': 'About {percent}% of the most the largest code at these settings holds.',
+	'app.capacity.largest': 'The largest code these settings allow would be about {percent}% full.',
 	'app.encoding.symbology': 'Kind of symbol',
 	'app.encoding.version': 'Version',
 	'app.encoding.modules': 'Modules',
@@ -126,7 +126,6 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.strip.fail': 'Fails',
 	'app.strip.unknown': 'Not checked',
 	'app.strip.running': 'Checking',
-	'app.strip.unavailable': 'Not in this copy',
 
 	// The scan check.
 	'app.check.run': 'Check it scans',
@@ -166,6 +165,7 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.style.presets': 'Presets',
 	'app.style.custom': 'Your own',
 	'app.style.standard': 'Standard',
+	'app.style.from-kit': 'From your brand kit',
 	'app.style.shuffle': 'Shuffle',
 	'app.style.shuffle-hint': 'A new combination that still scans. Undo goes back.',
 
@@ -315,7 +315,11 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.library.saved-at': 'Saved {date}',
 	'app.library.use': 'Use',
 	'app.library.use-named': 'Use {name}',
-	'app.library.used': 'Used {name}. Undo goes back.',
+	'app.library.used':
+		'Used the look of {name}. What the code says is unchanged, and Undo goes back.',
+	'app.library.kit-used':
+		'Used the brand kit {name}: its colours where they still read, and its logo. Undo goes back.',
+	'app.library.in-use': 'In use',
 	'app.library.remove': 'Remove',
 	'app.library.remove-named': 'Remove {name}',
 	'app.library.removed': 'Removed {name}.',
