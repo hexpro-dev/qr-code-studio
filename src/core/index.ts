@@ -22,3 +22,5 @@ export { rsDecode, rsEncode } from './reed-solomon.js';
 export type { RsCode, RsDecodeOptions, RsDecoded } from './reed-solomon.js';
 export { bchEncode, bchNearest } from './bch.js';
 export { adler32, crc32 } from './checksums.js';
+export { deflateRaw, inflateRaw, zlibUnwrap, zlibWrap } from './deflate.js';
+export type { DeflateLevel, DeflateOptions, InflateOptions } from './deflate.js';
