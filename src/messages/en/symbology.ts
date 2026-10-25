@@ -13,7 +13,7 @@
 export const SYMBOLOGY_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'symbology.qr.label': 'QR code',
 	'symbology.read.version':
-		'This code is a size QR codes do not come in, or says it is a different version from its size.',
+		'This code is not a size its kind of code comes in, or it says it is a different version from its size.',
 	'symbology.read.format':
 		'The part of this code that says how it was made is too damaged to read.',
 	'symbology.read.reed-solomon':

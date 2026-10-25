@@ -18,3 +18,5 @@ export {
 	interleaveOrder,
 } from './qr/index.js';
 export type { DecodedBlocks } from './qr/index.js';
+export { createMicroQrSymbology } from './micro/index.js';
+export { createRmqrSymbology } from './rmqr/index.js';
