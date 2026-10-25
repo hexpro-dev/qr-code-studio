@@ -127,3 +127,92 @@ export class TooMuchDataError extends QrStudioError {
 		this.bitsAvailable = bitsAvailable;
 	}
 }
+
+/**
+ * Why a Reed-Solomon block was refused. Kept on the error rather than in its
+ * params, because the website translates the code and the reason is for a
+ * developer reading a log: every one of them means the same thing to the
+ * person holding the phone.
+ */
+export type RsFailure =
+	/** More positions were flagged as erasures than the block has check symbols. */
+	| 'too-many-erasures'
+	/** The error locator needs more errors than the check symbols can pay for. */
+	| 'too-many-errors'
+	/** Within the code's reach, but past the `maxErrors` the caller allowed. */
+	| 'over-limit'
+	/** The algebra did not close: no consistent set of positions and values exists. */
+	| 'no-solution';
+
+/**
+ * A Reed-Solomon block is damaged past what its check symbols can repair, or
+ * the repair did not survive its own check.
+ *
+ * This is the outcome a reader most needs to get right. A block that is
+ * refused costs one more camera frame; a block that is "corrected" into a
+ * different, valid-looking codeword is a wrong Wi-Fi password or a wrong link,
+ * delivered with confidence.
+ */
+export class RsDecodeError extends QrStudioError {
+	readonly reason: RsFailure;
+
+	constructor(reason: RsFailure) {
+		super(
+			'decode/unreadable',
+			'Part of this code is too damaged to read, even with its error correction.',
+			{ stage: 'reed-solomon' },
+		);
+		this.reason = reason;
+	}
+}
+
+/**
+ * A compressed stream or an archive does not follow its format.
+ *
+ * `format` says which layer refused it ('deflate' for the compressed data
+ * itself, 'zlib' for the wrapper around it), which is a fact about the file and
+ * not its content.
+ */
+export class ArchiveMalformedError extends QrStudioError {
+	constructor(format: 'deflate' | 'zlib') {
+		super('archive/malformed', 'This file is damaged and cannot be opened.', { format });
+	}
+}
+
+/**
+ * A compressed stream unpacks to more than the caller allowed, or an archive
+ * being written would pass a limit of its format.
+ *
+ * The limit is checked before the memory is asked for, so a file built to
+ * expand to gigabytes is refused at the size it claims rather than at the
+ * size it reaches.
+ */
+export class ArchiveTooLargeError extends QrStudioError {
+	readonly limit: number;
+
+	constructor(limit: number, unit: 'bytes' | 'entries' = 'bytes') {
+		super('archive/too-large', 'This is larger than this tool will handle in one go.', {
+			limit,
+			unit,
+		});
+		this.limit = limit;
+	}
+}
+
+/**
+ * A design, job or setting names a registry entry this copy does not have.
+ *
+ * `kind` and `id` are registry identifiers (kebab-case names of built-in
+ * styles and content types), not anything a person typed, so they are safe to
+ * carry in params. They are still kept out of the message, which a person
+ * reads, because the website words this in their language.
+ */
+export class UnknownEntryError extends QrStudioError {
+	constructor(kind: string, id: string) {
+		super(
+			'design/unknown-entry',
+			'This refers to something this version of the studio does not include.',
+			{ kind, id },
+		);
+	}
+}
