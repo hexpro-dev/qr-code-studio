@@ -80,6 +80,18 @@
 			"types": "./dist/fonts/latin.d.ts",
 			"import": "./dist/fonts/latin.js"
 		},
+		"./studio": {
+			"types": "./dist/studio/index.d.ts",
+			"import": "./dist/studio/index.js"
+		},
+		"./dom": {
+			"types": "./dist/dom/index.d.ts",
+			"import": "./dist/dom/index.js"
+		},
+		"./messages": {
+			"types": "./dist/messages/en/index.d.ts",
+			"import": "./dist/messages/en/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
