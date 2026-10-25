@@ -273,13 +273,20 @@ function keyProblem(
 	return allowed.every((key) => own(record, key)) ? null : LIBRARY_KEYS.corrupt;
 }
 
+/**
+ * Characters a name loses: controls, the line and paragraph separators, a
+ * lone surrogate (half a character, which nothing can show), and the bidi
+ * overrides and isolates, which reorder how the text around them is drawn
+ * and so let a name in a file a stranger made read as something else.
+ */
 function isControl(point: number): boolean {
 	return (
 		point < 0x20 ||
 		(point >= 0x7f && point < 0xa0) ||
 		point === 0x2028 ||
 		point === 0x2029 ||
-		// A lone surrogate: half a character, which no file system or font shows.
+		(point >= 0x202a && point <= 0x202e) ||
+		(point >= 0x2066 && point <= 0x2069) ||
 		(point >= 0xd800 && point <= 0xdfff)
 	);
 }
@@ -477,8 +484,9 @@ export function libraryRecords(rules: RecordRules): LibraryRecords {
 			if (
 				!isRecord(conditions) ||
 				!Object.keys(conditions).every((key) => CONDITION_KEYS.includes(key))
-			)
+			) {
 				return corrupt;
+			}
 			const read = conditionsFrom(conditions, DEFAULT_CONDITIONS);
 			if (read.bad.length > 0) return corrupt;
 			const design = designOf(value.design);
@@ -692,9 +700,13 @@ function entriesOf<E, S, I>(
  * unseen, and an entry holding content is refused by name.
  */
 export function parseLibraryFile(text: string, rules: RecordRules): LibraryFileParse {
-	if (typeof text !== 'string')
+	if (typeof text !== 'string') {
 		throw new TypeError('parseLibraryFile: text is the file as a string.');
-	const records = libraryRecords(rules);
+	}
+	return parseWith(text, libraryRecords(rules));
+}
+
+function parseWith(text: string, records: LibraryRecords): LibraryFileParse {
 	// Length in UTF-16 units is never more than the UTF-8 bytes it came from,
 	// so this holds a string to at least the limit the file's size was held to.
 	if (text.length > LIBRARY_LIMITS.fileBytes) {
@@ -710,8 +722,9 @@ export function parseLibraryFile(text: string, rules: RecordRules): LibraryFileP
 	} catch {
 		return refused(LIBRARY_KEYS.notJson);
 	}
-	if (!isRecord(parsed) || parsed.schema !== LIBRARY_SCHEMA)
+	if (!isRecord(parsed) || parsed.schema !== LIBRARY_SCHEMA) {
 		return refused(LIBRARY_KEYS.notLibrary);
+	}
 	if (parsed.version !== LIBRARY_VERSION) {
 		return refused(LIBRARY_KEYS.version, ['version'], { supported: LIBRARY_VERSION });
 	}
@@ -909,9 +922,10 @@ export function createFileLibrary(deps: FileLibraryDeps): FileLibrary {
 					issues: freeze([issue(LIBRARY_KEYS.unreadable, [], 'error')]),
 				});
 			}
-			const parsed = parseLibraryFile(text, rules);
-			if (parsed.library === null)
+			const parsed = parseWith(text, records);
+			if (parsed.library === null) {
 				return freeze({ opened: false, issues: freeze([...parsed.issues]) });
+			}
 			designs = shelfOf(parsed.library.designs);
 			kits = shelfOf(parsed.library.kits);
 			unsaved = false;

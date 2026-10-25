@@ -26,6 +26,7 @@ import {
 } from '../../../src/dom/library/indexeddb.js';
 import type { IdbFactoryLike, IndexedDbLibrary } from '../../../src/dom/library/indexeddb.js';
 import { createStudio } from '../../../src/studio/studio.js';
+import type { LibraryState, Studio } from '../../../src/studio/types.js';
 import type { Result } from '../../../src/core/result.js';
 import { DEFAULT_CONDITIONS } from '../../../src/studio/document.js';
 import {
@@ -102,6 +103,19 @@ async function rawDump(factory: IDBFactory): Promise<unknown[]> {
 	return all.flat();
 }
 
+/** Until the studio's library state passes `done`. */
+function until(studio: Studio, done: (library: LibraryState) => boolean): Promise<void> {
+	return new Promise((resolve) => {
+		const check = (): void => {
+			if (!done(studio.getSnapshot().library)) return;
+			stop();
+			resolve();
+		};
+		const stop = studio.subscribe(check);
+		check();
+	});
+}
+
 function settle(): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -156,7 +170,7 @@ describe('before the person asks', () => {
 		const factory = new IDBFactory();
 		const opened = vi.spyOn(factory, 'open');
 		const studio = createStudio({ library: libraryOn(factory) });
-		await settle();
+		await until(studio, (library) => library.status !== 'checking');
 		expect(studio.getSnapshot().library).toEqual({ status: 'off' });
 		studio.dispatch({ type: 'payload/type', typeId: 'wifi' });
 		studio.dispatch({ type: 'payload/field', key: 'ssid', value: NETWORK });
@@ -331,8 +345,9 @@ describe('switched on', () => {
 		expect(opened).toHaveBeenCalledTimes(1);
 
 		const studio = createStudio({ registries, library: next });
-		await settle();
-		await settle();
+		// The studio says 'on' as soon as the probe answers and fills the list
+		// after, so this waits for the list rather than for a number of turns.
+		await until(studio, (library) => library.status === 'on' && library.items.length > 0);
 		expect(studio.getSnapshot().library).toMatchObject({ status: 'on', items: [{ name: 'Kept' }] });
 		studio.dispose();
 	});
@@ -376,8 +391,7 @@ describe('switched on', () => {
 		expect(!blocked.ok && libraryErrorKey(blocked.error)).toBe(LIBRARY_KEYS.blocked);
 		// The delete stays queued, and finishes once that connection goes.
 		stubborn.close();
-		await settle();
-		await settle();
+		for (let turn = 0; turn < 50 && (await listed(factory)).length > 0; turn += 1) await settle();
 		expect(await listed(factory)).toEqual([]);
 	});
 
@@ -399,8 +413,10 @@ describe('switched on', () => {
 		});
 		await library.list();
 		// As clearing site data in the browser's settings does.
-		forceCloseDatabase(held[0] as never);
-		await settle();
+		const db = held[0] as IDBDatabase;
+		const closed = new Promise((resolve) => db.addEventListener('close', resolve));
+		forceCloseDatabase(db as never);
+		await closed;
 		expect(value(await library.list()).map((item) => item.name)).toEqual(['One']);
 		expect(opened).toHaveBeenCalledTimes(1);
 	});

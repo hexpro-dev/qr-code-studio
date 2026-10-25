@@ -605,6 +605,7 @@ describe('the rules for a record', () => {
 		expect(cleanName('  Office \n\t Wi-Fi  ')).toBe('Office Wi-Fi');
 		expect(cleanName('A\u0000B\u0085C\u2028D\u2029E\u007fF')).toBe('A B C D E F');
 		expect(cleanName('broken \ud800 surrogate')).toBe('broken surrogate');
+		expect(cleanName('invoice\u202egnp.exe\u2066x\u2069')).toBe('invoice gnp.exe x');
 		expect(cleanName('\u{1f600}'.repeat(100))).toBe('\u{1f600}'.repeat(LIBRARY_LIMITS.name));
 		expect([...cleanName(`${'a'.repeat(79)} b`)]).toHaveLength(79);
 		expect(cleanName(`${'a'.repeat(78)} b`)).toBe(`${'a'.repeat(78)} b`);

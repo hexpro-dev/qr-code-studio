@@ -286,9 +286,9 @@ export function createIndexedDbLibrary(deps: IndexedDbLibraryDeps): IndexedDbLib
 			if (at === null) return;
 			const id = idOf(at.key);
 			const checked = collection.check(at.value);
-			if (checked.problem !== null)
+			if (checked.problem !== null) {
 				skipped.push(skippedIssue(collection.store, id, checked.problem));
-			else out.push(collection.summary(id, checked.entry));
+			} else out.push(collection.summary(id, checked.entry));
 			at.continue();
 		};
 		return out;
