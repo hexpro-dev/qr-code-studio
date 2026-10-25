@@ -958,6 +958,32 @@ export function encodeDesignLink(design: QrDesignV1): string;
 export function decodeDesignLink(fragment: string): QrDesignV1; // throws design/invalid
 ```
 
+### Settled when the design layer was built
+
+- `ModuleShape.fillsCell?(params)`: when true the builder traces runs of cells as one outline,
+  so a classic square code is one path.
+- `FillEntry.space?: 'symbol' | 'module'`: whether `resolve` runs once per module or once over
+  the symbol.
+- `DesignConstraints` is a structural copy of `PayloadConstraints` (design may not import payload).
+- `designLink(design)` returns `{ link, issues }` (pictures are left out of links, with an issue);
+  `encodeDesignLink` returns `.link`. `decodeDesignLink(fragment, registries?)`.
+- Region shapes share one registry, so centres are named `*-centre`. Conformance for region
+  shapes is pair based: a ring and a centre make a finder together. `regionPairConforms` is
+  checked by `validateDesign`, `buildScene` and every preset.
+- `checkPreset(preset, verify?: PresetVerifier | null, registries?)` is the hook verify plugs into.
+- QR alignment patterns are drawn by the finder's ring and centre as concentric-5, never by the
+  module shape, because jsQR misread 9 in 10 dotted or starred alignment patterns from v2 up.
+- Micro QR and rMQR keep square rings; only the main finder's centre takes the style. rMQR is
+  drawn without a frame (a warning), because zxing-cpp lost framed rMQR erratically.
+- With a frame, `FrameLayout.nodes` go beneath everything, the design background becomes a
+  plate over the quiet zone box, and `Scene.background` is null.
+- The logo shrinks two modules at a time until it and its plate clear every function pattern
+  except the central alignment patterns, with an info issue.
+- Limits: design links at most 4096 characters and 32 KiB of JSON; at most 4 assets, each up to
+  512 KiB of PNG and 1024 px a side.
+- Seams: captions (`SEAM(M9)` in scene.ts, issue `caption-pending`); the Swiss QR-bill cross
+  (issue `overlay-required`).
+
 Conformance (in `./conformance`, pure, returning `Violation[]`):
 
 - `checkModuleShape(shape)`: for every neighbour combination and seeded
