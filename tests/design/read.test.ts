@@ -17,6 +17,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { createPrng } from '../../src/core/prng.js';
+import { regionPairConforms } from '../../src/design/finder.js';
+import { resolveParams } from '../../src/design/params.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import { buildScene } from '../../src/design/scene.js';
 import type { Preset } from '../../src/design/types.js';
@@ -123,32 +125,57 @@ describe('presets read back as rMQR', () => {
 });
 
 describe('every module shape and every finder centre', () => {
-	it('read back as QR, Micro QR and rMQR at their defaults', async () => {
-		const shapes = registries.moduleShapes.list();
-		const centres = registries.regionShapes.list().filter((shape) => shape.part === 'inner');
-		const qr = qrSymbol(content(5, 60), 'M');
-		const micro = microSymbol('HELLO WORLD', undefined, 'L');
-		const rmqr = rmqrSymbol('https://example.com/a', 'R11x59');
-		for (const [i, shape] of shapes.entries()) {
-			const centre = centres[i % centres.length]!;
+	const qrText = content(5, 60);
+	const qr = qrSymbol(qrText, 'M');
+	const micro = microSymbol('HELLO WORLD', undefined, 'L');
+	const rmqr = rmqrSymbol('https://example.com/a', 'R11x59');
+	const base = registries.presets.require('classic-black').design;
+
+	async function readsEverywhere(design: typeof base, where: string, jsqr: boolean): Promise<void> {
+		const qrImage = draw(buildScene(qr, design, { registries }).scene);
+		expect(await zxingTexts(qrImage), where).toEqual([qrText]);
+		if (jsqr) expect(jsqrText(qrImage), where).toBe(qrText);
+		const microImage = draw(buildScene(micro, { ...design, quietZone: 2 }, { registries }).scene);
+		expect(await zxingTexts(microImage, 'MicroQRCode'), where).toContain('HELLO WORLD');
+		const rmqrImage = draw(buildScene(rmqr, { ...design, quietZone: 2 }, { registries }).scene);
+		expect(await zxingTexts(rmqrImage, 'rMQRCode'), where).toContain('https://example.com/a');
+	}
+
+	it('read back at their defaults: each module shape with square finders, by both readers', async () => {
+		for (const shape of registries.moduleShapes.list()) {
 			const design = {
-				...registries.presets.require('classic-black').design,
+				...base,
 				modules: {
 					shape: { id: shape.id },
 					paint: { kind: 'solid' as const, ink: '#000000' },
 					light: null,
 				},
-				regions: { finder: { outer: { id: 'square' }, inner: { id: centre.id } } },
 			};
-			const where = `${shape.id} with ${centre.id}`;
-			const qrImage = draw(buildScene(qr, design, { registries }).scene);
-			expect(await zxingTexts(qrImage), where).toHaveLength(1);
-			const microImage = draw(buildScene(micro, { ...design, quietZone: 2 }, { registries }).scene);
-			if (shape.id !== 'tiny-square' && shape.id !== 'star') {
-				expect(await zxingTexts(microImage, 'MicroQRCode'), where).toContain('HELLO WORLD');
-			}
-			const rmqrImage = draw(buildScene(rmqr, { ...design, quietZone: 2 }, { registries }).scene);
-			expect(await zxingTexts(rmqrImage, 'rMQRCode'), where).toContain('https://example.com/a');
+			await readsEverywhere(design, shape.id, true);
+		}
+	});
+
+	// jsQR scores a finder by how alike its runs are along the axes and the
+	// diagonals, so a round or cut centre can lose to a square-ish cluster
+	// of data modules. zxing-cpp, and the strict reader, measure the ratio.
+	it('read back at their defaults: each centre with a ring it pairs with, by zxing-cpp', async () => {
+		const rings = registries.regionShapes.list().filter((shape) => shape.part === 'outer');
+		for (const centre of registries.regionShapes.list().filter((shape) => shape.part === 'inner')) {
+			const ring = rings.find((candidate) =>
+				regionPairConforms(
+					candidate,
+					resolveParams(candidate.params, undefined),
+					centre,
+					resolveParams(centre.params, undefined),
+					'concentric-7',
+				),
+			);
+			expect(ring, centre.id).toBeDefined();
+			const design = {
+				...base,
+				regions: { finder: { outer: { id: ring!.id }, inner: { id: centre.id } } },
+			};
+			await readsEverywhere(design, `${ring!.id} with ${centre.id}`, false);
 		}
 	});
 });
