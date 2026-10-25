@@ -10,15 +10,18 @@
  * Each golden builds a symbol with this package's encoder, a scene from a
  * design, and then either the SVG text or the rasterised pixels, so the
  * whole chain is covered: shapes drawn through core's sine and cosine, finder
- * pairs measured, paints resolved, seeded mosaics and scatters. A digest that
- * moves without a reason is a determinism bug somewhere along it.
+ * pairs measured, paints resolved, seeded mosaics and scatters, captions set
+ * from the compiled font, and the Swiss QR-bill's cross. A digest that moves
+ * without a reason is a determinism bug somewhere along it.
  */
 
+import { applyConstraints } from '../../src/design/constraints.js';
 import { defaultDesign } from '../../src/design/document.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import { buildScene } from '../../src/design/scene.js';
-import type { QrDesignV1 } from '../../src/design/types.js';
+import type { DesignOverlay, QrDesignV1 } from '../../src/design/types.js';
 import { encode } from '../../src/encode/encode.js';
+import { swissQrBillType } from '../../src/payload/content/swiss-qr-bill.js';
 import { rasterise } from '../../src/render/raster.js';
 import { sceneToSvg } from '../../src/render/svg.js';
 import type { Scene } from '../../src/render/types.js';
@@ -31,8 +34,13 @@ export interface DesignGolden {
 	readonly sha256: string;
 }
 
-function scene(symbol: BuiltSymbol, design: QrDesignV1, seed = 1): Scene {
-	return buildScene(symbol, design, { registries: createDesignRegistries(), seed }).scene;
+function scene(
+	symbol: BuiltSymbol,
+	design: QrDesignV1,
+	seed = 1,
+	overlay: DesignOverlay | null = null,
+): Scene {
+	return buildScene(symbol, design, { registries: createDesignRegistries(), seed, overlay }).scene;
 }
 
 function preset(id: string): QrDesignV1 {
@@ -49,6 +57,19 @@ function pixels(value: Scene, perModule: number): Uint8Array {
 }
 
 const URL_TEXT = 'https://example.com/golden';
+
+/** The spec vector of SIX's guidelines (Annex A, example 2), cited in the payload type. */
+function swissBill(): Scene {
+	const type = swissQrBillType;
+	const { design, overlay } = applyConstraints(defaultDesign(), type.constraints);
+	const text = type.build(type.vectors[0]!.value).text;
+	const symbol = encode(text, {
+		ecLevel: design.symbol.ecLevel,
+		maxVersion: design.symbol.maxVersion,
+		segmentation: design.symbol.segmentation,
+	});
+	return scene(symbol, design, 1, overlay);
+}
 
 export const DESIGN_GOLDENS: readonly DesignGolden[] = [
 	{
@@ -93,6 +114,26 @@ export const DESIGN_GOLDENS: readonly DesignGolden[] = [
 				5,
 			),
 		sha256: '9a4091e10106fce4e34a30e0c87a2592db6eb36f1f2c9af616b07ba76816f2d5',
+	},
+	{
+		name: 'two-line caption on a rounded card as SVG',
+		render: () =>
+			svgBytes(
+				scene(encode(URL_TEXT, { ecLevel: 'M' }), {
+					...defaultDesign(),
+					frame: {
+						ref: { id: 'rounded-card' },
+						paint: { kind: 'solid', ink: '#0b3d91' },
+						text: { content: 'Scan for the menu\nand specials', fontId: 'plex-sans-bold' },
+					},
+				}),
+			),
+		sha256: '7f6b038a0ec04e84185d12d273e79f5b40a0367e6ae23c68a9a456287255cac3',
+	},
+	{
+		name: 'Swiss QR-bill with its cross, rasterised at 4 px a module',
+		render: () => pixels(swissBill(), 4),
+		sha256: '0ca73d3a730be7e2bd1134b854cb5433c36b8b446cbb6db0fb89c0bd6165fb7e',
 	},
 ];
 

@@ -6,6 +6,7 @@ export type {
 	DesignConstraints,
 	DesignFrame,
 	DesignLogo,
+	DesignOverlay,
 	DesignPaint,
 	DesignRegistries,
 	DesignStop,
