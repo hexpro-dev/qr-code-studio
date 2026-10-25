@@ -12,6 +12,7 @@ import { Registry } from '../../src/core/registry.js';
 import { textType } from '../../src/payload/content/text.js';
 import { detectPayload } from '../../src/payload/detect.js';
 import { createPayloadRegistry } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/built-in.js';
 import type { PayloadType, SafetyCode } from '../../src/payload/types.js';
 import { isWebLink } from '../../src/inspect/explain.js';
 import { inspectText } from '../../src/inspect/inspect.js';
@@ -23,7 +24,9 @@ const codes = (text: string): SafetyCode[] =>
 describe('every content type', () => {
 	for (const type of createPayloadRegistry().list()) {
 		it(`${type.id}: its vectors are explained as the type that claims them`, () => {
-			for (const vector of type.vectors) {
+			const vectors = BUILT_IN_VECTORS[type.id] ?? [];
+			expect(vectors.length, type.id).toBeGreaterThan(0);
+			for (const vector of vectors) {
 				const report = inspectText(vector.text, registries);
 				const detected = detectPayload(vector.text, registries.payloads).type;
 				expect(report.symbols).toEqual([]);

@@ -9,13 +9,16 @@ import { QrStudioError } from '../../src/core/errors.js';
 import { encode, encodeStructuredAppend } from '../../src/encode/index.js';
 import { inspectImage, inspectText } from '../../src/inspect/inspect.js';
 import { createPayloadRegistry } from '../../src/payload/registry.js';
+import { BUILT_IN_VECTORS } from '../../src/payload/vectors/built-in.js';
 import { fromRgba, invert, mirror, toRgba } from '../../src/verify/degrade.js';
 import { draw, registries, sideBySide } from './helpers.js';
 
 describe('every content type, drawn and read back', () => {
 	for (const type of createPayloadRegistry().list()) {
 		it(`${type.id}: reads to the same explanation as its text`, () => {
-			for (const vector of type.vectors) {
+			const vectors = BUILT_IN_VECTORS[type.id] ?? [];
+			expect(vectors.length, type.id).toBeGreaterThan(0);
+			for (const vector of vectors) {
 				// ECI 'auto' never writes an ECI header, as EPC and the Swiss QR-bill require.
 				const symbol = encode(vector.text, { ecLevel: 'L' });
 				const result = inspectImage(draw(symbol, 3), registries);
