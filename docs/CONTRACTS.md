@@ -327,13 +327,14 @@ export interface SymbologyEntry {
 	readonly labelKey: MessageKey;
 	readonly quietZone: number; // minimum, in modules: 4 for QR, 2 for Micro and rMQR
 	readonly phoneReadable: boolean; // false for Micro QR and rMQR
-	readonly versions: readonly string[]; // smallest first
+	readonly versions: readonly string[]; // smallest first (by area for rMQR)
 	ecLevels(version: string): readonly EcLevel[];
 	size(version: string): { width: number; height: number };
 	profile(version: string): BitstreamProfile;
 	blocks(version: string, ec: EcLevel): BlockLayout;
-	layout(version: string): SymbolLayout; // cached; the same object for the same version
-	masks(version: string): readonly number[]; // 0..7 for QR, 0..3 for Micro, [0] for rMQR (fixed)
+	/** Cached. `ec` matters only where the bit mapping depends on the level (Micro QR M3, whose 4-bit codeword moves); elsewhere one object serves every level. */
+	layout(version: string, ec?: EcLevel): SymbolLayout;
+	masks(version: string): readonly number[]; // 0..7 for QR; 0..3 for Micro (ISO's references, QR masks 1, 4, 6, 7); [0] for rMQR (fixed, QR mask 4)
 	/** Place codewords, apply the mask (or choose one), write format and version information. */
 	build(codewords: Uint8Array, version: string, ec: EcLevel, mask: number | 'auto'): BuiltSymbol;
 	/** Read a sampled matrix. Pure: throws QrStudioError 'decode/unreadable' with params { stage }. */
