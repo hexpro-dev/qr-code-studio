@@ -75,7 +75,7 @@ function full(): QrDesignV1 {
 			paint: { kind: 'solid', ink: '#0b3d91' },
 			text: {
 				content: 'Scan me\nfor the menu',
-				fontId: 'inter',
+				fontId: 'plex-sans-bold',
 				paint: { kind: 'solid', ink: '#ffffff' },
 			},
 		},
@@ -646,6 +646,12 @@ describe('validateDesign', () => {
 				'error design.issue.not-an-integer output.dpi',
 				'error design.issue.invalid-option output.colourSpace',
 			],
+		],
+		['a size measured over the symbol alone', (d) => (at(d, 'output').sizeBasis = 'symbol'), []],
+		[
+			'a size basis it does not know',
+			(d) => (at(d, 'output').sizeBasis = 'page'),
+			['error design.issue.invalid-option output.sizeBasis'],
 		],
 		[
 			'output with no colour space, filled in',

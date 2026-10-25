@@ -337,6 +337,33 @@ describe('buildScene', () => {
 		);
 		expect(built.scene.unitsPerMm).toBe(1);
 		expect(built.scene.title).toBe('Menu');
+		// The size is the whole artwork's, frame included, unless the design
+		// says it is the symbol's own.
+		const framed = (sizeBasis?: 'artwork' | 'symbol') =>
+			buildScene(
+				v2,
+				designWith({
+					frame: { ref: { id: 'banner-bottom' } },
+					output: {
+						sizeMm: 50,
+						colourSpace: 'srgb',
+						...(sizeBasis === undefined ? {} : { sizeBasis }),
+					},
+				}),
+				{ registries },
+			).scene;
+		expect(framed().unitsPerMm).toBe(framed().width / 50);
+		expect(framed('artwork')).toEqual(framed());
+		expect(framed('symbol').unitsPerMm).toBe(25 / 50);
+		expect(
+			buildScene(
+				v2,
+				designWith({ output: { sizeMm: 25, sizeBasis: 'symbol', colourSpace: 'srgb' } }),
+				{
+					registries,
+				},
+			).scene.unitsPerMm,
+		).toBe(1);
 		expect(
 			buildScene(microSymbol('12345'), designWith({ quietZone: 2 }), { registries }).scene.title,
 		).toBe('Micro QR code');
@@ -567,7 +594,7 @@ describe('buildScene', () => {
 		expect(micro.scene.width).toBeGreaterThan(15);
 	});
 
-	it('lays the symbol into its frame, with the background on its quiet zone and the caption reserved', () => {
+	it('lays the symbol into its frame, with the background on its quiet zone and the caption on top', () => {
 		const built = buildScene(
 			v2,
 			designWith({
@@ -582,14 +609,13 @@ describe('buildScene', () => {
 							{ offset: 1, ink: '#333333' },
 						],
 					},
-					text: { content: 'Scan me', fontId: 'inter' },
+					text: { content: 'Scan me', fontId: 'plex-sans-bold' },
 				},
 			}),
 			{ registries },
 		);
-		expect(built.issues).toEqual([
-			{ code: 'design.issue.caption-pending', path: ['frame', 'text'], severity: 'info' },
-		]);
+		expect(built.issues).toEqual([]);
+		expect(roles(built.scene).at(-1)).toBe('caption');
 		const frame = pathOf(built.scene.layers[0]);
 		// The frame's gradient spans the whole artwork, top to bottom.
 		expect(frame.paint).toMatchObject({ kind: 'linear', y1: 0, y2: built.scene.height });
@@ -600,14 +626,16 @@ describe('buildScene', () => {
 		const empty = buildScene(
 			v2,
 			designWith({
-				frame: { ref: { id: 'banner-bottom' }, text: { content: '', fontId: 'inter' } },
+				frame: { ref: { id: 'banner-bottom' }, text: { content: '', fontId: 'plex-sans-bold' } },
 			}),
 			{ registries },
 		);
 		expect(empty.issues).toEqual([]);
 		const unsupported = buildScene(
 			v2,
-			designWith({ frame: { ref: { id: 'none' }, text: { content: 'Scan me', fontId: 'inter' } } }),
+			designWith({
+				frame: { ref: { id: 'none' }, text: { content: 'Scan me', fontId: 'plex-sans-bold' } },
+			}),
 			{ registries },
 		);
 		expect(unsupported.issues.map((found) => found.code)).toEqual([

@@ -20,6 +20,12 @@
  *   caption on a frame that has nowhere to put one;
  * - embedded images nothing uses are dropped.
  *
+ * A caption in a font the font registry does not hold is a warning and is
+ * kept as it is: the website registers a person's own fonts at runtime, so a
+ * design made there may name one that this registry has not been given yet,
+ * and the scene builder leaves such a caption out rather than set it in
+ * another font.
+ *
  * Anything else is an error and the design comes back null. Region pairs
  * that would not make a finder the strict reader finds are a warning: the
  * design is valid, and the studio uses the warning to steer the choice.
@@ -30,7 +36,10 @@ import type { Issue } from '../core/issue.js';
 import type { Registry, RegistryEntry } from '../core/registry.js';
 import { parseColour } from '../render/colour.js';
 import { PNG_SIGNATURE } from '../render/png.js';
+import { createFontRegistry } from '../text/registry.js';
+import type { FontRegistry } from '../text/types.js';
 import { base64Decode } from './base64.js';
+import { codePoints } from './caption.js';
 import { DESIGN_VERSION, LIMITS, MIN_QUIET_ZONE } from './document.js';
 import { regionPairConforms } from './finder.js';
 import { paramProblem, resolveParams } from './params.js';
@@ -83,20 +92,6 @@ function own(record: Record<string, unknown>, key: string): boolean {
 	return Object.prototype.hasOwnProperty.call(record, key);
 }
 
-/** Code points, so a caption's length is what a person counts. */
-function codePoints(text: string): number {
-	let count = 0;
-	for (let i = 0; i < text.length; i += 1) {
-		const unit = text.charCodeAt(i);
-		if (unit >= 0xd800 && unit <= 0xdbff) {
-			const next = text.charCodeAt(i + 1);
-			if (next >= 0xdc00 && next <= 0xdfff) i += 1;
-		}
-		count += 1;
-	}
-	return count;
-}
-
 /** The position of the first control character other than those `allowed`, or -1. */
 function controlAt(text: string, allowed: readonly number[] = []): number {
 	for (let i = 0; i < text.length; i += 1) {
@@ -109,8 +104,20 @@ function controlAt(text: string, allowed: readonly number[] = []): number {
 class Checker {
 	readonly issues: Issue[] = [];
 	errors = 0;
+	private fontRegistry: FontRegistry | undefined;
 
-	constructor(readonly registries: DesignRegistries) {}
+	constructor(
+		readonly registries: DesignRegistries,
+		fonts: FontRegistry | undefined,
+	) {
+		this.fontRegistry = fonts;
+	}
+
+	/** The fonts captions are checked against, the built-in family unless the caller gave some. */
+	get fonts(): FontRegistry {
+		this.fontRegistry ??= createFontRegistry();
+		return this.fontRegistry;
+	}
 
 	error(code: string, path: Path, params?: Readonly<Record<string, number | string>>): typeof BAD {
 		this.errors += 1;
@@ -689,6 +696,8 @@ function checkFrame(checker: Checker, value: unknown): Checked<DesignFrame | nul
 				const fontId = textRecord.fontId;
 				const fontOk = typeof fontId === 'string' && fontId.length <= 64 && KEBAB.test(fontId);
 				if (!fontOk) checker.error('design.issue.font-id', [...at, 'fontId']);
+				else if (!checker.fonts.has(fontId))
+					checker.warn('design.issue.font-unavailable', [...at, 'fontId']);
 				const textPaint = own(textRecord, 'paint')
 					? checker.paint(textRecord.paint, [...at, 'paint'])
 					: undefined;
@@ -713,7 +722,7 @@ function checkOutput(checker: Checker, value: unknown): Checked<QrDesignV1['outp
 		checker.warn('design.issue.filled-default', path);
 		return { colourSpace: 'srgb' };
 	}
-	const record = checker.record(value, path, ['sizeMm', 'dpi', 'colourSpace']);
+	const record = checker.record(value, path, ['sizeMm', 'sizeBasis', 'dpi', 'colourSpace']);
 	if (record === BAD) return BAD;
 	const out: { -readonly [K in keyof QrDesignV1['output']]: QrDesignV1['output'][K] } = {
 		colourSpace: 'srgb',
@@ -723,6 +732,14 @@ function checkOutput(checker: Checker, value: unknown): Checked<QrDesignV1['outp
 		const size = checker.number(record.sizeMm, [...path, 'sizeMm'], LIMITS.sizeMm);
 		if (size === BAD) failed = true;
 		else out.sizeMm = size;
+	}
+	if (own(record, 'sizeBasis')) {
+		const basis = checker.option(record.sizeBasis, [...path, 'sizeBasis'], [
+			'artwork',
+			'symbol',
+		] as const);
+		if (basis === BAD) failed = true;
+		else out.sizeBasis = basis;
 	}
 	if (own(record, 'dpi')) {
 		const dpi = checker.number(record.dpi, [...path, 'dpi'], { ...LIMITS.dpi, integer: true });
@@ -824,15 +841,24 @@ function checkAssets(
 	return failed ? BAD : out;
 }
 
-/** Every problem at once. `design` is the input made valid where that is unambiguous, or null. */
+/**
+ * Every problem at once. `design` is the input made valid where that is
+ * unambiguous, or null. `options.fonts` is where a caption's font is looked
+ * up, the built-in family by default: a contract addition, as for
+ * `buildScene`'s context.
+ */
 export function validateDesign(
 	input: unknown,
 	registries: DesignRegistries,
+	options: { readonly fonts?: FontRegistry } = {},
 ): { readonly design: QrDesignV1 | null; readonly issues: readonly Issue[] } {
 	if (typeof registries !== 'object' || registries === null) {
 		throw new TypeError('validateDesign: registries is the design registries.');
 	}
-	const checker = new Checker(registries);
+	if (typeof options !== 'object' || options === null) {
+		throw new TypeError('validateDesign: options is an object.');
+	}
+	const checker = new Checker(registries, options.fonts);
 	const top = [
 		'schema',
 		'version',

@@ -110,7 +110,7 @@ const frame: fc.Arbitrary<QrDesignV1['frame']> = fc.oneof(
 			text: fc.record(
 				{
 					content: fc.stringMatching(/^[A-Za-z0-9 ]{0,16}$/),
-					fontId: fc.constantFrom('inter', 'sansation-regular'),
+					fontId: fc.constantFrom('plex-sans-regular', 'plex-sans-bold', 'inter'),
 					paint,
 				},
 				{ requiredKeys: ['content', 'fontId'] },
@@ -184,6 +184,7 @@ const design: fc.Arbitrary<QrDesignV1> = fc.record(
 		output: fc.record(
 			{
 				sizeMm: number(5, 2000),
+				sizeBasis: fc.constantFrom('artwork' as const, 'symbol' as const),
 				dpi: fc.integer({ min: 72, max: 2400 }),
 				colourSpace: fc.constantFrom('srgb' as const, 'cmyk' as const),
 			},

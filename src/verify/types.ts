@@ -19,6 +19,11 @@
  *   conditions, so a view can say how far short of it a design falls.
  * - `VerifyReport.baseline`: whether the clean capture read, which fails the
  *   verdict on its own and so has to be visible.
+ * - `VerifyJob.overlay`, from the design layer's `applyConstraints`.
+ * - `VerifyConditions.sizeMm` measures what the design's
+ *   `output.sizeBasis` names (the whole artwork by default) rather than the
+ *   symbol and its quiet zone, as the design layer settled; the module size
+ *   comes from the scene's own units per millimetre.
  * - `Fix.patch` may be null for a fix that is a change of conditions rather
  *   than of the design (print it larger), with the change in
  *   `Fix.conditions`; `Fix.params` carries the numbers its label uses; and
@@ -40,7 +45,11 @@ export type CaptureAxis =
 	'distance' | 'focus' | 'motion' | 'noise' | 'angle' | 'light' | 'glare' | 'ink' | 'contrast';
 
 export interface VerifyConditions {
-	/** Printed width of the symbol including its quiet zone, in millimetres. */
+	/**
+	 * Printed width in millimetres of what the design's `output.sizeBasis`
+	 * names: the whole artwork, quiet zone and frame included, by default; the
+	 * symbol alone for a design that says 'symbol' (the Swiss QR-bill's 46 mm).
+	 */
 	readonly sizeMm: number | null;
 	/** For screen use, or for a raster export. */
 	readonly dpi: number | null;
@@ -67,6 +76,13 @@ export interface VerifyJob {
 	readonly assets?: Readonly<Record<string, RgbaImage>>;
 	/** Seeded captures per level, 1 to 8. Default 8. A contract addition. */
 	readonly captureSeeds?: number;
+	/**
+	 * What the content prints over every code of its kind, as the design
+	 * layer's `applyConstraints` returns it: the Swiss QR-bill's cross. Its
+	 * modules count against the logo budget like a logo's. A contract
+	 * addition, because verify may not import the content types.
+	 */
+	readonly overlay?: 'swiss-cross' | null;
 }
 
 export interface VerifyProgress {

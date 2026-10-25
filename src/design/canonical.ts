@@ -50,6 +50,7 @@ const ORDER: readonly string[] = [
 	'fontId',
 	'output',
 	'sizeMm',
+	'sizeBasis',
 	'dpi',
 	'colourSpace',
 	'assets',

@@ -10,8 +10,8 @@
  * long rMQR strip.
  *
  * Each frame that takes a caption reserves a text box for it, outside the
- * quiet zone. The caption itself is set by the text layer (M9); see
- * `buildScene`.
+ * quiet zone. The caption itself is set into that box by the text layer;
+ * see `caption.ts`.
  */
 
 import { PathBuilder } from '../../geometry/path.js';

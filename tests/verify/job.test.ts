@@ -402,6 +402,46 @@ describe('the encoding a design asks for', () => {
 	});
 });
 
+describe('what the size measures', () => {
+	it('is the whole artwork by default, frame and all', () => {
+		const framed = prepare(job({ design: preset('poster-yellow') }), registries);
+		expect(framed.moduleMm).toBeCloseTo(30 / framed.built.scene.width, 12);
+		const plain = prepare(job(), registries);
+		expect(plain.moduleMm).toBeCloseTo(30 / 37, 12);
+	});
+
+	it('is the symbol alone when the design says so', () => {
+		const symbolSized = prepare(
+			job({
+				design: design({ output: { sizeMm: 46, sizeBasis: 'symbol', colourSpace: 'srgb' } }),
+				conditions: { sizeMm: null, dpi: null, distanceMm: null },
+			}),
+			registries,
+		);
+		expect(symbolSized.moduleMm).toBeCloseTo(46 / 29, 12);
+		const report = run(
+			{
+				design: design({ output: { sizeBasis: 'symbol', colourSpace: 'srgb' } }),
+				conditions: { sizeMm: 7, dpi: null, distanceMm: null },
+			},
+			{ reader: alwaysReads, axes: [] },
+		);
+		// The minimum is given in the same terms: the symbol's own width.
+		const check = report.checks.find((c) => c.id === 'module-size');
+		expect(check?.params?.minimumMm).toBe(Math.ceil(minModuleMm() * 29));
+	});
+
+	it('counts the Swiss QR-bill cross against the logo budget', () => {
+		const plain = run({}, { reader: alwaysReads, axes: [] });
+		const crossed = run({ overlay: 'swiss-cross' }, { reader: alwaysReads, axes: [] });
+		const covered = (report: typeof plain) =>
+			report.blocks.reduce((sum, block) => sum + block.coveredWorst, 0);
+		expect(covered(plain)).toBe(0);
+		expect(covered(crossed)).toBeGreaterThan(0);
+		expect(() => runVerifyJob(job({ overlay: 'flag' as never }), registries)).toThrow(TypeError);
+	});
+});
+
 describe('printing a raster export', () => {
 	it('draws the export at its own pixels and enlarges them as hard squares', () => {
 		const prepared = prepare(

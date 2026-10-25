@@ -167,6 +167,9 @@ function checkJob(job: VerifyJob): void {
 	if (typeof job.conditions !== 'object' || job.conditions === null) {
 		throw new TypeError('verify: job.conditions is an object.');
 	}
+	if (job.overlay !== undefined && job.overlay !== null && job.overlay !== 'swiss-cross') {
+		throw new TypeError('verify: job.overlay is swiss-cross, or null for none.');
+	}
 	if (
 		job.captureSeeds !== undefined &&
 		(!Number.isInteger(job.captureSeeds) || job.captureSeeds < 1 || job.captureSeeds > 8)
@@ -187,7 +190,7 @@ export interface Prepared {
 	readonly quietZone: number;
 	/** The job's conditions, with the design's output size and resolution where the job gave none. */
 	readonly conditions: VerifyConditions;
-	/** Millimetres a module, when the printed size is known. */
+	/** Millimetres a module, when the printed size is known: one scene unit, by the scene's own scale. */
 	readonly moduleMm: number | null;
 	/** The reading of the clean matrix: every capture must give the same bytes. */
 	readonly reference: MatrixRead;
@@ -255,6 +258,9 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		});
 	}
 	const design = validated.design;
+	const sizeMm = finiteOrNull(job.conditions.sizeMm, 'sizeMm') ?? design.output.sizeMm ?? null;
+	const dpi = finiteOrNull(job.conditions.dpi, 'dpi') ?? design.output.dpi ?? null;
+	const distanceMm = finiteOrNull(job.conditions.distanceMm, 'distanceMm');
 
 	const entry = registries.symbologies.require(design.symbol.symbology);
 	const symbol = encode(
@@ -272,18 +278,19 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		},
 		registries.symbologies,
 	);
+	// The scene is drawn at the job's size, measured as the design measures
+	// it (the whole artwork unless the design says the symbol), so its units
+	// per millimetre say how wide a module prints whatever the basis.
+	const sized = sizeMm === null ? design : { ...design, output: { ...design.output, sizeMm } };
 	const assets = job.assets;
-	const built = buildScene(symbol, design, {
+	const built = buildScene(symbol, sized, {
 		registries: registries.design,
 		...(assets === undefined ? {} : { assets: (id: string) => assets[id] }),
 		seed: job.seed,
+		overlay: job.overlay ?? null,
 	});
 	const where = placement(symbol, design, registries);
-
-	const sizeMm = finiteOrNull(job.conditions.sizeMm, 'sizeMm') ?? design.output.sizeMm ?? null;
-	const dpi = finiteOrNull(job.conditions.dpi, 'dpi') ?? design.output.dpi ?? null;
-	const distanceMm = finiteOrNull(job.conditions.distanceMm, 'distanceMm');
-	const across = symbol.matrix.width + 2 * where.quiet;
+	const unitsPerMm = built.scene.unitsPerMm;
 	const inks = designInks(design, registries.design);
 
 	return {
@@ -296,7 +303,7 @@ export function prepare(job: VerifyJob, registries: VerifyRegistries): Prepared 
 		origin: { x: where.x, y: where.y },
 		quietZone: where.quiet,
 		conditions: { sizeMm, dpi, distanceMm },
-		moduleMm: sizeMm === null ? null : sizeMm / across,
+		moduleMm: unitsPerMm === undefined ? null : 1 / unitsPerMm,
 		reference: entry.read(symbol.matrix, { strict: true }),
 		seeds: job.captureSeeds ?? 8,
 		inks,
@@ -338,10 +345,10 @@ export function renderMaster(
 	asExported = true,
 ): Master {
 	const { scene } = prepared.built;
-	const { sizeMm, dpi } = prepared.conditions;
-	const across = prepared.symbol.matrix.width + 2 * prepared.quietZone;
-	if (asExported && sizeMm !== null && dpi !== null) {
-		const exportWidth = Math.max(1, Math.round((((sizeMm / 25.4) * dpi) / across) * scene.width));
+	const { dpi } = prepared.conditions;
+	const { moduleMm } = prepared;
+	if (asExported && moduleMm !== null && dpi !== null) {
+		const exportWidth = Math.max(1, Math.round(((scene.width * moduleMm) / 25.4) * dpi));
 		const exported = fromRgba(rasterise(scene, { width: exportWidth, background: WHITE }));
 		const factor = Math.max(1, Math.ceil((pxPerModule * scene.width) / exportWidth));
 		const width = exported.width * factor;

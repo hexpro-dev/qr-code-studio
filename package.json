@@ -80,6 +80,10 @@
 			"types": "./dist/inspect/index.d.ts",
 			"import": "./dist/inspect/index.js"
 		},
+		"./batch": {
+			"types": "./dist/batch/index.d.ts",
+			"import": "./dist/batch/index.js"
+		},
 		"./fonts/latin": {
 			"types": "./dist/fonts/latin.d.ts",
 			"import": "./dist/fonts/latin.js"

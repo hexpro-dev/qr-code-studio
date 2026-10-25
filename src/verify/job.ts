@@ -378,11 +378,10 @@ function moduleSizeCheck(
 	maxDistance: number | null,
 	needed: number | null,
 ): VerifyCheck {
-	const { moduleMm, conditions, symbol, quietZone } = prepared;
+	const { moduleMm, conditions } = prepared;
 	if (moduleMm === null || maxDistance === null || needed === null) {
 		return makeCheck('module-size', 'warn', 0, minModuleMm(), 'verify.check.module-size.unknown');
 	}
-	const across = symbol.matrix.width + 2 * quietZone;
 	const threshold = Number.isFinite(needed) ? minModuleMm(needed) : Number.POSITIVE_INFINITY;
 	const sizeMm = conditions.sizeMm as number;
 	const params: Record<string, number> = {
@@ -393,7 +392,8 @@ function moduleSizeCheck(
 	if (!Number.isFinite(threshold)) {
 		return makeCheck('module-size', 'fail', moduleMm, 0, 'verify.check.module-size.unread', params);
 	}
-	const minimum = Math.ceil(threshold * across);
+	// The size scales with the module, whatever the size measures.
+	const minimum = Math.ceil((sizeMm * threshold) / moduleMm);
 	if (moduleMm < threshold) {
 		return makeCheck('module-size', 'fail', moduleMm, threshold, 'verify.check.module-size.fail', {
 			...params,

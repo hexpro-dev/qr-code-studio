@@ -157,7 +157,7 @@ describe('applyConstraints', () => {
 		frame: {
 			ref: { id: 'banner-bottom' },
 			paint: { kind: 'solid', ink: '#00ff00' },
-			text: { content: 'Scan', fontId: 'inter' },
+			text: { content: 'Scan', fontId: 'plex-sans-bold' },
 		},
 		output: { sizeMm: 30, colourSpace: 'srgb' },
 		name: 'Kept',
@@ -165,12 +165,13 @@ describe('applyConstraints', () => {
 
 	it('leaves a design alone with no constraints', () => {
 		const design = defaultDesign();
-		expect(applyConstraints(design, undefined)).toEqual({ design, issues: [] });
+		expect(applyConstraints(design, undefined)).toEqual({ design, issues: [], overlay: null });
+		expect(applyConstraints(design, {})).toEqual({ design, issues: [], overlay: null });
 		expect(applyConstraints(design, {}).design).toBe(design);
 	});
 
 	it('locks the Swiss QR-bill to black on white, square modules, level M and 46 mm', () => {
-		const { design, issues } = applyConstraints(fancy, {
+		const { design, issues, overlay } = applyConstraints(fancy, {
 			ecLevels: ['M'],
 			maxVersion: '25',
 			sizeMm: 46,
@@ -178,16 +179,18 @@ describe('applyConstraints', () => {
 			designLocked: true,
 			overlay: 'swiss-cross',
 		});
+		// The cross comes back beside the design, for buildScene, and is not
+		// written into a design that could be shared as a link.
+		expect(overlay).toBe('swiss-cross');
 		expect(design).toEqual({
 			...defaultDesign(),
 			symbol: { symbology: 'qr', ecLevel: 'M', maxVersion: '25', segmentation: { eci: 'utf-8' } },
-			output: { sizeMm: 46, colourSpace: 'srgb' },
+			output: { sizeMm: 46, sizeBasis: 'symbol', colourSpace: 'srgb' },
 			name: 'Kept',
 		});
 		expect(issues.map((found) => found.code)).toEqual([
 			'design.issue.design-locked',
 			'design.issue.size-constrained',
-			'design.issue.overlay-required',
 		]);
 		const { name: _name, ...nameless } = fancy;
 		expect(applyConstraints(nameless, { designLocked: true }).design).not.toHaveProperty('name');
@@ -223,7 +226,9 @@ describe('applyConstraints', () => {
 		expect(design.logo?.paint).toEqual({ kind: 'solid', ink: '#000000' });
 		expect(design.logo?.plate?.paint).toEqual({ kind: 'solid', ink: '#ffffff' });
 		expect(design.frame?.paint).toEqual({ kind: 'solid', ink: '#000000' });
-		expect(design.frame?.text?.paint).toEqual({ kind: 'solid', ink: '#ffffff' });
+		// The caption gives up its own paint and takes the frame's ink, white
+		// on the frame's artwork and black beside it.
+		expect(design.frame?.text).toEqual({ content: 'Scan', fontId: 'plex-sans-bold' });
 		expect(issues.map((found) => found.code)).toEqual(['design.issue.colours-constrained']);
 		const picture = applyConstraints(
 			{
@@ -331,12 +336,28 @@ describe('applyConstraints', () => {
 		expect(applyConstraints(fancy, { maxVersion: '13' }).design).toBe(fancy);
 	});
 
-	it('sets the printed size, quietly when none was set', () => {
+	it("sets the printed size as the symbol's own, quietly when none was set", () => {
 		expect(applyConstraints(defaultDesign(), { sizeMm: 46 })).toEqual({
-			design: { ...defaultDesign(), output: { colourSpace: 'srgb', sizeMm: 46 } },
+			design: {
+				...defaultDesign(),
+				output: { colourSpace: 'srgb', sizeMm: 46, sizeBasis: 'symbol' },
+			},
 			issues: [],
+			overlay: null,
 		});
-		expect(applyConstraints(fancy, { sizeMm: 30 }).issues).toEqual([]);
+		// The same width measured over the whole artwork is a different size.
+		const artwork = applyConstraints(fancy, { sizeMm: 30 });
+		expect(artwork.design.output).toEqual({ sizeMm: 30, sizeBasis: 'symbol', colourSpace: 'srgb' });
+		expect(artwork.issues.map((found) => found.code)).toEqual(['design.issue.size-constrained']);
+		const already = {
+			...fancy,
+			output: { sizeMm: 30, sizeBasis: 'symbol' as const, colourSpace: 'srgb' as const },
+		};
+		expect(applyConstraints(already, { sizeMm: 30 })).toEqual({
+			design: already,
+			issues: [],
+			overlay: null,
+		});
 	});
 });
 
@@ -382,8 +403,27 @@ describe('design links', () => {
 			light: null,
 		},
 		regions: { finder: { outer: { id: 'squircle' }, inner: { id: 'squircle-centre' } } },
-		frame: { ref: { id: 'rounded-card' }, text: { content: 'Scan for the menu', fontId: 'inter' } },
+		frame: {
+			ref: { id: 'rounded-card' },
+			text: { content: 'Scan for the menu', fontId: 'plex-sans-bold' },
+		},
 		name: 'Café menu',
+	});
+
+	it('carry the size basis, an optional addition to version 1, through links and migration', () => {
+		const symbol = designWith({
+			output: { sizeMm: 46, sizeBasis: 'symbol', colourSpace: 'cmyk' },
+		});
+		const link = encodeDesignLink(symbol);
+		expect(decodeDesignLink(link, registries)).toEqual(symbol);
+		expect(migrateDesign(JSON.parse(JSON.stringify(symbol)))).toEqual(symbol);
+		expect(canonicalJson(symbol.output)).toBe(
+			'{"sizeMm":46,"sizeBasis":"symbol","colourSpace":"cmyk"}',
+		);
+		// A design without it is the same document it always was.
+		expect(encodeDesignLink(designWith({ output: { sizeMm: 46, colourSpace: 'cmyk' } }))).not.toBe(
+			link,
+		);
 	});
 
 	it('round-trip a design through the canonical link', () => {

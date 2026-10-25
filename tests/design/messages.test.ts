@@ -65,8 +65,25 @@ async function emittedIssues(): Promise<Issue[]> {
 	const { applyConstraints } = await import('../../src/design/constraints.js');
 	const { designLink } = await import('../../src/design/link.js');
 	const { defaultDesign } = await import('../../src/design/document.js');
+	const { buildScene } = await import('../../src/design/scene.js');
+	const { encode } = await import('../../src/encode/encode.js');
 	const design = defaultDesign();
+	const symbol = encode('https://example.com/messages');
+	const captioned = (content: string) => ({
+		...design,
+		frame: { ref: { id: 'banner-bottom' }, text: { content, fontId: 'plex-sans-bold' } },
+	});
 	issues.push(
+		// A caption in characters the font lacks, one too long for its frame and
+		// one too wide for it, and a Swiss cross on a symbol that cannot carry it.
+		...buildScene(symbol, captioned('\u83dc\u5355 Menu'), { registries }).issues,
+		...buildScene(symbol, captioned('x'.repeat(30)), { registries }).issues,
+		...buildScene(symbol, captioned('M'.repeat(24)), { registries }).issues,
+		...buildScene(
+			encode('12345', { symbology: 'micro', ecLevel: 'L' }),
+			{ ...design, quietZone: 2 },
+			{ registries, overlay: 'swiss-cross' },
+		).issues,
 		...validateDesign({ ...design, quietZone: 2 }, registries).issues,
 		...validateDesign({ ...design, assets: { a: 1, b: 2, c: 3, d: 4, e: 5 } }, registries).issues,
 		...validateDesign(

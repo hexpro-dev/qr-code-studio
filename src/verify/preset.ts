@@ -106,16 +106,17 @@ export const CALIBRATION_LIMIT_MM = 120;
  * The size past which a larger print changes nothing but the distances in
  * millimetres: the phone no longer has to stay back to focus, so every
  * capture is the same picture. A design still failing there fails at every
- * size.
+ * size. `modulesAcross` is the code and its quiet zone, which the phone
+ * frames; `sizedModules` is what the size measures, in modules.
  */
-export function saturationMm(modulesAcross: number): number {
+export function saturationMm(modulesAcross: number, sizedModules = modulesAcross): number {
 	const framing = framingPxPerModule(modulesAcross, null);
-	return Math.ceil((framing / pxPerModuleAt(1, CAMERA.minFocusMm)) * modulesAcross);
+	return Math.ceil((framing / pxPerModuleAt(1, CAMERA.minFocusMm)) * sizedModules);
 }
 
-/** The smallest whole millimetre size a phone can resolve a module at, at all. */
-export function floorMm(modulesAcross: number): number {
-	return Math.max(5, Math.floor(minModuleMm() * modulesAcross));
+/** The smallest whole millimetre size, of `sizedModules` modules, a phone can resolve a module at, at all. */
+export function floorMm(sizedModules: number): number {
+	return Math.max(5, Math.floor(minModuleMm() * sizedModules));
 }
 
 /**
@@ -134,13 +135,22 @@ export function calibratePreset(
 	const passed: Record<ContentSize, number | null> = { small: null, medium: null, large: null };
 	let from = 0;
 	for (const size of ['small', 'medium', 'large'] as const) {
-		const first = presetReport(preset, PRESET_CONTENT[size], 30, level, registries, {
-			...options,
-			axes: [],
-		});
-		const across = first.symbol.modules[0] + 2 * preset.design.quietZone;
-		const last = Math.min(CALIBRATION_LIMIT_MM, saturationMm(across) + 1);
-		for (let mm = Math.max(from, floorMm(across)); mm <= last; mm += 1) {
+		// Sizes are of what the design measures (the whole artwork unless it
+		// says the symbol), which can be wider than the code a phone frames.
+		const probe = prepare(
+			{
+				content: PRESET_CONTENT[size],
+				design: { ...preset.design, symbol: { ...preset.design.symbol, ecLevel: level } },
+				conditions: { sizeMm: 100, dpi: null, distanceMm: null },
+				seed: 1,
+				requires: [],
+			},
+			registries,
+		);
+		const across = probe.symbol.matrix.width + 2 * probe.quietZone;
+		const sized = 100 / (probe.moduleMm as number);
+		const last = Math.min(CALIBRATION_LIMIT_MM, saturationMm(across, sized) + 1);
+		for (let mm = Math.max(from, floorMm(sized)); mm <= last; mm += 1) {
 			if (scansAtSize(presetReport(preset, PRESET_CONTENT[size], mm, level, registries, options))) {
 				passed[size] = mm;
 				from = mm;

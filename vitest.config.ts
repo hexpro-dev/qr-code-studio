@@ -92,6 +92,12 @@ export default defineConfig({
 				// Branches sit one point under, as for the layers above.
 				'src/verify/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/inspect/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// Bulk generation reads a stranger's spreadsheet and writes file names
+				// from it, so every refusal and every cleaning rule is reached by a
+				// file built to provoke it. Every line and branch is reached today,
+				// without Ghostscript or Poppler (the renderer comparisons add
+				// evidence, not lines); branches are gated at 99 with the other layers.
+				'src/batch/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

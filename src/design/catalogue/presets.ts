@@ -504,7 +504,11 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'star', params: { inner: 0.6 } },
 			paint: solid('#1e1b4b'),
 			background: WHITE,
-			eyes: eyes('square', 'star-centre'),
+			// Star modules read everywhere; a star finder centre does not. Under a
+			// realistic capture (a few degrees of roll, sub-pixel phase, light blur
+			// and noise) jsQR read this preset 0 times in 8 at version 3 with a star
+			// centre, and 8 in 8 with a rounded one. The look survives the swap.
+			eyes: eyes('square', 'rounded-centre'),
 			subEyes: SQUARE_EYES,
 		},
 		// Colour.
