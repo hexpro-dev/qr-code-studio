@@ -28,6 +28,10 @@
 			"types": "./dist/core/index.d.ts",
 			"import": "./dist/core/index.js"
 		},
+		"./segment": {
+			"types": "./dist/segment/index.d.ts",
+			"import": "./dist/segment/index.js"
+		},
 		"./standalone.html": "./dist/qr-code-studio.html"
 	},
 	"files": [
