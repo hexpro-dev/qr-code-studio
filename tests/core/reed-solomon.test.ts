@@ -481,6 +481,24 @@ describe('rsDecode limits and refusals', () => {
 		}
 	});
 
+	it('treats first roots a whole period apart as the same code', () => {
+		// 255 is the order of QR's field, so b and b + 255k name the same roots.
+		// A huge first root must not push any exponent past a safe integer.
+		const data = [1, 2, 3, 4, 5, 6];
+		const base: RsCode = { field: QR_FIELD, ecCount: 8, firstRoot: 1 };
+		const shifted: RsCode = { field: QR_FIELD, ecCount: 8, firstRoot: 1 + 255 * 3 };
+		const huge: RsCode = { field: QR_FIELD, ecCount: 8, firstRoot: 1 + 255 * 2 ** 44 };
+		const negative: RsCode = { field: QR_FIELD, ecCount: 8, firstRoot: 1 - 255 * 2 };
+		const check = rsEncode(base, data);
+		for (const code of [shifted, huge, negative]) {
+			expect(rsEncode(code, data)).toEqual(check);
+			const received = [...data, ...check];
+			received[2] = (received[2] as number) ^ 0x77;
+			received[9] = (received[9] as number) ^ 0x11;
+			expect(rsDecode(code, received).codewords).toEqual([...data, ...check]);
+		}
+	});
+
 	it('decodes a block of check symbols alone', () => {
 		const zero = qr(6);
 		const received = [0, 0, 7, 0, 0, 0];

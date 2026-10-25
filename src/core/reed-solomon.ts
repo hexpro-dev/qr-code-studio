@@ -70,6 +70,16 @@ function checkCode(code: RsCode, length: number): void {
 	}
 }
 
+/**
+ * The first root as a power in [0, size - 1). Powers of the generator repeat
+ * with that period, so this changes no answer, and it keeps every exponent
+ * formed from it a safe integer however large the caller's value.
+ */
+function rootPower(code: RsCode): number {
+	const order = code.field.size - 1;
+	return ((code.firstRoot % order) + order) % order;
+}
+
 let generators: WeakMap<Field, Map<string, readonly number[]>> | undefined;
 
 /**
@@ -79,7 +89,8 @@ let generators: WeakMap<Field, Map<string, readonly number[]>> | undefined;
  * again and again.
  */
 function generatorPolynomial(code: RsCode): readonly number[] {
-	const { field, ecCount, firstRoot } = code;
+	const { field, ecCount } = code;
+	const firstRoot = rootPower(code);
 	generators ??= new WeakMap();
 	let byField = generators.get(field);
 	if (byField === undefined) {
@@ -156,7 +167,8 @@ function times(field: Field, k: number, a: number): number {
 
 /** S_k = r(a^(b+k)) for k in [0, ecCount). All zero means a valid codeword. */
 function syndromes(code: RsCode, received: ArrayLike<number>): number[] {
-	const { field, ecCount, firstRoot } = code;
+	const { field, ecCount } = code;
+	const firstRoot = rootPower(code);
 	const out = new Array<number>(ecCount);
 	for (let k = 0; k < ecCount; k += 1) {
 		const x = field.exp(firstRoot + k);
@@ -185,9 +197,10 @@ export function rsDecode(
 	received: ArrayLike<number>,
 	options: RsDecodeOptions = {},
 ): RsDecoded {
-	const { field, ecCount, firstRoot } = code;
+	const { field, ecCount } = code;
 	const n = received.length;
 	checkCode(code, n);
+	const firstRoot = rootPower(code);
 	if (n < ecCount) {
 		throw new RangeError(`a block with ${ecCount} check symbols is at least that long, not ${n}`);
 	}
