@@ -51,7 +51,9 @@ export default defineConfig({
 				'src/own-link/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
 				// Geometry and render: every line and branch is reached. Branches sit
 				// one point under so a change in how v8 counts a ternary does not
-				// fail a clean tree.
+				// fail a clean tree. The render gate covers the print writers (pdf*,
+				// eps*, impose*, sheets*), which reach 100 without Ghostscript or
+				// Poppler installed: the renderer comparisons add evidence, not lines.
 				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/render/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				// The bitstream, the symbology and the encoder. Every line and every
