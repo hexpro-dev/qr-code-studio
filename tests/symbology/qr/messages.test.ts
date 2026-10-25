@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BitMatrix } from '../../../src/core/bit-matrix.js';
 import { BitBuffer } from '../../../src/core/bits.js';
 import { encode } from '../../../src/encode/encode.js';
+import { MICRO_MESSAGES } from '../../../src/messages/en/micro.js';
+import { RMQR_MESSAGES } from '../../../src/messages/en/rmqr.js';
 import { SYMBOLOGY_MESSAGES } from '../../../src/messages/en/symbology.js';
 import { qrProfile } from '../../../src/segment/profile.js';
 import { createSymbologyRegistry } from '../../../src/symbology/registry.js';
@@ -53,7 +55,13 @@ afterEach(() => {
 describe('the symbology messages', () => {
 	it('cover every label and every way a read fails, and nothing else', async () => {
 		const used = new Set<string>();
-		for (const entry of createSymbologyRegistry().list()) used.add(entry.labelKey);
+		// Micro QR and rMQR keep their labels in catalogues of their own, which
+		// tests/symbology/{micro,rmqr}/messages.test.ts hold to the same rules.
+		for (const entry of createSymbologyRegistry().list()) {
+			const own = { ...MICRO_MESSAGES, ...RMQR_MESSAGES };
+			if (entry.labelKey in own) continue;
+			used.add(entry.labelKey);
+		}
 		const good = encode('HELLO', { ecLevel: 'M', mask: 0 }).matrix;
 		used.add(provoke(() => readQr(new BitMatrix(22, 22), { strict: true })));
 		const blank = new BitMatrix(21, 21);

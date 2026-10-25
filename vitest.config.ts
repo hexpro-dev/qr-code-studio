@@ -57,6 +57,13 @@ export default defineConfig({
 				'src/symbology/qr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/symbology/*.ts': { statements: 100, branches: 99, functions: 100, lines: 100 },
 				'src/encode/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				// Micro QR and rMQR: every line and branch is reached, the refusals
+				// included, by the oracle, read, property and fuzz suites under
+				// tests/symbology; branches sit one point under, as for the layers
+				// above, so a change in how v8 counts a ternary does not fail a clean
+				// tree.
+				'src/symbology/micro/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/symbology/rmqr/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

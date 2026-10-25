@@ -11,13 +11,13 @@ import { ROLES, ROLE_CODES } from '../../../src/symbology/roles.js';
 import type { SymbologyEntry } from '../../../src/symbology/types.js';
 
 describe('the symbology registry', () => {
-	it('holds QR, a fresh instance each time, and takes more entries', () => {
+	it('holds QR first, then Micro QR and rMQR, a fresh instance each time, and takes more entries', () => {
 		const registry = createSymbologyRegistry();
-		expect(registry.ids()).toEqual(['qr']);
+		expect(registry.ids()).toEqual(['qr', 'micro', 'rmqr']);
 		expect(createSymbologyRegistry()).not.toBe(registry);
 		const extra: SymbologyEntry = { ...createQrSymbology(), id: 'test-symbology' };
 		registry.register(extra);
-		expect(registry.ids()).toEqual(['qr', 'test-symbology']);
+		expect(registry.ids()).toEqual(['qr', 'micro', 'rmqr', 'test-symbology']);
 		expect(createSymbologyRegistry().has('test-symbology')).toBe(false);
 		expect(registry).toBeInstanceOf(Registry);
 	});
