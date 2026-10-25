@@ -15,6 +15,7 @@ export {
 	identity,
 	isIdentity,
 	multiply,
+	rotate,
 	rotateQuarter,
 	scale,
 	transformPoint,

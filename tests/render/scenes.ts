@@ -28,6 +28,10 @@ export interface SceneOptions {
 	/** Allow paints and nodes with translucency (opacity, alpha). */
 	readonly translucent: boolean;
 	readonly groups: boolean;
+	/** Allow conic paints, each with one opacity across its stops (see `conic.ts`). */
+	readonly conic?: boolean;
+	/** Allow image nodes, each a small smooth picture stretched over a box. */
+	readonly images?: boolean;
 }
 
 export function sceneFor(seed: number, options: SceneOptions): Scene {
@@ -48,7 +52,18 @@ export function sceneFor(seed: number, options: SceneOptions): Scene {
 		return out;
 	};
 	const paint = (): ScenePaint => {
-		const kind = int(3);
+		const kind = int(options.conic === true ? 4 : 3);
+		if (kind === 3) {
+			const alpha =
+				options.translucent && int(2) === 0 ? Math.round(between(0.3, 1) * 255) / 255 : 1;
+			return {
+				kind: 'conic',
+				cx: between(0, size),
+				cy: between(0, size),
+				angle: between(-360, 720),
+				stops: stops().map((stop) => ({ ...stop, colour: { ...stop.colour, a: alpha } })),
+			};
+		}
 		if (kind === 0) return { kind: 'solid', colour: colour(true) };
 		if (kind === 1) {
 			return {
@@ -112,7 +127,41 @@ export function sceneFor(seed: number, options: SceneOptions): Scene {
 		for (let i = 0; i < count; i += 1) shape(builder);
 		return builder.build();
 	};
+	const image = (): SceneNode => {
+		const width = 2 + int(6);
+		const height = 2 + int(6);
+		const corners = [colour(true), colour(true), colour(true), colour(true)];
+		const data = new Uint8ClampedArray(width * height * 4);
+		for (let y = 0; y < height; y += 1) {
+			for (let x = 0; x < width; x += 1) {
+				// A smooth blend of four corner colours, so the picture is about
+				// placement and filtering rather than texture.
+				const u = width === 1 ? 0 : x / (width - 1);
+				const v = height === 1 ? 0 : y / (height - 1);
+				const at = (y * width + x) * 4;
+				const mix = (key: 'r' | 'g' | 'b'): number =>
+					(1 - u) * (1 - v) * corners[0]![key] +
+					u * (1 - v) * corners[1]![key] +
+					(1 - u) * v * corners[2]![key] +
+					u * v * corners[3]![key];
+				data[at] = mix('r');
+				data[at + 1] = mix('g');
+				data[at + 2] = mix('b');
+				data[at + 3] = 255;
+			}
+		}
+		return {
+			kind: 'image',
+			image: { width, height, data },
+			x: between(-size / 8, size / 2),
+			y: between(-size / 8, size / 2),
+			width: between(size / 8, size / 1.5),
+			height: between(size / 8, size / 1.5),
+			...(int(2) === 0 ? { clip: path() } : {}),
+		};
+	};
 	const node = (depth: number): SceneNode => {
+		if (options.images === true && int(4) === 0) return image();
 		if (options.groups && depth < 2 && int(4) === 0) {
 			const children: SceneNode[] = [];
 			const count = 1 + int(3);

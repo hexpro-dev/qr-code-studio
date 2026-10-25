@@ -128,6 +128,16 @@ const paint = fc.oneof(
 			stops,
 		}),
 	},
+	{
+		weight: 10,
+		arbitrary: fc.record({
+			kind: fc.constant('conic'),
+			cx: finiteish,
+			cy: finiteish,
+			angle: mostly(fc.double({ min: -1e6, max: 1e6, noNaN: true }), 1, 30),
+			stops,
+		}),
+	},
 	{ weight: 1, arbitrary: fc.record({ kind: fc.constantFrom('tartan', 'conic-ish'), colour }) },
 	{ weight: 1, arbitrary: anything },
 );
@@ -193,9 +203,6 @@ function onlyTypeErrors(run: () => unknown): void {
 	try {
 		run();
 	} catch (error) {
-		// Until the PNG encoder lands, an SVG with an image in it is refused
-		// with a plain Error saying so. Removed with that refusal.
-		if (error instanceof Error && error.message.includes('once the PNG encoder has landed')) return;
 		expect(error).toBeInstanceOf(TypeError);
 	}
 }

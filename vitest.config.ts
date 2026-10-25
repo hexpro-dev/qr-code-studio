@@ -39,13 +39,11 @@ export default defineConfig({
 				// and zlib's TOO_FAR cut-off, which a four-byte hash reaches only
 				// through a collision.
 				'src/core/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
-				// Every line and branch is reached; branches sit one point under so a
-				// change in how v8 counts a ternary does not fail a clean tree.
+				// Geometry and render: every line and branch is reached. Branches sit
+				// one point under so a change in how v8 counts a ternary does not
+				// fail a clean tree.
 				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
-				// Just under what is reached. The gap is the two refusals left in
-				// paint.ts and svg.ts for conic paints and SVG images, which need
-				// core's maths and PNG encoder; they go when those land.
-				'src/render/**': { statements: 99.5, branches: 99.5, functions: 100, lines: 99.5 },
+				'src/render/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},

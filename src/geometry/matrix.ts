@@ -10,6 +10,8 @@
  * design document means by an angle.
  */
 
+import { PI, cos, sin } from '../core/math.js';
+
 export type Matrix = readonly [number, number, number, number, number, number];
 
 /** Throws a TypeError naming the caller when any entry is not a finite number. */
@@ -85,6 +87,24 @@ export function rotateQuarter(turns: number, cx = 0, cy = 0): Matrix {
 	const cos = quarter === 0 ? 1 : quarter === 2 ? -1 : 0;
 	const sin = quarter === 1 ? 1 : quarter === 3 ? -1 : 0;
 	return aboutCentre(cos, sin, cx, cy);
+}
+
+/**
+ * A rotation by `degrees`, clockwise as seen with y down, about `(cx, cy)`.
+ *
+ * Whole quarter turns go through `rotateQuarter` and are exact. Anything else
+ * uses core's sine and cosine, which give the same bits in every engine; the
+ * angle is reduced to within a turn first, which `%` does exactly, so 370 and
+ * 10 degrees are the same matrix.
+ */
+export function rotate(degrees: number, cx = 0, cy = 0): Matrix {
+	checkNumber(degrees, 'rotate', 'degrees');
+	checkNumber(cx, 'rotate', 'cx');
+	checkNumber(cy, 'rotate', 'cy');
+	const reduced = degrees % 360;
+	if (reduced % 90 === 0) return rotateQuarter(reduced / 90, cx, cy);
+	const radians = reduced * (PI / 180);
+	return aboutCentre(cos(radians), sin(radians), cx, cy);
 }
 
 /** Rotation by `cos` and `sin` about a centre: translate(c) * rotate * translate(-c). */

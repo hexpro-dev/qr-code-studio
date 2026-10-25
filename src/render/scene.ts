@@ -52,8 +52,11 @@ export type NormalPaint =
 			readonly stops: readonly NormalStop[];
 	  };
 
+/** A paint that puts something on the page. */
+export type DrawnPaint = Exclude<NormalPaint, { readonly kind: 'none' }>;
+
 export type NormalNode =
-	| { readonly kind: 'path'; readonly path: Path; readonly paint: NormalPaint }
+	| { readonly kind: 'path'; readonly path: Path; readonly paint: DrawnPaint }
 	| {
 			readonly kind: 'image';
 			readonly image: RgbaImage;
@@ -171,7 +174,8 @@ function draws(path: Path): boolean {
 	return any;
 }
 
-function checkImage(image: RgbaImage, where: string): void {
+/** Throw a TypeError unless `image` is an RGBA image this package can read. */
+export function checkImage(image: RgbaImage, where: string): void {
 	if (typeof image !== 'object' || image === null) {
 		throw new TypeError(`${where}: image is an object with width, height and data.`);
 	}

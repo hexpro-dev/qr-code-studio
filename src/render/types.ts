@@ -6,6 +6,7 @@
  * a module is a path with a paint like any other.
  */
 
+import type { RgbaImage } from '../core/image.js';
 import type { Path } from '../geometry/path.js';
 
 /**
@@ -64,17 +65,7 @@ export type ScenePaint =
 			readonly stops: readonly Stop[];
 	  };
 
-/**
- * Straight (not premultiplied) RGBA, row major, four bytes a pixel.
- *
- * The same shape as `ImageData`, and the same shape the decoder reads, so a
- * render can go straight back into the scan check.
- */
-export interface RgbaImage {
-	readonly width: number;
-	readonly height: number;
-	readonly data: Uint8ClampedArray;
-}
+export type { RgbaImage };
 
 export type SceneNode =
 	| {

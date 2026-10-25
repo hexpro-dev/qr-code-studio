@@ -14,9 +14,12 @@
  * a reason is the bug this file exists to catch.
  */
 
+import { rotate } from '../../src/geometry/matrix.js';
 import { PathBuilder } from '../../src/geometry/path.js';
 import { traceGrid } from '../../src/geometry/trace.js';
 import { parseColour } from '../../src/render/colour.js';
+import { decodePng } from '../../src/render/png-decode.js';
+import { encodePng } from '../../src/render/png.js';
 import { rasterise } from '../../src/render/raster.js';
 import { sceneToSvg } from '../../src/render/svg.js';
 import type { RgbaImage, Scene, Stop } from '../../src/render/types.js';
@@ -140,7 +143,55 @@ function moduleGrid(): Scene {
 	};
 }
 
-function dots(): Scene {
+/** The same grid in black on white with two coloured corner marks: three colours on the pixel grid. */
+function threeColours(): Scene {
+	const grid = moduleGrid();
+	const layer = grid.layers[0] as Extract<Scene['layers'][number], { kind: 'path' }>;
+	return {
+		...grid,
+		layers: [
+			{ kind: 'path', path: layer.path, paint: { kind: 'solid', colour: parseColour('#000000') } },
+			{
+				kind: 'path',
+				path: new PathBuilder().rect(4, 4, 7, 7).rect(26, 4, 7, 7).build(),
+				paint: { kind: 'solid', colour: blue },
+			},
+		],
+	};
+}
+
+/** A conic sweep over a plate turned by an angle that is not a quarter turn. */
+function sweep(): Scene {
+	const plate = new PathBuilder()
+		.transform(rotate(17, 16, 16))
+		.roundedRect(5, 7, 22, 18, [6, 2, 6, 2])
+		.build();
+	return {
+		width: 32,
+		height: 32,
+		background: { kind: 'solid', colour: white },
+		layers: [
+			{
+				kind: 'path',
+				path: plate,
+				paint: {
+					kind: 'conic',
+					cx: 15.3,
+					cy: 16.9,
+					angle: -63.5,
+					stops: [
+						{ offset: 0, colour: blue },
+						{ offset: 0.4, colour: parseColour('#ff9900') },
+						{ offset: 0.4, colour: grey },
+						{ offset: 1, colour: blue },
+					],
+				},
+			},
+		],
+	};
+}
+
+function dots(background = true): Scene {
 	const builder = new PathBuilder();
 	const random = seeded(7);
 	for (let y = 0; y < 21; y += 1) {
@@ -151,16 +202,18 @@ function dots(): Scene {
 	return {
 		width: 29,
 		height: 29,
-		background: {
-			kind: 'radial',
-			cx: 14.5,
-			cy: 14.5,
-			r: 20,
-			stops: [
-				{ offset: 0, colour: white },
-				{ offset: 1, colour: grey },
-			],
-		},
+		background: background
+			? {
+					kind: 'radial',
+					cx: 14.5,
+					cy: 14.5,
+					r: 20,
+					stops: [
+						{ offset: 0, colour: white },
+						{ offset: 1, colour: grey },
+					],
+				}
+			: null,
 		layers: [
 			{
 				kind: 'path',
@@ -267,15 +320,61 @@ export const GOLDENS: readonly Golden[] = [
 		sha256: 'b3253520004c5298e3f577486d201686ba498c387bbb5c5ed42a428b871d342c',
 	},
 	{
-		name: 'nested groups, clips and opacity as SVG',
+		name: 'nested groups, clips, opacity and an image as SVG',
 		render: () =>
-			new TextEncoder().encode(sceneToSvg(groups(false), { idPrefix: 'g', pretty: true })),
-		sha256: '9ff8c7106d066272af0fd73279727582ed352ced8861d3a9b15394d75b24662c',
+			new TextEncoder().encode(sceneToSvg(groups(true), { idPrefix: 'g', pretty: true })),
+		sha256: 'fb38fe3e69bd52791a044703ae07267352efbe7eac67b48adb74b0805032cb10',
 	},
 	{
 		name: 'module grid as SVG',
 		render: () => new TextEncoder().encode(sceneToSvg(moduleGrid())),
 		sha256: 'b5d842c7afd50a4fb64aac1acdc7dfe3b90181839bf15d969c93fcbfc3d93bdb',
+	},
+	{
+		name: 'conic sweep with a hard stop over a turned plate',
+		render: () => bytesOf(rasterise(sweep(), { width: 113 })),
+		sha256: '6ea746619674e7c46ee6fb2399c4143c3a8d9e01991ffe97d176ad3489686239',
+	},
+	{
+		name: 'conic sweep as SVG wedges',
+		render: () => new TextEncoder().encode(sceneToSvg(sweep())),
+		sha256: '7a53fa6d4babc654ba3af59d5987d5ba92bd0c940c027f045815dceb9ed9d78c',
+	},
+	{
+		name: 'black and white grid as a one bit PNG at 300 dpi',
+		render: () => {
+			const scene = threeColours();
+			return encodePng(rasterise({ ...scene, layers: [scene.layers[0]!] }, { width: 148 }), {
+				dpi: 300,
+			});
+		},
+		sha256: 'fcd3f798a8779db58831569fbd209dc8866fc031908e8bb14bb8f4a5bc0690ef',
+	},
+	{
+		name: 'three colours as a palette PNG',
+		render: () => encodePng(rasterise(threeColours(), { width: 74 })),
+		sha256: 'db2a33522edcdb39cd3c484b6f496455eab2755716a4719e2018c54b347c9ebb',
+	},
+	{
+		name: 'gradient grid as an RGB PNG at level 9',
+		render: () => encodePng(rasterise(moduleGrid(), { width: 200 }), { level: 9 }),
+		sha256: '06e106b59eba577222b630b720774376aac09fea2b4a71986c5571b2588f9001',
+	},
+	{
+		name: 'translucent dots as a palette PNG with tRNS',
+		render: () => encodePng(rasterise(dots(false), { width: 97 })),
+		sha256: '4d75cb68301f2e0162d68b85570418e122df4ae2cbf6af27ab23a1124c4c67fb',
+	},
+	{
+		name: 'conic sweep on nothing as an RGBA PNG',
+		render: () => encodePng(rasterise({ ...sweep(), background: null }, { width: 113 })),
+		sha256: '95da3f098552d8426097a41711c66fa24acff9667cde209208038ba22dc25695',
+	},
+	{
+		name: 'the RGBA PNG decoded again',
+		render: () =>
+			bytesOf(decodePng(encodePng(rasterise({ ...sweep(), background: null }, { width: 113 })))),
+		sha256: '38fe4ac873c688f7f2dbb998a6226ed5d0591b259d252bb6a06a532a8da23d2d',
 	},
 ];
 

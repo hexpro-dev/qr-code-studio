@@ -11,13 +11,23 @@
  * The same scene always gives the same bytes: numbers have a fixed number of
  * decimals, defs are numbered in document order, and nothing depends on the
  * engine, the locale or the time.
+ *
+ * Two things SVG cannot say directly are drawn another way. A conic paint
+ * becomes a fan of flat wedges clipped to its shape (see `conic.ts`). An image
+ * becomes a PNG this package encodes from the pixels, as a data URI, so the
+ * export carries the picture and nothing else the original file held.
  */
 
-import { walkPath } from '../geometry/path.js';
+import { bounds } from '../geometry/measure.js';
+import type { Box } from '../geometry/measure.js';
+import { PathBuilder, walkPath } from '../geometry/path.js';
 import type { Path } from '../geometry/path.js';
+import { base64 } from './base64.js';
 import { formatColour } from './colour.js';
+import { conicWedges } from './conic.js';
+import { encodePng } from './png.js';
 import { normaliseScene } from './scene.js';
-import type { NormalNode, NormalPaint, NormalStop } from './scene.js';
+import type { DrawnPaint, NormalNode, NormalStop } from './scene.js';
 import type { Colour, Scene } from './types.js';
 
 export interface SvgOptions {
@@ -136,11 +146,15 @@ type Attributes = readonly (readonly [string, string])[];
 class Writer {
 	readonly body: string[] = [];
 	readonly defs: string[] = [];
+	/** Whether anything used `xlink:href`, which needs its namespace on the root. */
+	xlink = false;
 	private count = 0;
 
 	constructor(
 		private readonly prefix: string,
 		private readonly pretty: boolean,
+		/** The scene's own box, which is all of the picture there is. */
+		readonly scene: Box,
 	) {}
 
 	nextId(): string {
@@ -182,8 +196,11 @@ function stopsMarkup(writer: Writer, stops: readonly NormalStop[], depth: number
 	}
 }
 
-/** The fill attributes for a paint, defining a gradient in the defs when one is needed. */
-function fillAttributes(writer: Writer, paint: NormalPaint): [string, string][] {
+/** The fill attributes for a paint other than a conic, defining a gradient in the defs when one is needed. */
+function fillAttributes(
+	writer: Writer,
+	paint: Exclude<DrawnPaint, { kind: 'conic' }>,
+): [string, string][] {
 	if (paint.kind === 'solid') return colourAttributes(paint.colour, 'fill');
 	if (paint.kind === 'linear') {
 		const id = writer.nextId();
@@ -207,7 +224,7 @@ function fillAttributes(writer: Writer, paint: NormalPaint): [string, string][] 
 		writer.line(writer.defs, 2, '</linearGradient>');
 		return [['fill', `url(#${id})`]];
 	}
-	if (paint.kind === 'radial') {
+	{
 		const id = writer.nextId();
 		writer.line(
 			writer.defs,
@@ -228,7 +245,6 @@ function fillAttributes(writer: Writer, paint: NormalPaint): [string, string][] 
 		writer.line(writer.defs, 2, '</radialGradient>');
 		return [['fill', `url(#${id})`]];
 	}
-	throw new Error('sceneToSvg: conic paints are written once the deterministic maths has landed.');
 }
 
 function clipAttribute(writer: Writer, clip: Path): [string, string] {
@@ -239,13 +255,56 @@ function clipAttribute(writer: Writer, clip: Path): [string, string] {
 	return ['clip-path', `url(#${id})`];
 }
 
+/** The part of a box inside the scene, or an empty box where there is none. */
+function visible(box: Box, scene: Box): Box {
+	const x = Math.max(box.x, scene.x);
+	const y = Math.max(box.y, scene.y);
+	const right = Math.min(box.x + box.width, scene.x + scene.width);
+	const bottom = Math.min(box.y + box.height, scene.y + scene.height);
+	return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+
+/**
+ * A shape filled with a paint. A conic paint becomes a group clipped to the
+ * shape holding its wedges (see `conic.ts`); anything else is one element.
+ */
+function writeFilled(
+	writer: Writer,
+	depth: number,
+	paint: DrawnPaint,
+	shape: Path,
+	area: Box,
+	element: (fill: [string, string][]) => string,
+): void {
+	if (paint.kind !== 'conic') {
+		writer.line(writer.body, depth, element(fillAttributes(writer, paint)));
+		return;
+	}
+	const { opacity, fans } = conicWedges(paint, area);
+	const group: [string, string][] = [clipAttribute(writer, shape)];
+	if (opacity !== 1) group.push(['opacity', formatNumber(opacity)]);
+	writer.line(writer.body, depth, Writer.tag('g', group, false));
+	for (const wedge of fans) {
+		const { points } = wedge;
+		let d = `M${formatNumber(points[0] as number)} ${formatNumber(points[1] as number)}`;
+		for (let i = 2; i < points.length; i += 2) {
+			d += `L${formatNumber(points[i] as number)} ${formatNumber(points[i + 1] as number)}`;
+		}
+		writer.line(
+			writer.body,
+			depth + 1,
+			Writer.tag('path', [['d', `${d}Z`], ...colourAttributes(wedge, 'fill')], true),
+		);
+	}
+	writer.line(writer.body, depth, '</g>');
+}
+
 function writeNode(writer: Writer, node: NormalNode, depth: number): void {
 	if (node.kind === 'path') {
 		const d = pathData(node.path);
-		writer.line(
-			writer.body,
-			depth,
-			Writer.tag('path', [['d', d], ...fillAttributes(writer, node.paint)], true),
+		const area = visible(bounds(node.path) as Box, writer.scene);
+		writeFilled(writer, depth, node.paint, node.path, area, (fill) =>
+			Writer.tag('path', [['d', d], ...fill], true),
 		);
 		return;
 	}
@@ -258,7 +317,20 @@ function writeNode(writer: Writer, node: NormalNode, depth: number): void {
 		writer.line(writer.body, depth, '</g>');
 		return;
 	}
-	throw new Error('sceneToSvg: images are written once the PNG encoder has landed.');
+	// An image goes in as a PNG this package encoded, never as the bytes it
+	// arrived in: whatever a person's file carried besides its pixels stays
+	// out of the export.
+	writer.xlink = true;
+	const attributes: [string, string][] = [
+		['x', formatNumber(node.x)],
+		['y', formatNumber(node.y)],
+		['width', formatNumber(node.width)],
+		['height', formatNumber(node.height)],
+		['preserveAspectRatio', 'none'],
+	];
+	if (node.clip !== null) attributes.push(clipAttribute(writer, node.clip));
+	attributes.push(['xlink:href', `data:image/png;base64,${base64(encodePng(node.image))}`]);
+	writer.line(writer.body, depth, Writer.tag('image', attributes, true));
 }
 
 /**
@@ -278,27 +350,29 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
 		);
 	}
 	const normal = normaliseScene(scene, 'sceneToSvg');
-	const writer = new Writer(prefix, options.pretty === true);
+	const writer = new Writer(prefix, options.pretty === true, {
+		x: 0,
+		y: 0,
+		width: normal.width,
+		height: normal.height,
+	});
 
 	if (normal.background.kind !== 'none') {
-		writer.line(
-			writer.body,
-			1,
-			Writer.tag(
-				'rect',
-				[
-					['width', formatNumber(normal.width)],
-					['height', formatNumber(normal.height)],
-					...fillAttributes(writer, normal.background),
-				],
-				true,
-			),
+		const area = writer.scene;
+		const rect = new PathBuilder().rect(0, 0, normal.width, normal.height).build();
+		const size: [string, string][] = [
+			['width', formatNumber(normal.width)],
+			['height', formatNumber(normal.height)],
+		];
+		writeFilled(writer, 1, normal.background, rect, area, (fill) =>
+			Writer.tag('rect', [...size, ...fill], true),
 		);
 	}
 	for (const layer of normal.layers) writeNode(writer, layer, 1);
 
 	const root: [string, string][] = [
 		['xmlns', 'http://www.w3.org/2000/svg'],
+		...(writer.xlink ? [['xmlns:xlink', 'http://www.w3.org/1999/xlink'] as [string, string]] : []),
 		['viewBox', `0 0 ${formatNumber(normal.width)} ${formatNumber(normal.height)}`],
 	];
 	if (normal.unitsPerMm !== null) {

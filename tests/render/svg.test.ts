@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PathBuilder } from '../../src/geometry/path.js';
 import type { Path } from '../../src/geometry/path.js';
 import { parseColour } from '../../src/render/colour.js';
+import { decodePng } from '../../src/render/png-decode.js';
 import { formatNumber, pathData, sceneToSvg } from '../../src/render/svg.js';
 import type { Scene, SceneNode, ScenePaint } from '../../src/render/types.js';
 import { sceneFor } from './scenes.js';
@@ -243,6 +244,40 @@ describe('sceneToSvg', () => {
 		const [clipPath] = elements(root, 'clipPath');
 		expect(clipPath?.getAttribute('id')).toBe('code_a-1');
 		expect(elements(clipPath as Element, 'path')[0]?.getAttribute('d')).toBe(pathData(clip));
+	});
+
+	it('embeds an image as a PNG it encoded itself, and declares xlink only then', () => {
+		const data = new Uint8ClampedArray([
+			255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 9, 9, 9, 255,
+		]);
+		const clip = new PathBuilder().circle(5, 5, 4).build();
+		const svg = sceneToSvg(
+			sceneOf([
+				{
+					kind: 'image',
+					image: { width: 2, height: 2, data },
+					x: 1,
+					y: 2,
+					width: 6.5,
+					height: 3,
+					clip,
+				},
+			]),
+		);
+		const root = parse(svg);
+		expect(root.getAttribute('xmlns:xlink')).toBe('http://www.w3.org/1999/xlink');
+		const [image] = elements(root, 'image');
+		expect(image?.getAttribute('x')).toBe('1');
+		expect(image?.getAttribute('y')).toBe('2');
+		expect(image?.getAttribute('width')).toBe('6.5');
+		expect(image?.getAttribute('height')).toBe('3');
+		expect(image?.getAttribute('preserveAspectRatio')).toBe('none');
+		expect(image?.getAttribute('clip-path')).toBe('url(#qrs-1)');
+		const href = image?.getAttribute('xlink:href') ?? '';
+		expect(href.startsWith('data:image/png;base64,')).toBe(true);
+		const png = new Uint8Array(Buffer.from(href.slice('data:image/png;base64,'.length), 'base64'));
+		expect(decodePng(png).data).toEqual(data);
+		expect(parse(sceneToSvg(sceneOf([]))).hasAttribute('xmlns:xlink')).toBe(false);
 	});
 
 	it('paints the background over the whole scene', () => {

@@ -5,6 +5,7 @@ import {
 	identity,
 	isIdentity,
 	multiply,
+	rotate,
 	rotateQuarter,
 	scale,
 	transformPoint,
@@ -49,6 +50,20 @@ describe('matrices', () => {
 		expect(transformPoint(m, 0, 0)).toEqual([7, 0]);
 		expect(transformPoint(m, 7, 0)).toEqual([7, 7]);
 		expect(aboutCentre(1, 0, 3, 4)).toEqual([1, 0, -0, 1, 0, 0]);
+	});
+
+	it('rotates by any angle in degrees, exactly on quarter turns', () => {
+		expect(rotate(90)).toEqual(rotateQuarter(1));
+		expect(rotate(-270, 2, 3)).toEqual(rotateQuarter(1, 2, 3));
+		expect(rotate(720)).toEqual(rotateQuarter(0));
+		const m = rotate(30, 1, 1);
+		const [x, y] = transformPoint(m, 2, 1);
+		expect(x).toBeCloseTo(1 + Math.cos(Math.PI / 6), 14);
+		expect(y).toBeCloseTo(1 + Math.sin(Math.PI / 6), 14);
+		expect(rotate(390)).toEqual(rotate(30));
+		expect(() => rotate(Number.NaN)).toThrow(TypeError);
+		expect(() => rotate(10, Infinity)).toThrow(TypeError);
+		expect(() => rotate(10, 0, Number.NaN)).toThrow(TypeError);
 	});
 
 	it('refuses anything that is not six finite numbers', () => {

@@ -33,6 +33,13 @@
  * A module grid at a fractional scale has no gradient to sample, so it is held
  * to 6 levels in the second comparison too, and to exactly zero on the pixel
  * grid.
+ *
+ * Images and conic paints have looser limits, set out beside the corpus
+ * below. Measured when they were set: images, worst pixel 13 (same picture)
+ * and 15 (real output), with 0.33 percent of the picture flat and over 4
+ * levels; conic paints, 14 and 129, all at the centre.
+ * Conic paints in the corpus share one opacity across their stops, which is
+ * the case `conic.ts` draws without seams.
  */
 
 import { Resvg } from '@resvg/resvg-js';
@@ -144,37 +151,81 @@ function compare(ours: RgbaImage, theirs: RgbaImage): Difference {
 	};
 }
 
-function samePicture(scene: Scene, width: number, label: string): void {
+/** The limits a part of the corpus is held to; see the comment at the top of the file. */
+interface Limits {
+	readonly sameMax: number;
+	readonly realMax: number;
+	/** Share of the picture allowed to be flat in our render and still differ by more than 4 levels. */
+	readonly interior: number;
+}
+
+const PLAIN: Limits = { sameMax: 8, realMax: 48, interior: 0 };
+/**
+ * resvg filters a stretched image its own way, smoother than bilinear, so
+ * inside an image, where the picture is flat to the 3 by 3 test, the two can
+ * differ by more than the 4 levels the geometry check allows.
+ */
+const IMAGES: Limits = { sameMax: 16, realMax: 48, interior: 0.01 };
+/**
+ * Near a conic's centre every colour of the gradient meets within a pixel or
+ * two: the wedges there are thinner than resvg's samples, and our real output
+ * takes the colour at the pixel's centre where the filtered oracle averages
+ * the whole turn.
+ */
+const CONIC: Limits = { sameMax: 24, realMax: 160, interior: 0 };
+
+function samePicture(scene: Scene, width: number, label: string, limits: Limits): void {
 	const ours = shrink(rasterise(scene, { width: width * OVERSAMPLE }), OVERSAMPLE);
 	const difference = compare(ours, viaResvg(scene, width));
 	const report = `${label}: ${JSON.stringify(difference)}`;
-	expect(difference.max, report).toBeLessThanOrEqual(8);
+	expect(difference.max, report).toBeLessThanOrEqual(limits.sameMax);
 	expect(difference.mean, report).toBeLessThan(0.4);
 }
 
-function realOutput(scene: Scene, width: number, label: string): Difference {
+function realOutput(
+	scene: Scene,
+	width: number,
+	label: string,
+	limits: Limits = PLAIN,
+): Difference {
 	const difference = compare(rasterise(scene, { width }), viaResvg(scene, width));
 	const report = `${label}: ${JSON.stringify(difference)}`;
 	expect(difference.mean, report).toBeLessThan(0.5);
-	expect(difference.max, report).toBeLessThanOrEqual(48);
+	expect(difference.max, report).toBeLessThanOrEqual(limits.realMax);
 	expect(difference.overEight, report).toBeLessThanOrEqual(0.005);
-	expect(difference.interiorOverFour, report).toBe(0);
+	expect(difference.interiorOverFour, report).toBeLessThanOrEqual(limits.interior);
 	return difference;
 }
 
-const corpus: { seed: number; scene: Scene; width: number }[] = [];
+const corpus: { label: string; scene: Scene; width: number; limits: Limits }[] = [];
 for (let seed = 1; seed <= 40; seed += 1) {
 	corpus.push({
-		seed,
+		label: `seed ${seed}`,
 		scene: sceneFor(seed, { size: 32, layers: 4, translucent: true, groups: true }),
 		width: 128,
+		limits: PLAIN,
 	});
 }
 for (let seed = 100; seed < 120; seed += 1) {
 	corpus.push({
-		seed,
+		label: `opaque seed ${seed}`,
 		scene: sceneFor(seed, { size: 29, layers: 6, translucent: false, groups: false }),
 		width: 101,
+		limits: PLAIN,
+	});
+}
+for (let seed = 200; seed < 216; seed += 1) {
+	corpus.push({
+		label: `conic seed ${seed}`,
+		scene: sceneFor(seed, { size: 32, layers: 4, translucent: true, groups: true, conic: true }),
+		width: 128,
+		limits: CONIC,
+	});
+	corpus.push({
+		label: `image seed ${seed}`,
+		scene: sceneFor(seed, { size: 32, layers: 4, translucent: true, groups: true, images: true }),
+		width: 128,
+		limits: IMAGES,
 	});
 }
 
@@ -182,13 +233,13 @@ describe('rasterise against resvg', () => {
 	it('draws the same picture as resvg when both are oversampled', () => {
 		// Every third scene: drawing our side at eight times is the slow part
 		// of this file, and a third of the corpus covers every kind of node.
-		for (const { seed, scene, width } of corpus.filter((_, i) => i % 3 === 0)) {
-			samePicture(scene, width, `seed ${seed}`);
+		for (const { label, scene, width, limits } of corpus.filter((_, i) => i % 3 === 0)) {
+			samePicture(scene, width, label, limits);
 		}
 	});
 
 	it('stays within anti-aliasing of resvg at the size asked for', () => {
-		for (const { seed, scene, width } of corpus) realOutput(scene, width, `seed ${seed}`);
+		for (const { label, scene, width, limits } of corpus) realOutput(scene, width, label, limits);
 	});
 
 	it('matches a traced module grid at whole and fractional scales', () => {
