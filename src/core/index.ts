@@ -31,3 +31,4 @@ export type { Prng } from './prng.js';
 export { Registry } from './registry.js';
 export type { RegistryEntry } from './registry.js';
 export { PI, TAU, atan2, cos, exp, hypot, ln, pow, sin } from './math.js';
+export type { RgbaImage } from './image.js';
