@@ -479,6 +479,8 @@ export interface PayloadConstraints {
 	readonly colours?: 'black-on-white';
 	readonly designLocked?: boolean;
 	readonly overlay?: 'swiss-cross';
+	/** EPC and the Swiss QR-bill carry their character set in a field and must not have an ECI header. */
+	readonly eci?: 'never';
 }
 
 export interface PayloadType<
@@ -505,7 +507,7 @@ export interface PayloadType<
 	/** Throws QrStudioError 'payload/unparseable'. */
 	parse(text: string): V;
 	safety?(value: V): readonly SafetyFinding[];
-	/** Spec vectors, run by the conformance suite. `source` cites where each came from. */
+	/** Spec vectors, run by the conformance suite. `source` cites where each came from. A vector whose text is not in the form `build` writes (an `sms:` read where `SMSTO:` is written) checks parse only, plus parse(build(value)). */
 	readonly vectors: readonly {
 		readonly text: string;
 		readonly value: V;
