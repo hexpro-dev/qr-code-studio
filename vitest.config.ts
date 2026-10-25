@@ -45,6 +45,11 @@ export default defineConfig({
 				// property and fuzz runs, so a random seed cannot move these.
 				'src/payload/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
 				'src/own-link/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
+				// Geometry and render: every line and branch is reached. Branches sit
+				// one point under so a change in how v8 counts a ternary does not
+				// fail a clean tree.
+				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
+				'src/render/**': { statements: 100, branches: 99, functions: 100, lines: 100 },
 			},
 		},
 	},
