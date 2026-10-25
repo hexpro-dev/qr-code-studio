@@ -19,9 +19,10 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { Script } from 'node:vm';
+import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OUTPUT_NAME, buildStandaloneHtml } from '../../scripts/build-html.js';
 import type { StandaloneBuildResult } from '../../scripts/build-html.js';
@@ -142,13 +143,63 @@ function elementIds(source: string): readonly string[] {
 	return [...ids];
 }
 
-/** The class names the program puts on elements it creates. */
+/**
+ * The class names the program puts on elements it creates: assigned, passed
+ * to the element helper as `className`, or added to a class list.
+ */
 function scriptedClasses(source: string): readonly string[] {
 	const names = new Set<string>();
-	for (const found of source.matchAll(/className = '([^']+)'/g)) {
-		for (const name of found[1].split(/\s+/)) if (name) names.add(name);
+	const patterns = [
+		/className = '([^']+)'/g,
+		/className: '([^']+)'/g,
+		/classList\.(?:add|toggle|remove)\('([^']+)'/g,
+		/\bclass: '([^']+)'/g,
+	];
+	for (const pattern of patterns) {
+		for (const found of source.matchAll(pattern)) {
+			for (const name of found[1].split(/\s+/)) if (name) names.add(name);
+		}
 	}
 	return [...names];
+}
+
+/**
+ * Every string the program carries, read with the TypeScript parser rather
+ * than a regular expression, so a quote inside a regular expression literal
+ * or a template cannot start a string that is not there. These are what a
+ * person can be shown; an identifier never is.
+ */
+function stringLiterals(program: string): readonly string[] {
+	const out: string[] = [];
+	const source = ts.createSourceFile(
+		'program.js',
+		program,
+		ts.ScriptTarget.Latest,
+		false,
+		ts.ScriptKind.JS,
+	);
+	const visit = (node: ts.Node): void => {
+		if (
+			ts.isStringLiteral(node) ||
+			ts.isNoSubstitutionTemplateLiteral(node) ||
+			ts.isTemplateHead(node) ||
+			ts.isTemplateMiddle(node) ||
+			ts.isTemplateTail(node)
+		) {
+			out.push(node.text);
+		}
+		ts.forEachChild(node, visit);
+	};
+	visit(source);
+	return out;
+}
+
+/** The application's source: every module under src/app, read together. */
+async function readAppSource(): Promise<string> {
+	const dir = fileURLToPath(new URL('../../src/app/', import.meta.url));
+	const names = (await readdir(dir)).filter((name) => name.endsWith('.ts')).sort();
+	const texts = await Promise.all(names.map((name) => readFile(`${dir}${name}`, 'utf8')));
+	return texts.join('\n');
 }
 
 /** The `data-` attributes the program sets to carry a state. */
@@ -182,7 +233,7 @@ let style = '';
  */
 let markup = '';
 let csp = '';
-/** The application's source, for the contracts it has with the template. */
+/** The application's source, every module of it, for the contracts it has with the template. */
 let appSource = '';
 /** The version the package declares, read from the manifest and not from the build. */
 let version = '';
@@ -200,10 +251,7 @@ beforeAll(async () => {
 	style = part(/<style>([\s\S]*?)<\/style>/, 'style element');
 	markup = html.replace(script, '').replace(style, '');
 	csp = part(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/, 'security policy');
-	appSource = await readFile(
-		fileURLToPath(new URL('../../src/app/main.ts', import.meta.url)),
-		'utf8',
-	);
+	appSource = await readAppSource();
 	const manifest = JSON.parse(
 		await readFile(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
 	) as { version: string };
@@ -328,8 +376,13 @@ describe('the built document is self contained', () => {
 		// Somebody reading the file should be able to find the source, so the
 		// address is allowed to appear. It appears with no scheme and outside any
 		// attribute, so nothing in the document can turn it into a request.
+		//
+		// The markup and the stylesheet only: the program carries addresses as
+		// data (the SVG namespace, the links content types build, the font
+		// licence), and tests/build/no-network.test.ts holds each of those to
+		// where it came from.
 		expect(markup).toContain(REPOSITORY);
-		for (const url of html.match(/https?:\/\/[^\s"'<>]+/g) ?? []) {
+		for (const url of `${markup}\n${style}`.match(/https?:\/\/[^\s"'<>]+/g) ?? []) {
 			expect(url.replace(/[.,)]+$/, '')).toBe(`https://${REPOSITORY}`);
 		}
 	});
@@ -540,7 +593,12 @@ describe('the copy the built document ships', () => {
 	});
 
 	it('uses none of the marketing register the house style forbids', () => {
-		const lowered = html.toLowerCase();
+		// Over what a person can read: the markup, and every string the program
+		// carries. Not over the program's identifiers, which nobody reads and
+		// which the decoder is entitled to name as it likes.
+		const strings = stringLiterals(script);
+		expect(strings.length, 'no strings were read out of the program').toBeGreaterThan(1000);
+		const lowered = [markup, ...strings].join('\n').toLowerCase();
 		for (const word of MARKETING_REGISTER) {
 			expect(lowered, `"${word}" in the built document`).not.toContain(word);
 		}
@@ -555,11 +613,13 @@ describe('the size of the built document', () => {
 	// tests/build/budget.test.ts holds each area to its own share, which is
 	// where growth gets attributed.
 	//
-	// The floor is the shell's until the studio lands in M8, when it rises to
-	// 150 kB. Raise the ceiling only after reading the diff: the failure it
-	// exists to catch looks exactly like a feature until you look at what grew.
-	const FLOOR = 2_000;
-	const CEILING = 480_000;
+	// The floor is the studio's: a build that ships less has lost it. The
+	// ceiling is the finished application (690 kB at M8b) with about 15% room
+	// for the scan check and the inspector, which are still to merge. Raise it
+	// only after reading the diff: the failure it exists to catch looks exactly
+	// like a feature until you look at what grew.
+	const FLOOR = 150_000;
+	const CEILING = 800_000;
 
 	it('is large enough to hold the studio and small enough to be a download', () => {
 		expect(build.bytes).toBeGreaterThan(FLOOR);

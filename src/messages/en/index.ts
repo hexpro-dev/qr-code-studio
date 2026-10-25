@@ -10,6 +10,7 @@
  * unused.
  */
 
+import { APP_MESSAGES } from './app.js';
 import { BATCH_MESSAGES } from './batch.js';
 import { DECODE_MESSAGES } from './decode.js';
 import { DESIGN_MESSAGES } from './design.js';
@@ -26,6 +27,7 @@ import { TEXT_MESSAGES } from './text.js';
 /** Every area's catalogue, by area, for a check that no two claim one key. */
 export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, string>>>> =
 	Object.freeze({
+		app: APP_MESSAGES,
 		batch: BATCH_MESSAGES,
 		decode: DECODE_MESSAGES,
 		design: DESIGN_MESSAGES,
@@ -39,6 +41,16 @@ export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, stri
 		symbology: SYMBOLOGY_MESSAGES,
 		text: TEXT_MESSAGES,
 	});
+
+/**
+ * The areas whose keys the library itself emits: every one except `app`, the
+ * offline file's own interface. The website builds its own interface over the
+ * same studio and translates these areas, so its catalogue test enumerates
+ * this list and never asks for sentences only the offline file shows.
+ */
+export const LIBRARY_AREAS: readonly string[] = Object.freeze(
+	Object.keys(MESSAGE_AREAS).filter((area) => area !== 'app'),
+);
 
 export const EN_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 	Object.assign({}, ...Object.values(MESSAGE_AREAS)) as Record<string, string>,
@@ -64,6 +76,7 @@ export function message(
 }
 
 export {
+	APP_MESSAGES,
 	BATCH_MESSAGES,
 	DECODE_MESSAGES,
 	DESIGN_MESSAGES,
