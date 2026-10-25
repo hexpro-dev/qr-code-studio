@@ -429,7 +429,20 @@ least as hard to satisfy as the phone readers people use: one binariser, a
 single sample per module, no mirroring, the design's own polarity only, finder
 ratio tolerance 0.35 of a module, at most one bit corrected in format
 information with both copies agreeing, version information required, no
-erasures, and a margin of `ceil(0.25 * t)` left unused in every block. A test
+erasures, and a margin of `ceil(0.25 * t)` left unused in every block.
+
+As measured and settled (m4-decode `0b5020a`): finder ratios 0.35 of a module on the axes and
+0.5 on the diagonals; a fixed-pattern split between thresholds is forgiven only where the 3x3
+neighbourhood keeps 0.75 of the symbol's contrast (a centre on a drawn edge, not glare); the grid
+is the one whose timing reads straightest, with a least-squares projective fit along the
+diagonal's alignment patterns; finder rings must be ones zxing-cpp traces (dotted rings refused,
+round rings refused at a slant or under smear); finder centres must close; from version 7 a
+zxing-cpp style tiled grid must read the same bytes; geometry floors of 2.25 px a module (3 px from
+version 7) and foreshortening of at most 1.8; a plain-reader second opinion. Refusals after a read
+report `stage: 'margin'`. Exports `ringKind`, `strictFindsFinder`, `finderSmear`, `foreshortening`,
+`strictSamples` let design hold its region shapes to the same tests. The property (strict implies
+zxing-wasm and jsQR) holds over the default corpora with zero exceptions; the nightlies allow two
+documented glare and blur cases that zxing-cpp reads only with denoising. A test
 holds it to that: every capture the strict profile reads, `zxing-wasm` and
 `jsqr` read too.
 
