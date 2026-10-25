@@ -27,7 +27,7 @@ const NIGHTLY = process.env.QRS_VERIFY_NIGHTLY === '1';
 
 const DESIGNS = NIGHTLY
 	? registries.design.presets.list().map((preset) => preset.id)
-	: ['classic-black', 'rounded-link', 'fluid-lagoon', 'shop-tag'];
+	: ['classic-black', 'rounded-link', 'fluid-lagoon', 'shop-tag', 'midnight-dots', 'violet-glow'];
 
 const SEEDS = NIGHTLY ? 8 : 1;
 

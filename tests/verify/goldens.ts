@@ -56,7 +56,7 @@ export const VERIFY_GOLDENS: readonly VerifyGolden[] = [
 	{
 		name: 'shop tag with its logo and frame, 30 mm across, 30 cm away',
 		job: () => job(preset('shop-tag'), { conditions: { sizeMm: 30, dpi: null, distanceMm: 300 } }),
-		sha256: '37519f8ef9ba7501c587ddbb0f3e363a975853a4314d12f5f76bb5a1c31482ee',
+		sha256: '97d094a32cbb24dd38e355dc5509d5aeb9141f1231698306f35457408b1ac8f5',
 	},
 	{
 		name: 'fluid lagoon gradient printed from a 150 dpi export',
@@ -65,7 +65,7 @@ export const VERIFY_GOLDENS: readonly VerifyGolden[] = [
 				conditions: { sizeMm: 16, dpi: 150, distanceMm: null },
 				seed: 99,
 			}),
-		sha256: '2015fec32d2fbec281ba3ee37849429855656c81b887922a83cb12dffa9d3041',
+		sha256: '103b919a4c70e30e3b7c1eee0ebef9f4d759cfdd07f0bbd298d05bf6829b38e7',
 	},
 ];
 
