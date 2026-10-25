@@ -636,12 +636,16 @@ export function buildScene(
 		issues.push(...caption.issues);
 	}
 
+	// The printed size is the whole artwork's width unless the design says it
+	// is the symbol's own, without quiet zone or frame, as the Swiss QR-bill
+	// fixes its 46 mm.
 	const sizeMm = design.output.sizeMm;
+	const measured = design.output.sizeBasis === 'symbol' ? width : sceneWidth;
 	const scene: Scene = {
 		width: sceneWidth,
 		height: sceneHeight,
 		...(typeof sizeMm === 'number' && Number.isFinite(sizeMm) && sizeMm > 0
-			? { unitsPerMm: (width + 2 * quiet) / sizeMm }
+			? { unitsPerMm: measured / sizeMm }
 			: {}),
 		background,
 		layers,

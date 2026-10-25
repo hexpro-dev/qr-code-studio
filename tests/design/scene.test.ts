@@ -337,6 +337,33 @@ describe('buildScene', () => {
 		);
 		expect(built.scene.unitsPerMm).toBe(1);
 		expect(built.scene.title).toBe('Menu');
+		// The size is the whole artwork's, frame included, unless the design
+		// says it is the symbol's own.
+		const framed = (sizeBasis?: 'artwork' | 'symbol') =>
+			buildScene(
+				v2,
+				designWith({
+					frame: { ref: { id: 'banner-bottom' } },
+					output: {
+						sizeMm: 50,
+						colourSpace: 'srgb',
+						...(sizeBasis === undefined ? {} : { sizeBasis }),
+					},
+				}),
+				{ registries },
+			).scene;
+		expect(framed().unitsPerMm).toBe(framed().width / 50);
+		expect(framed('artwork')).toEqual(framed());
+		expect(framed('symbol').unitsPerMm).toBe(25 / 50);
+		expect(
+			buildScene(
+				v2,
+				designWith({ output: { sizeMm: 25, sizeBasis: 'symbol', colourSpace: 'srgb' } }),
+				{
+					registries,
+				},
+			).scene.unitsPerMm,
+		).toBe(1);
 		expect(
 			buildScene(microSymbol('12345'), designWith({ quietZone: 2 }), { registries }).scene.title,
 		).toBe('Micro QR code');
