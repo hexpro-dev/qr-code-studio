@@ -29,7 +29,7 @@ const BUDGETS: Readonly<Record<string, number>> = {
 	'src/fonts': 66_500, // 60.5 kB: the compiled caption faces, under their licence
 	'src/render': 65_000, // 59.2 kB
 	'src/studio': 46_500, // 42.3 kB
-	'src/decode': 37_500, // 34.0 kB
+	'src/decode': 49_500, // 44.9 kB: strict-v1's styled, tilt and zxing-cpp rules (tiled grid, ring kinds, finder centres)
 	'src/symbology': 34_000, // 31.0 kB
 	'src/core': 31_500, // 28.5 kB
 	'src/batch': 29_000, // 26.5 kB
