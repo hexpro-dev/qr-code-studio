@@ -32,6 +32,13 @@ export default defineConfig({
 				branches: 98,
 				functions: 98,
 				lines: 98,
+				// The codecs, fields and arithmetic everything else is built on. One
+				// defensive re-check in reed-solomon.ts is excluded by a v8 hint, with
+				// the reason beside it; everything else is reached. The branches left
+				// over are in deflate.ts: a non-final block that fixed Huffman wins,
+				// and zlib's TOO_FAR cut-off, which a four-byte hash reaches only
+				// through a collision.
+				'src/core/**': { statements: 100, branches: 99.5, functions: 100, lines: 100 },
 				// Every line and branch is reached; branches sit one point under so a
 				// change in how v8 counts a ternary does not fail a clean tree.
 				'src/geometry/**': { statements: 100, branches: 99, functions: 100, lines: 100 },

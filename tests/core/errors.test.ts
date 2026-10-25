@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+	ArchiveMalformedError,
+	ArchiveTooLargeError,
 	CancelledError,
 	ERROR_CODES,
 	QrStudioError,
+	RsDecodeError,
 	TooMuchDataError,
+	UnknownEntryError,
 	isQrStudioError,
 } from '../../src/core/errors.js';
 
@@ -57,10 +61,49 @@ describe('QrStudioError', () => {
 	});
 
 	it('writes messages without a dash, a curly quote or a template hole', () => {
-		for (const error of [new CancelledError(), new TooMuchDataError(1, 1)]) {
+		for (const error of [
+			new CancelledError(),
+			new TooMuchDataError(1, 1),
+			new RsDecodeError('no-solution'),
+			new ArchiveMalformedError('deflate'),
+			new ArchiveTooLargeError(10),
+			new UnknownEntryError('module-shape', 'rounded'),
+		]) {
 			expect(error.message).not.toMatch(/[–—‘’“”]/);
 			expect(error.message).not.toContain('${');
 			expect(error.message).toMatch(/^[A-Z].*\.$/);
 		}
+	});
+});
+
+describe('the core subclasses', () => {
+	it('carry the codes and params their callers rely on', () => {
+		const rs = new RsDecodeError('over-limit');
+		expect(rs.code).toBe('decode/unreadable');
+		expect(rs.params).toEqual({ stage: 'reed-solomon' });
+		expect(rs.reason).toBe('over-limit');
+		expect(rs.name).toBe('RsDecodeError');
+
+		const malformed = new ArchiveMalformedError('zlib');
+		expect(malformed.code).toBe('archive/malformed');
+		expect(malformed.params).toEqual({ format: 'zlib' });
+
+		const tooLarge = new ArchiveTooLargeError(65535, 'entries');
+		expect(tooLarge.code).toBe('archive/too-large');
+		expect(tooLarge.params).toEqual({ limit: 65535, unit: 'entries' });
+		expect(tooLarge.limit).toBe(65535);
+		expect(new ArchiveTooLargeError(1024).params).toEqual({ limit: 1024, unit: 'bytes' });
+
+		const unknown = new UnknownEntryError('module-shape', 'rounded');
+		expect(unknown.code).toBe('design/unknown-entry');
+		expect(unknown.params).toEqual({ kind: 'module-shape', id: 'rounded' });
+	});
+
+	it('keep registry identifiers out of the sentence a person reads', () => {
+		// The website words this in seven languages from the params; the message
+		// is the offline app's, and an identifier in it would read as noise.
+		const error = new UnknownEntryError('module-shape', 'rounded-heavy');
+		expect(error.message).not.toContain('rounded-heavy');
+		expect(error.message).not.toContain('module-shape');
 	});
 });
