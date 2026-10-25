@@ -89,8 +89,8 @@ export const DESIGN_GOLDENS: readonly DesignGolden[] = [
 	},
 	{
 		name: 'shop tag with its icon and frame, rasterised',
-		render: () => pixels(scene(encode(URL_TEXT, { ecLevel: 'Q' }), preset('shop-tag')), 4),
-		sha256: '7b155afb17923f1dbe42c70d7fb3d48d08f2a6880e93cec75bccc90d60ca2adb',
+		render: () => pixels(scene(encode(URL_TEXT, { ecLevel: 'H' }), preset('shop-tag')), 4),
+		sha256: '9618f23ecb856967b34751399398f243c9e92bc3b27dc3fe058f254d2e592733',
 	},
 	{
 		name: 'fluid lagoon gradient on rMQR as SVG',
