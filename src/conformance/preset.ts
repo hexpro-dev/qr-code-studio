@@ -141,17 +141,12 @@ export function checkPreset(
 	}
 
 	// The finder pair, put to the strict reader's own tests as well as the
-	// design layer's model of them (which validation has asked already).
+	// design layer's model of them, which validation has asked already (and
+	// so has made sure both shapes exist and draw the finder).
 	const finder = design.regions.finder;
-	const outer = finder === undefined ? undefined : registries.regionShapes.get(finder.outer.id);
-	const inner = finder === undefined ? undefined : registries.regionShapes.get(finder.inner.id);
-	if (
-		finder !== undefined &&
-		outer !== undefined &&
-		inner !== undefined &&
-		outer.kinds.includes('concentric-7') &&
-		inner.kinds.includes('concentric-7')
-	) {
+	if (finder !== undefined) {
+		const outer = registries.regionShapes.require(finder.outer.id);
+		const inner = registries.regionShapes.require(finder.inner.id);
 		const problems = strictFinderProblems(
 			outer,
 			resolveParams(outer.params, finder.outer.params),

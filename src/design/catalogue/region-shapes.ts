@@ -13,7 +13,11 @@
  * depends on both (a round ring leaves too little light round a square
  * centre's corners), so pairs are checked where they are chosen, by
  * `regionPairConforms`, and conformance asks of each shape that it makes a
- * good finder with at least one partner at every setting. The sub-finder of rMQR (concentric-5) is the same ring
+ * good finder with at least one partner at every setting, and that every
+ * pair that measure accepts is one the strict reader's own finder search
+ * finds. A ring also says how a reader that traces its sides takes it
+ * (`ringKind`), which conformance measures with the strict reader's test:
+ * the circle is round and the ring of dots dotted, the rest cornered. The sub-finder of rMQR (concentric-5) is the same ring
  * round a one-module centre; the corner pattern (corner-l) is an L of five
  * modules, square or rounded.
  */

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { finderProblems, outlineGap, regionPairConforms } from '../../src/design/finder.js';
+import {
+	finderProblems,
+	outlineGap,
+	regionPairConforms,
+	ringKindOf,
+} from '../../src/design/finder.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import type { RegionShape } from '../../src/design/types.js';
 import { PathBuilder } from '../../src/geometry/path.js';
@@ -66,6 +71,18 @@ describe('finderProblems', () => {
 		expect(
 			outlineGap(a, new PathBuilder().moveTo(5, 5).lineTo(5, 5).lineTo(5, 6).build()),
 		).toBeGreaterThan(0);
+	});
+
+	it('never pairs a ring of dots as the QR finder, and takes a ring as cornered unless it says', () => {
+		const dots = registries.regionShapes.require('dot-ring');
+		const problems = finderProblems(dots, { size: 0.94 }, centre, {}, 'concentric-7');
+		expect(problems.map((problem) => problem.rule)).toEqual(['ring-not-traceable']);
+		expect(regionPairConforms(dots, { size: 0.94 }, centre, {}, 'concentric-7')).toBe(false);
+		// Its sub-finder is measured by its runs alone, as any other ring's.
+		expect(finderProblems(dots, { size: 0.94 }, centre, {}, 'concentric-5')).toEqual([]);
+		expect(ringKindOf(dots)).toBe('dotted');
+		expect(ringKindOf(registries.regionShapes.require('circle'))).toBe('round');
+		expect(ringKindOf(ring)).toBe('cornered');
 	});
 
 	it('remembers a pair it has measured', () => {

@@ -214,7 +214,7 @@ export function checkRegionShape(
 					if (traced !== 'dotted') {
 						report(
 							'ring-kind',
-							`${kind}: the ring says it is dotted and the strict reader traces it as ${String(traced)}`,
+							`${kind}: the ring says it is dotted and the strict reader traces it as ${traced ?? 'nothing it can measure'}`,
 						);
 					}
 				}

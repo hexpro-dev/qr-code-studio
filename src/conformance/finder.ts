@@ -41,6 +41,8 @@ export const STRICT_PHASES: readonly number[] = Object.freeze([0, 0.25, 0.5, 0.7
 /** Modules of white on each side of the 7 module box. */
 const MARGIN = 3;
 const SPAN = 7 + 2 * MARGIN;
+/** How a ring the strict reader cannot measure is named in a problem. */
+const UNMEASURED = 'nothing it can measure';
 
 export interface StrictFinderOptions {
 	readonly densities?: readonly number[];
@@ -150,7 +152,7 @@ export function strictFinderProblems(
 		for (const phase of options.phases ?? STRICT_PHASES) {
 			for (const roll of options.rolls ?? [0]) {
 				const picture = finderPicture(outer, outerParams, inner, innerParams, m, phase, roll);
-				if (roll === 0) kinds.add(String(pictureRingKind(picture, m)));
+				if (roll === 0) kinds.add(pictureRingKind(picture, m) ?? UNMEASURED);
 				const centre = { x: picture.centre, y: picture.centre };
 				if (!strictFindsFinder(picture.grey, centre, m)) {
 					missed.push(`${m} px phase ${phase}${roll === 0 ? '' : ` roll ${roll}`}`);
