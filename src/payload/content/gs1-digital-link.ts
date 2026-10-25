@@ -110,7 +110,15 @@ function write(value: Gs1DigitalLinkValue): string {
 	const query: string[] = [];
 	if (textOf(value, 'bestBefore') !== '') query.push(`15=${textOf(value, 'bestBefore')}`);
 	if (textOf(value, 'expiry') !== '') query.push(`17=${textOf(value, 'expiry')}`);
-	return `https://${textOf(value, 'domain')}${path}${query.length > 0 ? `?${query.join('&')}` : ''}`;
+	// A host is case-insensitive and the path prefix is not, so only the host
+	// is lowered, which is also how it reads back.
+	const domain = textOf(value, 'domain');
+	const slash = domain.indexOf('/');
+	const host =
+		slash === -1
+			? domain.toLowerCase()
+			: `${domain.slice(0, slash).toLowerCase()}${domain.slice(slash)}`;
+	return `https://${host}${path}${query.length > 0 ? `?${query.join('&')}` : ''}`;
 }
 
 function parse(text: string): Gs1DigitalLinkValue {

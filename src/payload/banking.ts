@@ -11,9 +11,11 @@
 import { mod97 } from './check-digits.js';
 
 /**
- * IBAN length by country, from the SWIFT IBAN Registry (release 99, 2025).
- * A country missing here is refused rather than guessed at. Written as
- * country and length pairs so the table reads as the registry's own list does.
+ * IBAN length by country, as the SWIFT IBAN Registry lists them
+ * (swift.com/standards/data-standards/iban). A country missing here is
+ * refused rather than guessed at, so a country that joins the registry needs
+ * a line added. Written as country and length pairs so the table reads as the
+ * registry's own list does.
  */
 const IBAN_LENGTHS: ReadonlyMap<string, number> = new Map(
 	[

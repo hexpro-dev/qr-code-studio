@@ -336,6 +336,9 @@ describe('gs1-digital-link', () => {
 		expect(build(gs1DigitalLinkType, { batch: '', serial: '', expiry: '' })).toBe(
 			'https://id.gs1.org/01/09520123456788',
 		);
+		expect(
+			build(gs1DigitalLinkType, { domain: 'Example.COM/GS1', batch: '', serial: '', expiry: '' }),
+		).toBe('https://example.com/GS1/01/09520123456788');
 	});
 
 	it('reads a link under a path prefix, a short GTIN and either query delimiter', () => {
