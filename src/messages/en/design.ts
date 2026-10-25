@@ -234,7 +234,12 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 		'Readers lose rectangular Micro QR codes inside a frame, so this code is shown without its frame.',
 	'design.issue.caption-unsupported':
 		'This frame has no space for a caption, so the caption was left out.',
-	'design.issue.caption-pending': 'The caption is not drawn yet in this version.',
+	'design.issue.caption-missing-glyphs':
+		'This font cannot draw {count} of the characters in the caption, so they were left out. Choose another font, or change the text.',
+	'design.issue.caption-overflow':
+		'The caption does not fit this frame even at its smallest size, so it is cut off. Shorten it, or choose a frame with more room.',
+	'design.issue.font-unavailable':
+		'This font is not available here, so the caption cannot be drawn.',
 	'design.issue.too-long': 'This is {length} characters and the limit is {max}.',
 	'design.issue.too-many-lines': 'This has {lines} lines and the frame holds {max}.',
 	'design.issue.control-character':
@@ -255,8 +260,8 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'design.issue.eci-constrained':
 		'This content names its own character set, so no character set marker is added.',
 	'design.issue.size-constrained': 'This content is printed {size} mm wide, so that size is used.',
-	'design.issue.overlay-required':
-		'This content needs a Swiss cross printed over the middle of the code. The payment slip adds it.',
+	'design.issue.overlay-unsupported':
+		'The Swiss cross this content needs is printed over QR codes only, so it was left out.',
 
 	// Issues: links.
 	'design.issue.link-assets-dropped':

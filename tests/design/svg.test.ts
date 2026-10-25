@@ -166,6 +166,27 @@ const cases: { label: string; symbol: BuiltSymbol; design: QrDesignV1; limit: nu
 		}),
 		limit: 24,
 	},
+	// Captions as outlines: one line, two lines, one beside the artwork in
+	// the frame's paint, and one too long for its frame, cut by a clip.
+	...(
+		[
+			['banner-bottom', 'Scan me'],
+			['rounded-card', 'Scan for the menu\nand specials'],
+			['corner-brackets', 'Free Wi-Fi'],
+			['badge-circle', 'MMMMMMMMMMMMMMMM'],
+		] as const
+	).map(([id, content]) => ({
+		label: `a caption in ${id}`,
+		symbol: qrSymbol('https://example.com/svg/caption', 'M'),
+		design: designWith({
+			frame: {
+				ref: { id },
+				paint: { kind: 'solid', ink: '#0b3d91' },
+				text: { content, fontId: 'plex-sans-bold' },
+			},
+		}),
+		limit: 8,
+	})),
 	{
 		label: 'Micro QR with a frame',
 		symbol: microSymbol('12345'),
