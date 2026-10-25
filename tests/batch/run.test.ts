@@ -40,6 +40,7 @@ import { encodePng } from '../../src/render/png.js';
 import { rasterise } from '../../src/render/raster.js';
 import { builtInSheets } from '../../src/render/sheets.js';
 import { sceneToSvg } from '../../src/render/svg.js';
+import { createFontRegistry } from '../../src/text/registry.js';
 import type { Scene } from '../../src/render/types.js';
 import type { SymbologyEntry } from '../../src/symbology/types.js';
 import { assetOf, designWith, discImage } from '../design/helpers.js';
@@ -573,7 +574,7 @@ describe('content and designs', () => {
 		);
 	});
 
-	it("sets a frame's caption with the built-in fonts, or the ones given", () => {
+	it("sets a frame's caption with the built-in fonts, or the ones given", async () => {
 		const [first] = rows();
 		const framed = designWith({
 			frame: {
@@ -582,11 +583,83 @@ describe('content and designs', () => {
 			},
 		});
 		const plain = run([first as BatchRow], { kind: 'zip', format: 'svg' }, framed);
-		expect(plain.outcomes[0]?.status).toBe('written');
+		expect(plain.outcomes[0]?.issues).toEqual([]);
+		const symbol = encode(first?.content as string, { ecLevel: 'M' });
+		const alone = buildScene(symbol, framed, {
+			registries: reg.design,
+			fonts: createFontRegistry(),
+		});
+		expect((await readZip(plain.bytes))[0]?.bytes).toEqual(
+			new TextEncoder().encode(sceneToSvg(alone.scene)),
+		);
 		const given = run([first as BatchRow], { kind: 'zip', format: 'svg' }, framed, {
 			fonts: new Registry('font'),
 		});
 		expect(given.outcomes[0]?.status).toBe('written');
+		expect(given.outcomes[0]?.issues.map((found) => found.code)).toEqual([
+			'design.issue.font-unavailable',
+		]);
+	});
+
+	it("draws the Swiss QR-bill's cross over every code, as the content requires", async () => {
+		const table = parseCsv(
+			'iban,name,street,building,postcode,town,amount,reference\n' +
+				'CH4431999123000889012,Example AG,Musterstrasse,1,8000,Seldwyla,10.00,210000000003139471430009017\n',
+		);
+		const bills = planBatch(
+			table,
+			{
+				typeId: 'swiss-qr-bill',
+				fields: {
+					iban: { column: 'iban' },
+					creditorName: { column: 'name' },
+					creditorStreet: { column: 'street' },
+					creditorBuilding: { column: 'building' },
+					creditorPostcode: { column: 'postcode' },
+					creditorTown: { column: 'town' },
+					creditorCountry: { template: 'CH' },
+					amount: { column: 'amount' },
+					referenceType: { template: 'QRR' },
+					reference: { column: 'reference' },
+				},
+				filename: 'bill-{reference}',
+			},
+			reg,
+		);
+		expect(bills[0]?.issues.filter((found) => found.severity === 'error')).toEqual([]);
+		const seen: BatchVerifyRequest[] = [];
+		const checker: BatchVerifier = (request) => {
+			seen.push(request);
+			return { verdict: 'pass' };
+		};
+		const { bytes, outcomes } = run(bills, { kind: 'zip', format: 'svg' }, defaultDesign(), {
+			verifyRow: checker,
+		});
+		expect(outcomes[0]?.status).toBe('written');
+		const applied = applyConstraints(
+			defaultDesign(),
+			reg.payloads.require('swiss-qr-bill').constraints,
+		);
+		expect(applied.overlay).toBe('swiss-cross');
+		const symbol = encode(bills[0]?.content as string, {
+			ecLevel: 'M',
+			...(applied.design.symbol.segmentation === undefined
+				? {}
+				: { segmentation: applied.design.symbol.segmentation }),
+			...(applied.design.symbol.maxVersion === undefined
+				? {}
+				: { maxVersion: applied.design.symbol.maxVersion }),
+		});
+		const alone = buildScene(symbol, applied.design, {
+			registries: reg.design,
+			overlay: 'swiss-cross',
+		});
+		const without = buildScene(symbol, applied.design, { registries: reg.design });
+		const entry = (await readZip(bytes))[0]?.bytes;
+		expect(entry).toEqual(new TextEncoder().encode(sceneToSvg(alone.scene)));
+		expect(entry).not.toEqual(new TextEncoder().encode(sceneToSvg(without.scene)));
+		expect(seen[0]?.overlay).toBe('swiss-cross');
+		expect(seen[0]?.sizeMm).toBe(46);
 	});
 
 	it('cleans names on rows that did not come from planBatch', async () => {
@@ -784,6 +857,7 @@ describe('verification', () => {
 			rowNumber: 2,
 			content: 'https://example.com/p/EX-001',
 			design: { ...high, output: { colourSpace: 'srgb', sizeMm: 20, dpi: 600 } },
+			overlay: null,
 			sizeMm: 20,
 			dpi: 600,
 			seed: 7,

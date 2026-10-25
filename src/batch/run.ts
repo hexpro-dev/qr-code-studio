@@ -37,7 +37,7 @@ import { base64Decode } from '../design/base64.js';
 import { applyConstraints } from '../design/constraints.js';
 import { LIMITS } from '../design/document.js';
 import { buildScene } from '../design/scene.js';
-import type { QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, QrDesignV1 } from '../design/types.js';
 import { validateDesign } from '../design/validate.js';
 import { encode } from '../encode/encode.js';
 import type { EncodeOptions } from '../encode/plan.js';
@@ -435,6 +435,7 @@ function* checkRow(
 	plan: Plan,
 	row: BatchRow,
 	design: QrDesignV1,
+	overlay: DesignOverlay | null,
 	sizeMm: number | null,
 	progress: BatchProgress,
 ): Generator<BatchProgress, { check: BatchOutcome['check']; issues: Issue[] }> {
@@ -446,6 +447,7 @@ function* checkRow(
 			rowNumber: row.rowNumber,
 			content: row.content as string,
 			design,
+			overlay,
 			sizeMm,
 			dpi: plan.dpi,
 			seed: plan.seed,
@@ -474,20 +476,31 @@ function* checkRow(
 	return { check: result.verdict, issues };
 }
 
+/** A content type's design, its notes, and what is drawn over its codes whatever the design. */
+interface Constrained {
+	readonly design: QrDesignV1;
+	readonly issues: Issue[];
+	readonly overlay: DesignOverlay | null;
+}
+
 interface Run {
 	readonly zip: ZipWriter | null;
 	readonly scenes: Scene[];
-	readonly constrained: Map<string, { design: QrDesignV1; issues: Issue[] }>;
+	readonly constrained: Map<string, Constrained>;
 	readonly total: number;
 }
 
 /** The design every row of a content type is drawn in: the content's constraints applied once. */
-function designFor(plan: Plan, run: Run, typeId: string): { design: QrDesignV1; issues: Issue[] } {
+function designFor(plan: Plan, run: Run, typeId: string): Constrained {
 	let entry = run.constrained.get(typeId);
 	if (entry === undefined) {
 		const type = plan.registries.payloads.require(typeId);
 		const applied = applyConstraints(plan.design, type.constraints);
-		entry = { design: applied.design, issues: worthSaying(applied.issues) };
+		entry = {
+			design: applied.design,
+			issues: worthSaying(applied.issues),
+			overlay: applied.overlay,
+		};
 		run.constrained.set(typeId, entry);
 	}
 	return entry;
@@ -519,6 +532,7 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 				assets: plan.assets,
 				...(plan.fonts === undefined ? {} : { fonts: plan.fonts }),
 				seed: plan.seed,
+				overlay: entry.overlay,
 			}),
 		};
 	});
@@ -572,7 +586,7 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 			sizeMm === null || sizeMm === entry.design.output.sizeMm
 				? entry.design
 				: { ...entry.design, output: { ...entry.design.output, sizeMm } };
-		const checked = yield* checkRow(plan, row, design, sizeMm, {
+		const checked = yield* checkRow(plan, row, design, entry.overlay, sizeMm, {
 			done: position,
 			total: run.total,
 		});

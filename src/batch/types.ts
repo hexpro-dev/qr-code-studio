@@ -30,7 +30,7 @@
 
 import type { Issue } from '../core/issue.js';
 import type { Registry } from '../core/registry.js';
-import type { DesignRegistries, QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, DesignRegistries, QrDesignV1 } from '../design/types.js';
 import type { PayloadRegistry } from '../payload/registry.js';
 import type { SheetTemplate } from '../render/impose.js';
 import type { SymbologyEntry } from '../symbology/types.js';
@@ -149,6 +149,8 @@ export interface BatchVerifyRequest {
 	readonly content: string;
 	/** The design after the content type's constraints, exactly as the file was drawn. */
 	readonly design: QrDesignV1;
+	/** What the content type draws over its code whatever the design: the Swiss QR-bill's cross. */
+	readonly overlay: DesignOverlay | null;
 	/** Printed width of the symbol with its quiet zone, when the output has one. */
 	readonly sizeMm: number | null;
 	/** Pixels per inch, for a PNG. */
