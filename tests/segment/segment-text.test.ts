@@ -17,6 +17,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { BitBuffer } from '../../src/core/bits.js';
 import { isQrStudioError } from '../../src/core/errors.js';
+import { kanjiCode } from '../../src/segment/kanji.js';
 import { qrCountGroup, qrProfile } from '../../src/segment/profile.js';
 import { readSegments } from '../../src/segment/read.js';
 import {
@@ -175,6 +176,54 @@ describe('segmentText against exhaustive search', () => {
 				expect(roundTrip(segments, profile, true), text).toBe(text);
 			}
 		}
+	});
+});
+
+describe('segmentText against exhaustive search, on random strings', () => {
+	it('is optimal over a wider alphabet, in every group, with and without FNC1 and kanji', () => {
+		// Characters with and without kanji codes, so the all-or-nothing kanji
+		// rule is exercised too: with any character outside ASCII that has no
+		// code, kanji is off for the whole string.
+		const unit = fc.constantFrom(
+			'0',
+			'7',
+			'A',
+			'Q',
+			' ',
+			'%',
+			'\u001d',
+			'a',
+			'~',
+			'é',
+			'日',
+			'語',
+			'😀',
+		);
+		fc.assert(
+			fc.property(
+				fc.array(unit, { maxLength: 7 }),
+				fc.constantFrom(...GROUP_VERSIONS),
+				fc.boolean(),
+				fc.constantFrom('never' as const, 'always' as const, 'when-smaller' as const),
+				(chars, version, fnc1, kanji) => {
+					const profile = qrProfile(version);
+					const group = qrCountGroup(version);
+					const text = chars.join('');
+					const covered = chars.every(
+						(char) => char.codePointAt(0)! < 0x80 || kanjiCode(char.codePointAt(0)!) !== undefined,
+					);
+					const wide = chars.some((char) => char.codePointAt(0)! >= 0x80);
+					const plain = bruteForce(chars, group, false, fnc1);
+					const withKanji = covered && wide ? bruteForce(chars, group, true, fnc1) : plain;
+					const expected =
+						kanji === 'never' ? plain : kanji === 'always' ? withKanji : Math.min(plain, withKanji);
+					const segments = segmentText(text, profile, { kanji, eci: 'auto' }, { fnc1 });
+					expect(segmentsBitLength(segments, profile)).toBe(expected);
+					expect(roundTrip(segments, profile, fnc1)).toBe(text);
+				},
+			),
+			{ numRuns: 3000, seed: 0x5e6 },
+		);
 	});
 });
 
