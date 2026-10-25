@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+reports/
+pnpm-lock.yaml
+
+# The offline app's template. Its whitespace is load-bearing: the placeholders
+# sit directly inside their elements, and the Content-Security-Policy names the
+# sha256 of exactly what ends up between the tags. The build hashes the
+# finished document rather than the bundle, so a reformat would not break it,
+# but there is nothing to gain from reformatting this file either.
+src/app/index.html

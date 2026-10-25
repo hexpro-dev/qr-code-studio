@@ -1,0 +1,89 @@
+# Every `uses:` names a commit sha rather than a tag, because a tag is a
+# pointer its owner can move. The version in the trailing comment is for a
+# reader; dependabot keeps the two in step. See .github/dependabot.yml.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 22 is the engines floor; Node 24 catches deprecations early.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Assert zero runtime dependencies
+        run: |
+          count=$(node -p "Object.keys(require('./package.json').dependencies || {}).length")
+          if [ "$count" != "0" ]; then
+            echo "This package must have no runtime dependencies, found $count."
+            echo "See the note in CLAUDE.md. devDependencies are fine."
+            exit 1
+          fi
+
+      - run: pnpm run format:check
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test:coverage
+      - run: pnpm run build:all
+
+      - name: Verify published file list
+        run: pnpm pack --dry-run
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # Fetched by URL rather than through the official action, which needs a
+      # licence key for organisations. That means this job downloads a binary
+      # and runs it against a full checkout, so two things are pinned down.
+      #
+      # The digest is the one gitleaks published for this release, written here
+      # rather than read from the checksums file next to the download, because
+      # a file fetched from the same host at the same moment vouches for
+      # nothing. Whoever changes the version changes this line too, in a diff
+      # somebody reads.
+      #
+      # The archive and the binary are unpacked into the runner's temporary
+      # directory rather than into the working tree, so nothing untrusted lands
+      # inside the thing being scanned.
+      - name: Run gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+          GITLEAKS_SHA256: 5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  $archive" | sha256sum --check --strict -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --source . --redact --no-banner --exit-code 1

@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+reports/
+.stryker-tmp/
+test-results/
+playwright-report/
+
+# Never commit a real person's payload. This repository is public and git
+# history is permanent. A QR code is a container for exactly the things people
+# do not want published: a Wi-Fi password, a phone number, a home address on a
+# contact card, an IBAN, a link to a private document. The inspector in this
+# package exists because those things are in there.
+#
+# There are no binary fixtures at all, which is why there is no rule for them
+# here. Every test image is drawn in code by this package's own renderer, every
+# payload is synthetic or published in the specification it tests, and a wrong
+# expectation shows up in the diff rather than hiding inside a file nobody can
+# read.
+#
+# Photographs of real codes, printed test sheets photographed on a phone, and
+# anything generated to check this package against other readers belong in
+# scratch/, which is ignored.
+scratch/
+*.private.*
+real-*
