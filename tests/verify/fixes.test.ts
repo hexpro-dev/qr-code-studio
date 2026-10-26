@@ -259,7 +259,12 @@ describe('fixes for capture findings, measured with the strict reader', () => {
 	});
 
 	it('square finders take away what styled finders cost', () => {
-		const start = preset('midnight-dots');
+		// Midnight dots with the round centre it had before its finder was made
+		// sturdier, which is what costs it under a defocus.
+		const start: QrDesignV1 = {
+			...preset('midnight-dots'),
+			regions: { finder: { outer: { id: 'squircle' }, inner: { id: 'circle-centre' } } },
+		};
 		const chosen = fix(suggestFixes(shortOn(start, 'focus'), start), 'square-finders');
 		expect(chosen.targets).toBe('focus');
 		const after = applyDesignPatch(start, chosen.patch as NonNullable<Fix['patch']>);

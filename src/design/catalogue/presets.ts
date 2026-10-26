@@ -181,7 +181,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: solid('#222831'),
 			background: WHITE,
-			eyes: eyes('rounded', 'rounded-centre'),
+			eyes: eyes('rounded', 'rounded-centre', undefined, { radius: 0.25 }),
 		},
 		{
 			id: 'rounded-ocean',
@@ -255,19 +255,19 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'midnight-dots',
 			category: 'dots',
-			minSizeMm: 25,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#10173a'),
 			background: WHITE,
-			eyes: eyes('squircle', 'circle-centre'),
+			eyes: eyes('squircle', 'leaf-centre'),
 		},
 		{
 			id: 'charcoal-dots',
 			category: 'dots',
 			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'dot', params: { size: 0.94 } },
+			shape: { id: 'dot', params: { size: 0.98 } },
 			paint: solid('#262626'),
 			background: solid('#fafafa'),
 			eyes: eyes('cushion', 'square-centre'),
@@ -285,19 +285,19 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'berry-dots',
 			category: 'dots',
-			minSizeMm: 25,
+			minSizeMm: 27,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#5b0e2d'),
 			background: solid('#fff5f8'),
-			eyes: eyes('squircle', 'circle-centre'),
+			eyes: eyes('squircle', 'rounded-centre'),
 		},
 		{
 			id: 'confetti-dots',
 			category: 'dots',
 			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'dot', params: { size: 0.95 } },
+			shape: { id: 'dot', params: { size: 0.98 } },
 			paint: {
 				kind: 'entry',
 				ref: {
@@ -312,7 +312,7 @@ function specs(): readonly PresetSpec[] {
 				},
 			},
 			background: WHITE,
-			eyes: eyes('squircle', 'circle-centre', undefined, undefined, {
+			eyes: eyes('squircle', 'rounded-centre', undefined, undefined, {
 				outer: solid('#14213d'),
 				inner: solid('#14213d'),
 			}),
@@ -321,19 +321,19 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-pro-blue',
 			category: 'hex',
-			minSizeMm: 29,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'hex' },
+			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0a4f96'),
 			background: WHITE,
-			eyes: eyes('octagon', 'octagon-centre', undefined, undefined, { outer: solid('#333333') }),
+			eyes: eyes('squircle', 'rounded-centre', undefined, undefined, { outer: solid('#333333') }),
 		},
 		{
 			id: 'hex-graphite',
 			category: 'hex',
 			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'hex', params: { orientation: 'flat' } },
+			shape: { id: 'hex', params: { size: 1, orientation: 'flat' } },
 			paint: solid('#1f2933'),
 			background: WHITE,
 			eyes: SQUARE_EYES,
@@ -341,22 +341,22 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-honey',
 			category: 'hex',
-			minSizeMm: 28,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'hex' },
+			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#3d2600'),
 			background: solid('#fff8e7'),
-			eyes: eyes('octagon', 'octagon-centre'),
+			eyes: eyes('squircle', 'octagon-centre'),
 		},
 		{
 			id: 'hex-night',
 			category: 'hex',
-			minSizeMm: 37,
+			minSizeMm: 33,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0d1b2a'),
 			background: solid('#eef2f7'),
-			eyes: eyes('square', 'octagon-centre'),
+			eyes: eyes('squircle', 'octagon-centre'),
 		},
 		// Fluid.
 		{
@@ -402,6 +402,11 @@ function specs(): readonly PresetSpec[] {
 			eyes: eyes('leaf', 'leaf-centre'),
 		},
 		{
+			// Recorded short of the everyday angle (20 degrees) with the long link:
+			// a column of bars has no edge between its modules, so a tilted reader
+			// keeps its place down a column only by the gaps beside it, and jsQR
+			// misses the same capture. Bars a whole module thick read, but join
+			// side by side into blocks, which is no longer this look.
 			id: 'cobalt-bars',
 			category: 'fluid',
 			minSizeMm: 25,
@@ -409,7 +414,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'bars-vertical' },
 			paint: solid('#0d2c6c'),
 			background: WHITE,
-			eyes: eyes('rounded', 'rounded-centre'),
+			eyes: eyes('rounded', 'rounded-centre', undefined, { radius: 0.25 }),
 		},
 		// Bold.
 		{
@@ -424,6 +429,10 @@ function specs(): readonly PresetSpec[] {
 			frame: { ref: { id: 'banner-bottom' }, paint: solid('#000000') },
 		},
 		{
+			// Recorded short of everyday dim light (0.7) with the long link: the
+			// card is darker than the ground just past the quiet zone, and in dim,
+			// uneven light jsQR misses the same captures the strict reader does.
+			// Without the card it reads; the card is the look, so it stays.
 			id: 'bold-tomato',
 			category: 'bold',
 			minSizeMm: 25,
@@ -452,7 +461,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'bars-horizontal', params: { thickness: 0.85 } },
 			paint: solid('#0f172a'),
 			background: solid('#f1f5f9'),
-			eyes: eyes('square', 'rounded-centre'),
+			eyes: eyes('square', 'rounded-centre', undefined, { radius: 0.25 }),
 		},
 		{
 			id: 'red-badge',
@@ -473,7 +482,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.35 } },
 			paint: solid('#1e1b4b'),
 			background: WHITE,
-			eyes: eyes('rounded', 'rounded-centre'),
+			eyes: eyes('rounded', 'rounded-centre', undefined, { radius: 0.25 }),
 			frame: { ref: { id: 'speech-bubble' }, paint: solid('#1e1b4b') },
 		},
 		// Minimal.
@@ -490,12 +499,12 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-diamond',
 			category: 'minimal',
-			minSizeMm: 28,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'diamond' },
 			paint: solid('#2d2d2d'),
 			background: solid('#fbfbf8'),
-			eyes: eyes('octagon', 'octagon-centre'),
+			eyes: eyes('cushion', 'square-centre'),
 		},
 		{
 			id: 'minimal-brackets',
@@ -513,14 +522,14 @@ function specs(): readonly PresetSpec[] {
 			category: 'minimal',
 			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
-			shape: { id: 'star', params: { inner: 0.6 } },
+			shape: { id: 'star', params: { inner: 0.65 } },
 			paint: solid('#1e1b4b'),
 			background: WHITE,
 			// Star modules read everywhere; a star finder centre does not. Under a
 			// realistic capture (a few degrees of roll, sub-pixel phase, light blur
 			// and noise) jsQR read this preset 0 times in 8 at version 3 with a star
 			// centre, and 8 in 8 with a rounded one. The look survives the swap.
-			eyes: eyes('square', 'rounded-centre'),
+			eyes: eyes('square', 'square-centre'),
 			subEyes: SQUARE_EYES,
 		},
 		// Colour.
@@ -532,10 +541,16 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: linear(45, '#5c1530', '#87300f'),
 			background: solid('#fff8f0'),
-			eyes: eyes('rounded', 'rounded-centre', undefined, undefined, {
-				outer: solid('#4a0d24'),
-				inner: solid('#4a0d24'),
-			}),
+			eyes: eyes(
+				'rounded',
+				'rounded-centre',
+				undefined,
+				{ radius: 0.25 },
+				{
+					outer: solid('#4a0d24'),
+					inner: solid('#4a0d24'),
+				},
+			),
 		},
 		{
 			id: 'deep-sea-gradient',
@@ -581,7 +596,7 @@ function specs(): readonly PresetSpec[] {
 				],
 			},
 			background: solid('#fdfbff'),
-			eyes: eyes('squircle', 'circle-centre', undefined, undefined, { outer: solid('#2a0a4a') }),
+			eyes: eyes('cushion', 'squircle-centre', undefined, undefined, { outer: solid('#2a0a4a') }),
 		},
 		{
 			id: 'mosaic-tiles',
@@ -668,7 +683,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid({ srgb: '#1a1a1a', cmyk: [0, 0, 0, 0.9] }),
 			background: solid({ srgb: '#ffffff', cmyk: [0, 0, 0, 0] }),
-			eyes: eyes('rounded', 'rounded-centre'),
+			eyes: eyes('rounded', 'rounded-centre', undefined, { radius: 0.25 }),
 			frame: { ref: { id: 'ticket' }, paint: solid({ srgb: '#7f1d1d', cmyk: [0, 0.9, 0.8, 0.5] }) },
 			colourSpace: 'cmyk',
 		},

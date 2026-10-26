@@ -81,7 +81,7 @@ export const DESIGN_GOLDENS: readonly DesignGolden[] = [
 	{
 		name: 'midnight dots rasterised at 6 px a module',
 		render: () => pixels(scene(encode(URL_TEXT, { ecLevel: 'M' }), preset('midnight-dots')), 6),
-		sha256: 'c391381a07a7c54642fabf3fc177606b2c45e86c0e85cef05d4424cb5b4cde25',
+		sha256: 'e67671be639baf680c0e9807530cff356d1ef74c00ceaad39177e56237c6966a',
 	},
 	{
 		name: 'mosaic tiles, seeded, as SVG',
@@ -114,7 +114,7 @@ export const DESIGN_GOLDENS: readonly DesignGolden[] = [
 				}),
 				5,
 			),
-		sha256: '9a4091e10106fce4e34a30e0c87a2592db6eb36f1f2c9af616b07ba76816f2d5',
+		sha256: '9fc7b86cf1053170810a8c62cfc57e9b033b31896f5b0e8c828c17efea0f33e1',
 	},
 	{
 		name: 'two-line caption on a rounded card as SVG',
