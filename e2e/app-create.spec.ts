@@ -171,13 +171,16 @@ test('checks that the code scans, with a real report and the strip filled in', a
 	await expect(check).toHaveAttribute('data-depth', 'full');
 	await expect(check).toHaveAttribute('data-verdict', /^(pass|warn|fail)$/);
 	await expect(page.locator('.check__status')).not.toHaveText(/cannot run/);
-	// Every tile of the strip has the check's own verdict, none still unknown.
+	// Every tile of the strip has the check's own verdict, none still unknown,
+	// and a plain link that scans well reads at every everyday level.
 	const tiles = page.locator('.strip .capture');
 	expect(await tiles.count()).toBeGreaterThan(3);
-	for (const result of await tiles.evaluateAll((nodes) =>
+	const results = await tiles.evaluateAll((nodes) =>
 		nodes.map((node) => (node as HTMLElement).dataset.result),
-	)) {
-		expect(['pass', 'partial', 'fail']).toContain(result);
+	);
+	for (const result of results) expect(['pass', 'partial', 'fail']).toContain(result);
+	if ((await check.getAttribute('data-verdict')) === 'pass') {
+		expect(results.every((result) => result === 'pass')).toBe(true);
 	}
 	// Every line on the card is a sentence, never a message key with no sentence.
 	await expect(check).not.toHaveText(

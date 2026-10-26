@@ -73,15 +73,24 @@ const AXIS_LABELS: Readonly<Record<CaptureAxis, string>> = {
 	contrast: 'app.axis.contrast',
 };
 
+/**
+ * How an axis held up, judged against its everyday level as verify judges it
+ * (levels grow with severity in a report, distance included). Reading there
+ * or beyond is a pass, however far the ladder climbs; giving out before it is
+ * partial if milder levels read, and a failure if none did.
+ */
 function captureOutcome(capture: VerifyReport['captures'][number] | undefined): Outcome {
 	if (capture === undefined) return 'unknown';
-	if (capture.firstFailed === null) return 'pass';
+	if (capture.firstFailed === null || capture.firstFailed > capture.typical) return 'pass';
 	if (capture.worstPassed === null) return 'fail';
 	return 'partial';
 }
 
+/** The clean capture and the static checks together: the sharp tile. */
 function staticOutcome(report: VerifyReport): Outcome {
-	if (report.checks.some((check) => check.status === 'fail')) return 'fail';
+	if (!report.baseline.passed || report.checks.some((check) => check.status === 'fail')) {
+		return 'fail';
+	}
 	if (report.checks.some((check) => check.status === 'warn')) return 'partial';
 	return 'pass';
 }
