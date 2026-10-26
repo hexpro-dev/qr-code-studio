@@ -371,7 +371,19 @@ describe('the strict profile and the tiled grid', () => {
 	});
 
 	it('refuses an octagonal finder at 4 pixels a module that it reads with the check left out', async () => {
-		const preset = presets().find((candidate) => candidate.id === 'minimal-diamond')!;
+		// Minimal diamond with the octagonal finder it had before its finder was
+		// made sturdier against starved ink.
+		const diamond = presets().find((candidate) => candidate.id === 'minimal-diamond')!;
+		const preset = {
+			...diamond,
+			design: {
+				...diamond.design,
+				regions: {
+					...diamond.design.regions,
+					finder: { outer: { id: 'octagon' }, inner: { id: 'octagon-centre' } },
+				},
+			},
+		};
 		const shot = styledCapture({ preset, modulePixels: 4, version: 7, seed: 1 });
 		const strict = decodeImage(shot.image, { profile: 'strict-v1' });
 		expect(strict.ok || strict.error.params.stage).toBe('margin');
