@@ -1267,6 +1267,21 @@ export function parseCsv(
 	text: string,
 	options?: { readonly delimiter?: ',' | ';' | '\t' | 'auto'; readonly maxRows?: number },
 ): CsvTable;
+/** What bytes that are not UTF-8 may be read as, by WHATWG label: each a spreadsheet's default somewhere. */
+export type CsvFallbackEncoding =
+	'windows-1252' | 'shift_jis' | 'gb18030' | 'big5' | 'euc-kr' | 'windows-1251' | 'windows-1256';
+export const CSV_FALLBACK_ENCODINGS: readonly CsvFallbackEncoding[];
+export const DEFAULT_CSV_FALLBACK: CsvFallbackEncoding; // 'windows-1252'
+/**
+ * A UTF-16 byte order mark, else strict UTF-8 (a UTF-8 byte order mark dropped), else the
+ * fallback, with the warning 'batch.csv.fallback-encoding' ({ encoding }). A fallback this
+ * engine's TextDecoder cannot read throws 'platform/unavailable' ({ feature: 'text-encoding',
+ * encoding }); a label outside the set is a TypeError.
+ */
+export function decodeCsvBytes(
+	bytes: Uint8Array,
+	options?: { readonly fallback?: CsvFallbackEncoding },
+): DecodedText; // { text, encoding: 'utf-8' | 'utf-16le' | 'utf-16be' | CsvFallbackEncoding, issues }
 export interface BatchMapping {
 	readonly typeId: string;
 	/** Each field from a column, or from a template such as `https://example.com/t/{id}`. */
@@ -1329,6 +1344,7 @@ export function createStudio(options?: {
 	readonly initial?: string | StudioDocument; // a design link fragment, or a document
 	readonly historyLimit?: number; // default 200
 	readonly verifyDebounceMs?: number; // default 250
+	readonly csvFallbackEncoding?: CsvFallbackEncoding; // default 'windows-1252'
 }): Studio;
 export interface Studio {
 	getSnapshot(): StudioSnapshot;
@@ -1378,6 +1394,7 @@ export type StudioCommand =
 	| {
 			readonly type: 'batch';
 			readonly csv: string;
+			readonly encoding?: 'auto' | CsvFallbackEncoding; // 'auto': the studio's csvFallbackEncoding
 			readonly mapping: BatchMapping;
 			readonly output: BatchOutput;
 	  }
@@ -1455,3 +1472,17 @@ other {...}}` with `#` for the count, and `{k, select, a {...} other {...}}`, ne
   plural noun can be 1 the sentence has a block; where it cannot (a fixed limit, a minimum of 2
   or 4, a count only over a limit) it is written plainly and listed with its reason in
   `tests/messages/plurals.test.ts`, which fails on a new "1 squares".
+- A spreadsheet that is not UTF-8 is read in a fallback the caller chooses, not always as
+  Windows-1252, which garbled the default CSV of Japanese, Chinese, Korean, Cyrillic and Arabic
+  Excel. `decodeCsvBytes(bytes, { fallback })` takes one of `CSV_FALLBACK_ENCODINGS`
+  (windows-1252 by default, shift_jis, gb18030, big5, euc-kr, windows-1251, windows-1256); the
+  order of detection is unchanged. Windows-1252 stays this package's own table, the others are
+  `TextDecoder`'s, and an engine without one (or with a decoder that answers to the label as
+  another encoding) is refused with `EncodingUnavailableError`, 'platform/unavailable' with
+  `{ feature: 'text-encoding', encoding }`, whose key is `batch.encoding-unavailable`, never
+  decoded as something else. The warning is `batch.csv.fallback-encoding` with
+  `{ encoding }`, replacing `batch.csv.windows-1252`; its English names the encoding with a
+  select block. `createStudio({ csvFallbackEncoding })` sets the studio's fallback (the website
+  sets it from the visitor's language: shift_jis for Japanese, gb18030 for Chinese, windows-1256
+  for Arabic, windows-1252 for the rest), and the batch command's `encoding` overrides it for one
+  run. The offline Bulk view has a Text encoding select and reads the file again when it changes.

@@ -34,7 +34,7 @@ import type { FieldValue, PayloadType } from '../payload/types.js';
 import { epsIssues, sceneToEps } from '../render/eps.js';
 import { sceneToPdf } from '../render/pdf.js';
 import { sceneToSvg } from '../render/svg.js';
-import { decodeCsvBytes } from '../batch/text-decoding.js';
+import { csvFallbackOption, decodeCsvBytes } from '../batch/text-decoding.js';
 import { parseCsv } from '../batch/csv.js';
 import { planBatch } from '../batch/plan.js';
 import { runBatch } from '../batch/run.js';
@@ -202,6 +202,10 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
 		throw new TypeError('createStudio: seed is an integer from 0 to 2^32 - 1.');
 	}
+	const csvFallback = csvFallbackOption(
+		options.csvFallbackEncoding,
+		'createStudio: csvFallbackEncoding is',
+	);
 	const clock = options.clock ?? defaultClock;
 	const suggestFixes: FixSuggester =
 		options.suggestFixes ??
@@ -1037,13 +1041,18 @@ export function createStudio(options: StudioOptions = {}): Studio {
 
 	/**
 	 * Many codes from a spreadsheet: read the file (its bytes' encoding worked
-	 * out where it came as bytes), plan a row per code, then make them in time
+	 * out where it came as bytes, with the command's or the studio's fallback
+	 * for bytes that are not UTF-8), plan a row per code, then make them in time
 	 * slices. A new run stops the one before; so does dispose. The design is
 	 * the person's own, which runBatch constrains per content type itself.
 	 */
 	async function batchCommand(
 		command: Extract<StudioCommand, { type: 'batch' }>,
 	): Promise<Result<Uint8Array>> {
+		// Checked before anything starts, so a caller's mistake leaves the last run alone.
+		const named = command.encoding ?? 'auto';
+		const fallback =
+			named === 'auto' ? csvFallback : csvFallbackOption(named, "batch: encoding is 'auto' or");
 		batchRun?.abort();
 		const controller = new AbortController();
 		batchRun = controller;
@@ -1062,7 +1071,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			let fileIssues: readonly Issue[] = [];
 			if (typeof command.csv === 'string') text = command.csv;
 			else {
-				const decoded = decodeCsvBytes(command.csv);
+				const decoded = decodeCsvBytes(command.csv, { fallback });
 				text = decoded.text;
 				fileIssues = decoded.issues;
 			}

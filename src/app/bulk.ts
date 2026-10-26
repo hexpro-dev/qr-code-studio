@@ -12,11 +12,22 @@
  * the studio's.
  */
 
-import { decodeCsvBytes } from '../batch/text-decoding.js';
+import {
+	CSV_FALLBACK_ENCODINGS,
+	DEFAULT_CSV_FALLBACK,
+	decodeCsvBytes,
+} from '../batch/text-decoding.js';
 import { parseCsv } from '../batch/csv.js';
 import { planBatch } from '../batch/plan.js';
 import { findColumn } from '../batch/template.js';
-import type { BatchMapping, BatchOutput, BatchRow, CsvTable, FieldSource } from '../batch/types.js';
+import type {
+	BatchMapping,
+	BatchOutput,
+	BatchRow,
+	CsvFallbackEncoding,
+	CsvTable,
+	FieldSource,
+} from '../batch/types.js';
 import { QrStudioError } from '../core/errors.js';
 import { downloadBytes } from '../dom/output.js';
 import { builtInSheets } from '../render/sheets.js';
@@ -31,6 +42,17 @@ import { errorText, issueText, t, whole } from './text.js';
 /** Rows drawn in the preview. The run makes every row; the preview is for checking the mapping. */
 const PREVIEW_ROWS = 12;
 
+/** Each fallback's plain name, written out so the catalogue test finds every key. */
+const ENCODING_NAMES = {
+	'windows-1252': 'app.bulk.encoding-windows-1252',
+	shift_jis: 'app.bulk.encoding-shift-jis',
+	gb18030: 'app.bulk.encoding-gb18030',
+	big5: 'app.bulk.encoding-big5',
+	'euc-kr': 'app.bulk.encoding-euc-kr',
+	'windows-1251': 'app.bulk.encoding-windows-1251',
+	'windows-1256': 'app.bulk.encoding-windows-1256',
+} as const satisfies Record<CsvFallbackEncoding, string>;
+
 interface Source {
 	readonly csv: string | Uint8Array;
 	readonly table: CsvTable;
@@ -44,6 +66,9 @@ export interface BulkView extends View {
 
 export function createBulk(ctx: AppContext): BulkView {
 	let source: Source | null = null;
+	/** The bytes of the last file chosen or dropped, so a change of encoding can read them again. */
+	let dropped: Uint8Array | null = null;
+	let encoding: 'auto' | CsvFallbackEncoding = 'auto';
 	let typeId = 'url';
 	let fields: Record<string, FieldSource | null> = {};
 	let filename = '';
@@ -83,6 +108,7 @@ export function createBulk(ctx: AppContext): BulkView {
 		if (pasteTimer !== null) clearTimeout(pasteTimer);
 		pasteTimer = setTimeout(() => {
 			pasteTimer = null;
+			dropped = null;
 			if (paste.value.trim() === '') {
 				source = null;
 				redraw();
@@ -117,13 +143,30 @@ export function createBulk(ctx: AppContext): BulkView {
 		if (file !== undefined) void readFile(file);
 	});
 
-	function load(csv: string | Uint8Array): void {
+	/**
+	 * Read the spreadsheet. A file's bytes are decoded with the chosen fallback,
+	 * and what that says (the encoding it was read as) is shown with the file's
+	 * own problems. `again` is a re-read for a new encoding: the mapping stays
+	 * when the headers came out the same.
+	 */
+	function load(csv: string | Uint8Array, again = false): void {
 		try {
-			const text = typeof csv === 'string' ? csv : decodeCsvBytes(csv).text;
-			const table = parseCsv(text);
+			const decoded =
+				typeof csv === 'string'
+					? null
+					: decodeCsvBytes(csv, {
+							fallback: encoding === 'auto' ? DEFAULT_CSV_FALLBACK : encoding,
+						});
+			const table = parseCsv(decoded === null ? (csv as string) : decoded.text);
+			const before = source?.table.headers;
 			source = { csv, table };
-			guessMapping();
-			issueList(sourceIssues, table.issues.slice(0, 6));
+			const same =
+				again &&
+				before !== undefined &&
+				before.length === table.headers.length &&
+				before.every((header, index) => header === table.headers[index]);
+			if (!same) guessMapping();
+			issueList(sourceIssues, [...(decoded?.issues ?? []), ...table.issues].slice(0, 6));
 		} catch (thrown) {
 			source = null;
 			const error =
@@ -141,8 +184,31 @@ export function createBulk(ctx: AppContext): BulkView {
 
 	async function readFile(file: Blob): Promise<void> {
 		paste.value = '';
-		load(await fileBytes(file));
+		dropped = await fileBytes(file);
+		load(dropped);
 	}
+
+	// What a file that is not UTF-8 is read as. A file in UTF-8 is read as that whatever this says.
+	const encodingSelect = h(
+		'select',
+		{
+			className: 'input input--select',
+			on: {
+				change: () => {
+					encoding = encodingSelect.value as typeof encoding;
+					if (dropped !== null) load(dropped, true);
+				},
+			},
+		},
+		[
+			h('option', { text: t('app.bulk.encoding-auto'), attrs: { value: 'auto' } }),
+			...CSV_FALLBACK_ENCODINGS.map((label) =>
+				h('option', { text: t(ENCODING_NAMES[label]), attrs: { value: label } }),
+			),
+		],
+	);
+	encodingSelect.value = encoding;
+	const encodingField = field(t('app.bulk.encoding'), encodingSelect, t('app.bulk.encoding-hint'));
 
 	/** A first mapping: each field from the column of the same name or label, if there is one. */
 	function guessMapping(): void {
@@ -441,6 +507,7 @@ export function createBulk(ctx: AppContext): BulkView {
 		const result = await ctx.studio.run({
 			type: 'batch',
 			csv: source.csv,
+			encoding,
 			mapping: mapping(),
 			output: out,
 		});
@@ -472,6 +539,7 @@ export function createBulk(ctx: AppContext): BulkView {
 					}),
 					paste,
 				]),
+				encodingField.root,
 				sourceSummary,
 				sourceIssues,
 			]),

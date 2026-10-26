@@ -136,6 +136,11 @@ export function errorKey(error: QrStudioError): MessageKey {
 			return 'batch.too-many-rows';
 		case 'batch/unknown-column':
 			return 'batch.unknown-column';
+		case 'platform/unavailable':
+			// A spreadsheet in an encoding this browser cannot read has its own sentence.
+			return param(error, 'feature') === 'text-encoding'
+				? 'batch.encoding-unavailable'
+				: errorMessageKey(error.code);
 		case 'font/malformed':
 			return 'text.font.malformed';
 		case 'font/missing-glyphs':

@@ -8,6 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import iconv from 'iconv-lite';
 import yauzl from 'yauzl';
 import { buildScene } from '../src/design/scene.js';
 import { defaultDesign } from '../src/design/document.js';
@@ -137,6 +138,39 @@ test('makes a ZIP of codes from a five row spreadsheet', async ({ page }) => {
 	const names = await entryNames(archive);
 	expect(names.filter((name) => name.endsWith('.png'))).toHaveLength(5);
 	await expect(page.locator('.bulk__summary').last()).toContainText('Made 5 codes');
+});
+
+test('reads a spreadsheet saved in Shift_JIS once the person chooses that encoding', async ({
+	page,
+}) => {
+	// Japanese Excel's default "CSV (comma delimited)" is Shift_JIS. The rows
+	// are synthetic, encoded here, never a real person's file.
+	const csv =
+		'name,url\r\n\u898b\u672c,https://example.com/a\r\n\u30c6\u30b9\u30c8,https://example.com/b\r\n';
+	await page.goto(url);
+	await mode(page, /Bulk/);
+	const encoding = page.getByLabel('Text encoding');
+	await expect(encoding).toHaveValue('auto');
+	await page.locator('#panel-bulk input[type="file"]').setInputFiles({
+		name: 'codes.csv',
+		mimeType: 'text/csv',
+		buffer: iconv.encode(csv, 'shift_jis'),
+	});
+	const names = page.locator('.preview__name');
+	await expect(names).toHaveCount(2);
+	await expect(page.getByText(/read as Western European \(Windows-1252\)/)).toBeVisible();
+	await expect(names.first()).not.toHaveText('qr-\u898b\u672c');
+	await encoding.selectOption('shift_jis');
+	await expect(page.getByText(/read as Japanese \(Shift_JIS\)/)).toBeVisible();
+	await expect(names).toHaveText(['qr-\u898b\u672c', 'qr-\u30c6\u30b9\u30c8']);
+	const make = page.getByRole('button', { name: 'Make 2 codes' });
+	await expect(make).toBeEnabled();
+	const [saved] = await Promise.all([page.waitForEvent('download'), make.click()]);
+	const path = await saved.path();
+	if (path === null) throw new Error('the download was not saved');
+	const entries = await entryNames(await readFile(path));
+	expect(entries).toContain('qr-\u898b\u672c.png');
+	expect(entries).toContain('qr-\u30c6\u30b9\u30c8.png');
 });
 
 test('keeps designs in a library file that never holds what a code says', async ({ page }) => {

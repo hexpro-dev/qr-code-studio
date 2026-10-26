@@ -229,6 +229,7 @@ function batchKeys(): string[] {
 		...reasons.map((reason) => errorKey(new QrStudioError('batch/malformed-csv', '', { reason }))),
 		errorKey(new QrStudioError('batch/too-many-rows', '')),
 		errorKey(new QrStudioError('batch/unknown-column', '')),
+		errorKey(new QrStudioError('platform/unavailable', '', { feature: 'text-encoding' })),
 		...Object.values(BATCH_ISSUES),
 	];
 }

@@ -4,7 +4,9 @@
  *
  * Errors are found by their code and reason: 'batch/malformed-csv' is
  * `batch.malformed-csv.<reason>` (params.reason), 'batch/too-many-rows' and
- * 'batch/unknown-column' have one sentence each. Issues use their own code as
+ * 'batch/unknown-column' have one sentence each, and 'platform/unavailable'
+ * for a text encoding (params.feature 'text-encoding') is
+ * `batch.encoding-unavailable`. Issues use their own code as
  * the key, and placeholders in braces come from the issue's params; none of
  * them is ever a cell's text. A row also carries issues from the layers below
  * (a content type's validation, the encoder, the label sheets), which are in
@@ -21,6 +23,8 @@ export const BATCH_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'batch.malformed-csv.text-after-quote':
 		'Row {row}, column {column} has text straight after the end of a quoted cell. Save the file again from your spreadsheet.',
 	'batch.malformed-csv.empty': 'This file has no rows in it.',
+	'batch.encoding-unavailable':
+		'This browser cannot read text in the encoding chosen for this file. Choose another, or save the file from your spreadsheet as CSV UTF-8.',
 	'batch.too-many-rows':
 		'This file has more than {max, plural, one {# row} other {# rows}}. Split it into smaller files and make each batch on its own.',
 	'batch.unknown-column':
@@ -32,8 +36,8 @@ export const BATCH_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 		'Row {row} has {cells} cells where the header has {expected}. The extra ones have no column and were left out.',
 	'batch.csv.duplicate-header':
 		'Column {column} has the same name as column {first}. Anything that refers to that name uses column {first}.',
-	'batch.csv.windows-1252':
-		'This file is not in UTF-8, so it was read as Western European (Windows-1252). If accented letters look wrong, save it from your spreadsheet as CSV UTF-8.',
+	'batch.csv.fallback-encoding':
+		'This file is not in UTF-8, so it was read as {encoding, select, windows-1252 {Western European (Windows-1252)} shift_jis {Japanese (Shift_JIS)} gb18030 {Simplified Chinese (GBK, GB18030)} big5 {Traditional Chinese (Big5)} euc-kr {Korean (EUC-KR)} windows-1251 {Cyrillic (Windows-1251)} windows-1256 {Arabic (Windows-1256)} other {{encoding}}}. If any letters look wrong, choose the encoding it was saved in, or save it from your spreadsheet as CSV UTF-8.',
 	'batch.csv.utf-16': 'This file is in UTF-16, and was read as that.',
 	'batch.csv.odd-length': 'This file ends partway through a character. The last byte was left out.',
 

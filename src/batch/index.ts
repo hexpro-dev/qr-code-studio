@@ -1,6 +1,17 @@
 export { DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT, parseCsv, sniffDelimiter } from './csv.js';
-export { decodeCsvBytes, decodeWindows1252 } from './text-decoding.js';
-export { MalformedCsvError, TooManyRowsError, UnknownColumnError } from './errors.js';
+export {
+	CSV_FALLBACK_ENCODINGS,
+	DEFAULT_CSV_FALLBACK,
+	decodeCsvBytes,
+	decodeWindows1252,
+	isCsvFallbackEncoding,
+} from './text-decoding.js';
+export {
+	EncodingUnavailableError,
+	MalformedCsvError,
+	TooManyRowsError,
+	UnknownColumnError,
+} from './errors.js';
 export type { CsvFailure } from './errors.js';
 export { BATCH_ISSUES } from './issues.js';
 export type { BatchIssueCode } from './issues.js';
@@ -40,6 +51,8 @@ export type {
 	BatchZipOutput,
 	CsvDelimiter,
 	CsvTable,
+	CsvFallbackEncoding,
+	DecodeCsvOptions,
 	DecodedText,
 	FieldSource,
 	ParseCsvOptions,

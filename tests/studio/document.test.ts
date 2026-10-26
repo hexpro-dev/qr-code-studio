@@ -259,6 +259,10 @@ describe('message keys', () => {
 			'error.render.format-unavailable',
 		);
 		expect(key('camera/in-use')).toBe('error.camera.in-use');
+		expect(key('platform/unavailable', { feature: 'text-encoding', encoding: 'shift_jis' })).toBe(
+			'batch.encoding-unavailable',
+		);
+		expect(key('platform/unavailable', { feature: 'verify' })).toBe('error.platform.unavailable');
 		expect(key('batch/malformed-csv', { reason: 'stray-quote' })).toBe(
 			'batch.malformed-csv.stray-quote',
 		);

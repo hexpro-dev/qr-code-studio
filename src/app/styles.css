@@ -903,6 +903,10 @@ fieldset {
 
 .input--select {
 	cursor: pointer;
+	/* WebKit draws a closed select's text past its own box when an option is
+	   longer than the field, which scrolls a phone-width page sideways. */
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .tick {
