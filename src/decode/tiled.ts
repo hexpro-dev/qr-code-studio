@@ -23,16 +23,15 @@
  * design preset, those were all of the version 7 symbols the strict reader
  * passed and zxing-cpp failed: octagonal finders at 3 to 6 pixels a module,
  * rounded and round ones at 2.5. So the strict profile lays zxing-cpp's grid
- * here, on zxing-cpp's threshold, and requires it to read to the same bytes
- * with at most one more error in any block than the strict reader's own, and
- * below six pixels a module none.
+ * here, on zxing-cpp's threshold (`binariseLocalAverage`), and requires it to
+ * read to the same bytes with at most one more error in any block than the
+ * strict reader's own.
  *
  * Which corner the fit lands on depends on the pixel the walk starts from,
- * and zxing-cpp starts from under its own estimate of the finder's centre,
- * which is not the strict grid's to the pixel. A grid that reads from the
- * strict reader's centre and not from the pixel beside it is one zxing-cpp
- * may or may not read, so the grid is laid from each of the nine pixels
- * round the centre (`TILED_NUDGES`) and every one of them has to read.
+ * and zxing-cpp starts from under its own estimate of the finder's centre:
+ * the middle of walks round the finder's centre and rings (`finderCentre`).
+ * That estimate is modelled here, and the grid is laid from each start a
+ * little either side of it (`TILED_NUDGES`); every one of them has to read.
  *
  * Written from the algorithm's description, after zxing-cpp's
  * `ConcentricFinder` and QR `SampleQR` (Apache 2.0), including the details
@@ -59,28 +58,23 @@ export const TILED_SIZE = 45;
 
 /**
  * The most errors a block of zxing-cpp's tiled grid may have beyond the strict
- * reader's own, at `TILED_SHARP_PIXELS` a module and more. Measured, not
- * chosen: over the first survey of verify's captures of every preset, every
- * version 7 symbol the strict reader passed and zxing-cpp failed had a block
- * two or more errors worse in the tiled grid, or no read at all, and of those
- * zxing-cpp read, 98 in 100 were within one. The two later surveys found
- * misses that came out within one from the strict grid's centres, both
- * octagonal finders, one at 4 pixels a module and one at 6: the first is why
- * `TILED_SHARP_PIXELS` is six, the second why the grid is laid from every
- * pixel round the centres (`TILED_NUDGES`).
+ * reader's own, from every start in `TILED_NUDGES`. Measured, not chosen:
+ * over 15,396 version 7 and 10 symbols from verify's captures of every preset
+ * on three seeds that the strict reader read with this check left out, the 15
+ * zxing-cpp missed (octagonal, fluid and rounded finders at 2.5 to 10 pixels a
+ * module) all came out two or more errors worse in a block from one start or
+ * another, or did not read; of the rest, 98 in 100 came out within one from
+ * every start. On two fresh seeds, 10,483 symbols, the same held: the 8 misses
+ * caught, 98 in 100 of the rest passed. Allowing two let 2 of the 15
+ * through.
+ *
+ * Laid on `binariseLocalAverage`, zxing-cpp's own threshold. Laid on
+ * `binariseHybrid`, whose flat blocks differ, the grid came out a further
+ * error worse at a few pixels a module where zxing-cpp's did not, and needed
+ * none worse at all below six pixels a module to catch the same misses,
+ * which refused twice as many symbols zxing-cpp reads.
  */
 export const TILED_EXTRA_ERRORS = 1;
-
-/**
- * Below this many pixels a module the tiled grid may have no more errors than
- * the strict reader's own. There a corner a fifth of a module out is a pixel
- * out, and zxing-cpp's own finder centres and alignment patterns, which this
- * takes from the strict grid rather than finding as it does, move it as much
- * again: an octagonal finder at 4 pixels a module that zxing-cpp missed came
- * out one error worse in two blocks here, and no better than that would have
- * told it from those zxing-cpp read.
- */
-export const TILED_SHARP_PIXELS = 6;
 
 /** A pixel of a thresholded picture: 1 dark, 0 light, -1 off the picture. */
 function pixel(image: Binarised, x: number, y: number): number {
@@ -344,14 +338,55 @@ export function finderCorners(image: Binarised, centre: Point, width: number): P
 	});
 }
 
+/** The middle of a walk's points. */
+function middle(walk: readonly Point[]): Point {
+	let x = 0;
+	let y = 0;
+	for (const p of walk) {
+		x += p.x / walk.length;
+		y += p.y / walk.length;
+	}
+	return { x, y };
+}
+
+/**
+ * Where zxing-cpp settles a finder's centre, starting from a point `near` it:
+ * the middle of the walk round the dark centre's edge, averaged with the
+ * middles of the walks round the dark ring's inner and outer edges, those
+ * started from the first. Where the centre's walk does not close, `near`
+ * itself, and where a ring's walk does not close or strays more than a sixth
+ * of the finder from the centre's middle, the average of those that did.
+ *
+ * zxing-cpp walks the finder's ring for its corners from the pixel under this
+ * point, so this is where the tiled grid's corners start from.
+ */
+export function finderCentre(image: Binarised, near: Point, width: number): Point {
+	const centreWalk = ringPoints(image, near, width, 1, false);
+	if (centreWalk.length === 0) return near;
+	const first = middle(centreWalk);
+	let x = first.x;
+	let y = first.y;
+	let count = 1;
+	for (const edge of [2, 3]) {
+		const walk = ringPoints(image, first, width, edge, false);
+		if (walk.length === 0) break;
+		const ring = middle(walk);
+		if (hypot(ring.x - first.x, ring.y - first.y) > width / 6) break;
+		x += ring.x;
+		y += ring.y;
+		count += 1;
+	}
+	return { x: x / count, y: y / count };
+}
+
 /**
  * The pixel positions zxing-cpp would take for the corners of its tiles, on
  * a QR symbol of `size` modules, at least `TILED_SIZE`, that the strict grid
  * `transform` lies over: row by row, the centres of the alignment patterns
  * where the grid has them, and at the three finders the fitted corner of the
  * ring facing the middle of the symbol, where the fit lands one within half
- * a finder of the grid's own. `nudge` moves the centres the rings are walked
- * from, in pixels.
+ * a finder of the grid's own. The rings are walked from where zxing-cpp
+ * settles each finder's centre (`finderCentre`), moved by `nudge` pixels.
  */
 export function tileCorners(
 	image: Binarised,
@@ -372,11 +407,11 @@ export function tileCorners(
 		const predicted = line[column] as Point;
 		// The last of the fitted corners within half a finder of the prediction,
 		// as zxing-cpp takes it. A ring that does not fit keeps the prediction,
-		// and one that does not fit from its own centre is taken not to fit from
-		// a pixel off it either: a round ring zxing-cpp refuses to fit, from
-		// wherever it starts, can sometimes be fitted from a start a pixel off.
-		const centre = apply(transform, u, v);
+		// and one that does not fit from its centre is taken not to fit from a
+		// start beside it either: a round ring zxing-cpp refuses to fit can
+		// sometimes be fitted from a start a little off.
 		const width = Math.round(finder);
+		const centre = finderCentre(image, apply(transform, u, v), width);
 		const fitted =
 			nudge.x === 0 && nudge.y === 0
 				? finderCorners(image, centre, width)
@@ -446,14 +481,16 @@ export function tiledGrid(
 }
 
 /**
- * Where zxing-cpp's own finder centres may be, against the strict grid's, in
- * pixels: the nine whole-pixel steps round it. zxing-cpp walks each ring from
- * the pixel under its own centre, and the corner it fits on a ring with cut
- * or rounded corners depends on where the walk starts, so the tiled grid is
- * laid from each of these.
+ * Where zxing-cpp's own finder centres may be, against the model of them
+ * (`finderCentre`), in pixels: a quarter of a pixel either way, each way. The
+ * corner zxing-cpp fits on a ring with cut or rounded corners depends on the
+ * pixel its walk starts from, under its centre, and the model is a model:
+ * from its centre alone the tiled grid let 3 of the 15 misses above through.
+ * From each of the pixels these reach it let none through, and half a pixel
+ * either way refused more symbols zxing-cpp reads without catching more.
  */
 export const TILED_NUDGES: readonly Point[] = Object.freeze(
-	[-1, 0, 1].flatMap((y) => [-1, 0, 1].map((x) => Object.freeze({ x, y }))),
+	[-0.25, 0, 0.25].flatMap((y) => [-0.25, 0, 0.25].map((x) => Object.freeze({ x, y }))),
 );
 
 /**

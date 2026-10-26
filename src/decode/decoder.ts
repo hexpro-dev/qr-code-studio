@@ -23,13 +23,14 @@ import { createSymbologyRegistry } from '../symbology/registry.js';
 import { err, ok } from '../core/result.js';
 import type { Result } from '../core/result.js';
 import type { Binarised } from './binarise.js';
-import { binarise, binariseHybrid } from './binarise.js';
+import { binarise, binariseLocalAverage } from './binarise.js';
 import type { MatrixRead, SymbologyEntry } from '../symbology/types.js';
 import { erasureFlags } from './erasures.js';
 import type { FinderPattern, FinderTolerance } from './finder.js';
 import {
 	LENIENT_FINDER_TOLERANCE,
 	STRICT_FINDER_TOLERANCE,
+	STRICT_WIDE_FINDER_TOLERANCE,
 	candidateTriples,
 	findFinderPatterns,
 } from './finder.js';
@@ -52,8 +53,8 @@ import {
 	strictSamples,
 } from './strict.js';
 import type { Homography } from './transform.js';
-import { apply, moduleWidth } from './transform.js';
-import { TILED_EXTRA_ERRORS, TILED_SHARP_PIXELS, TILED_SIZE, tiledGrids } from './tiled.js';
+import { apply } from './transform.js';
+import { TILED_EXTRA_ERRORS, TILED_SIZE, tiledGrids } from './tiled.js';
 import type {
 	DecodeFrame,
 	DecodeOptions,
@@ -193,7 +194,8 @@ interface Stage {
 	/** Where a plain reader would lay its grids here, likewise. */
 	plain?: readonly PlainLocation[];
 	/** The same grey thresholded at the middle of each block's range, likewise. */
-	midrange?: Binarised;
+	/** The picture thresholded as zxing-cpp thresholds it, for the strict profile's model of that reader. */
+	localAverage?: Binarised;
 	/** The picture as the plain reader thresholds it, likewise. */
 	plainBits?: Binarised;
 }
@@ -435,12 +437,12 @@ function cornersOf(stage: Stage, transform: Homography, width: number, height: n
 
 /**
  * The strict profile's margins, for a symbol that read: its modules wide
- * enough and not drawn out too far, the picture not speckled, its fixed
- * patterns reading the same under both common thresholds (see `strict.ts`),
- * and for QR finder rings a reader can trace with centres it can settle on,
- * from version 7 the grid
- * zxing-cpp lays in tiles reading as well (see `tiled.ts`), and the grid a
- * plain reader would sample reading to the same bytes (see `plain.ts`).
+ * enough and not drawn out too far, the picture not speckled, and then for
+ * Micro QR and rMQR its fixed patterns reading the same under both common
+ * thresholds (see `strict.ts`); for QR, finder rings zxing-cpp can trace with
+ * centres it can settle on, from version 7 the grid it lays in tiles reading
+ * as well (see `tiled.ts`), and the grid a plain reader would sample reading
+ * to the same bytes (see `plain.ts`).
  */
 function keepsMargin(
 	run: Run,
@@ -449,23 +451,26 @@ function keepsMargin(
 	hypothesis: GridHypothesis,
 	read: MatrixRead,
 ): boolean {
-	const tiled = target.kind === 'qr' && hypothesis.width >= TILED_SIZE;
-	if (!strictSamples(hypothesis.transform, hypothesis.width, hypothesis.height, tiled)) {
-		return false;
-	}
+	if (!strictSamples(hypothesis.transform, hypothesis.width, hypothesis.height)) return false;
 	stage.speckle ??= speckle(stage.binarised);
 	if (stage.speckle > STRICT_MAX_SPECKLE) return false;
-	const midrange = (stage.midrange ??= binariseHybrid(stage.grey));
-	const layout = target.entry.layout(read.version);
-	if (!fixedPatternsAgree(stage.binarised, midrange, stage.grey, hypothesis.transform, layout)) {
+	const zxing = (stage.localAverage ??= binariseLocalAverage(stage.grey));
+	if (target.kind !== 'qr') {
+		const layout = target.entry.layout(read.version);
+		return fixedPatternsAgree(stage.binarised, zxing, stage.grey, hypothesis.transform, layout);
+	}
+	// For QR the comparison of the two thresholds on the fixed patterns is left
+	// out: the rules below model what zxing-cpp does with its own threshold, and
+	// with them in place it caught nothing. Over 1,884 symbols the strict reader
+	// read with it left out where the thresholds split on a fixed pattern (the
+	// plain corpus's 20,000, and verify's glare, light, fading, noise and ink
+	// captures of every preset on three seeds), zxing-cpp and jsQR read every
+	// one; it had refused 356 of them.
+	if (!finderRingsTraceable(stage.grey, zxing, hypothesis.transform, hypothesis.width)) {
 		return false;
 	}
-	if (target.kind !== 'qr') return true;
-	if (!finderRingsTraceable(stage.grey, midrange, hypothesis.transform, hypothesis.width)) {
-		return false;
-	}
-	if (!finderCentresClosed(midrange, hypothesis.transform, hypothesis.width)) return false;
-	if (tiled && !tiledGridReads(target, midrange, hypothesis, read)) {
+	if (!finderCentresClosed(zxing, hypothesis.transform, hypothesis.width)) return false;
+	if (hypothesis.width >= TILED_SIZE && !tiledGridReads(target, zxing, hypothesis, read)) {
 		return false;
 	}
 	// At the source's own size, as the plain reader takes a picture: its
@@ -477,10 +482,10 @@ function keepsMargin(
 		if (grid === null) continue;
 		try {
 			// Read as forgivingly as the plain reader decodes: format information to
-			// three bits, either way round. Its grid is what is being tested.
-			if (
-				sameBytes(target.entry.read(grid, { strict: false }).bitstream.bytes, read.bitstream.bytes)
-			) {
+			// three bits, either way round. Its grid is what is being tested, and
+			// it has to keep the strict profile's reserve too.
+			const plain = target.entry.read(grid, { strict: false });
+			if (sameBytes(plain.bitstream.bytes, read.bitstream.bytes) && keepsPlainReserve(plain)) {
 				return true;
 			}
 		} catch (error) {
@@ -492,27 +497,24 @@ function keepsMargin(
 
 /**
  * Whether the grids zxing-cpp might lay in tiles from version 7 (see
- * `tiled.ts`), on its own threshold and from each finder centre it might
- * take, all read to the same bytes with no block more than
- * `TILED_EXTRA_ERRORS` worse than this read, or below `TILED_SHARP_PIXELS` a
- * module no block worse at all.
+ * `tiled.ts`), on its own threshold `zxing` and from each finder centre it
+ * might take, all read to the same bytes with no block more than
+ * `TILED_EXTRA_ERRORS` worse than this read.
  */
 function tiledGridReads(
 	target: Target,
-	midrange: Binarised,
+	zxing: Binarised,
 	hypothesis: GridHypothesis,
 	read: MatrixRead,
 ): boolean {
-	const { transform, width, height } = hypothesis;
-	const extra =
-		moduleWidth(transform, width / 2, height / 2) >= TILED_SHARP_PIXELS ? TILED_EXTRA_ERRORS : 0;
-	return tiledGrids(midrange, transform, width).every((matrix) => {
+	const { transform, width } = hypothesis;
+	return tiledGrids(zxing, transform, width).every((matrix) => {
 		try {
 			const tiled = target.entry.read(matrix, { strict: false });
 			return (
 				sameBytes(tiled.bitstream.bytes, read.bitstream.bytes) &&
 				tiled.errorsPerBlock.every(
-					(errors, i) => errors <= (read.errorsPerBlock[i] as number) + extra,
+					(errors, i) => errors <= (read.errorsPerBlock[i] as number) + TILED_EXTRA_ERRORS,
 				)
 			);
 		} catch (error) {
@@ -520,6 +522,23 @@ function tiledGridReads(
 			return false;
 		}
 	});
+}
+
+/**
+ * The share of each block's corrections the plain reader's grid has to leave
+ * unused, as the verify layer has the strict reader's own leave: a quarter.
+ * A plain grid that reads only by the skin of its teeth is one jsQR, sampling
+ * a module or two differently, does not read: a hex-module design faded to
+ * 0.6 whose plain grid read with 7 errors of a block's 9 was one jsQR missed
+ * and zxing-cpp and the strict reader read. Over verify's captures of every
+ * preset on three seeds, the 39,864 symbols both oracles read, 10 left less.
+ */
+export const PLAIN_RESERVE = 0.25;
+
+function keepsPlainReserve(plain: MatrixRead): boolean {
+	return plain.capacityPerBlock.every(
+		(t, i) => (plain.errorsPerBlock[i] as number) <= t - Math.ceil(PLAIN_RESERVE * t),
+	);
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -811,7 +830,10 @@ export function decodeImage(
 		// nothing new. Bounded twice over: by maxSymbols, and by the looks, so a
 		// find that somehow survives its own mask cannot loop.
 		for (let look = 0; look < maxSymbols + 2 && run.found.length < maxSymbols; look += 1) {
-			const patterns = findFinderPatterns(stage.binarised, profile.tolerance);
+			let patterns = findFinderPatterns(stage.binarised, profile.tolerance);
+			if (profile.strict && patterns.length < 3) {
+				patterns = findFinderPatterns(stage.binarised, STRICT_WIDE_FINDER_TOLERANCE);
+			}
 			run.finders = Math.max(run.finders, patterns.length);
 			emit?.({
 				stage: 'finders',
