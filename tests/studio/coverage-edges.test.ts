@@ -20,7 +20,7 @@ import { exportSymbol } from '../../src/studio/export.js';
 import { darkInk } from '../../src/studio/shuffle.js';
 import { encodeOptions, symbolView } from '../../src/studio/symbol.js';
 import { trackedScheduler } from '../../src/studio/timers.js';
-import { requiredEntries, slicedVerifyRunner } from '../../src/studio/verify.js';
+import { slicedVerifyRunner } from '../../src/studio/verify.js';
 import { createPrng } from '../../src/core/prng.js';
 import { assetOf, discImage } from '../design/helpers.js';
 import { FakeRunner, FakeTime, reportFor, studioWith, studioWithCode } from './helpers.js';
@@ -225,27 +225,6 @@ describe('exports, at their edges', () => {
 });
 
 describe('the job and its runner, at their edges', () => {
-	it('name the fills of a ground and of a logo plate, and nothing for a clear ground', () => {
-		const registries = createRegistries();
-		const fill = { kind: 'entry' as const, ref: { id: 'palette-scatter' } };
-		const design: QrDesignV1 = {
-			...defaultDesign(),
-			background: null,
-			logo: {
-				source: { kind: 'asset', id: 'logo' },
-				size: 0.2,
-				clear: 'box',
-				padding: 1,
-				plate: { paint: fill, shape: 'circle' },
-			},
-		};
-		expect(requiredEntries(design, registries)).toEqual([
-			'fill:palette-scatter',
-			'module-shape:square',
-			'symbology:qr',
-		]);
-	});
-
 	it('stop at once when a progress callback aborts the run', async () => {
 		const time = new FakeTime();
 		const job = {

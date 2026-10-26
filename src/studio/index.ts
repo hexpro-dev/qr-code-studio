@@ -50,17 +50,24 @@ export type {
 } from './types.js';
 export { CAPTURE_AXES, CHECK_IDS } from './seams.js';
 export type {
+	Baseline,
 	BatchMapping,
 	BatchOutput,
 	CaptureAxis,
 	CheckId,
+	CheckStatus,
 	DesignPatch,
 	Fix,
 	FixSuggester,
+	Gs1Element,
+	InspectPayload,
 	InspectReport,
+	InspectSet,
 	InspectedSymbol,
 	Inspector,
 	Printer,
+	VerifyBlock,
+	VerifyCapture,
 	VerifyCheck,
 	VerifyConditions,
 	VerifyGenerator,
@@ -100,6 +107,12 @@ export {
 	kitFromDesign,
 } from './kit.js';
 export { SHUFFLE_CONTRAST, contrastRatio, luminance } from './contrast.js';
-export { UNAVAILABLE_RUNNER, requiredEntries, slicedVerifyRunner } from './verify.js';
+export {
+	FULL_CAPTURE_SEEDS,
+	LIVE_CAPTURE_SEEDS,
+	UNAVAILABLE_RUNNER,
+	slicedVerifyRunner,
+	verifyJob,
+} from './verify.js';
 export type { DesignAsset, QrDesignV1 } from '../design/types.js';
 export type { RgbaImage } from '../core/image.js';

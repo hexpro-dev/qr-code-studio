@@ -119,8 +119,8 @@ const studio = createStudio({
 	library,
 	rasterEncoder: canvasRasterEncoder(),
 	initial: initial(),
-	// SEAM(verify), SEAM(inspect): once those layers merge, the studio's own
-	// defaults light up the scan check and the inspector with no change here.
+	// The scan check and the inspector are the studio's defaults: verify's
+	// generator in time slices on this thread, and the inspect layer.
 });
 
 const status = h('p', { className: 'toast', attrs: { role: 'status', 'aria-live': 'polite' } });

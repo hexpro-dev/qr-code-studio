@@ -15,10 +15,12 @@
  *   axis it is on.
  * - The `library/remove` command, which `LibraryStore.remove` needs a way in,
  *   and the brand kit and library file commands beside it.
- * - createStudio takes the layers still in flight as seams: `inspector`,
- *   `printer` and `suggestFixes`, and the browser's encoders as
- *   `rasterEncoder`. Frame captions need nothing here: the design layer sets
- *   them with `fonts` once the text layer merges.
+ * - createStudio takes the layers it drives as seams a caller can replace:
+ *   `verifyRunner` and `verifyGenerator` (verify's `runVerifyJob` by default),
+ *   `suggestFixes`, `inspector` (the inspect layer by default) and `printer`
+ *   (render's writers), and the browser's encoders as `rasterEncoder`. Its
+ *   live checks run at `liveCaptureSeeds` captures a level, and the running
+ *   and done verify states say how many.
  */
 
 import type { QrStudioErrorCode } from '../core/errors.js';
@@ -477,6 +479,9 @@ export type VerifyState =
 			readonly progress: number;
 			readonly revision: number;
 			readonly axis: CaptureAxis | 'static' | null;
+			/** Captures per level: 8 for a check asked for, fewer for the one that follows typing. */
+			readonly captureSeeds: number;
+			readonly full: boolean;
 	  }
 	| {
 			readonly status: 'done';
@@ -485,6 +490,9 @@ export type VerifyState =
 			/** True once the document has changed since the report was made. */
 			readonly stale: boolean;
 			readonly revision: number;
+			/** As for running: how thorough the check that made this report was. */
+			readonly captureSeeds: number;
+			readonly full: boolean;
 	  }
 	| { readonly status: 'failed'; readonly error: StudioError; readonly revision: number };
 
@@ -609,10 +617,16 @@ export interface RasterEncoder {
 
 export interface StudioOptions {
 	readonly registries?: Registries;
-	/** Default: `verifyGenerator` in time slices on this thread. */
+	/** Default: `verifyGenerator` in time slices on this thread. The website passes one that posts to a worker. */
 	readonly verifyRunner?: VerifyRunner;
-	/** SEAM(verify): verify's `runVerifyJob`, the default once verify merges. Without it or a runner, the check reports itself unavailable. */
-	readonly verifyGenerator?: VerifyGenerator;
+	/** Default: verify's `runVerifyJob`. Null, with no runner, leaves the scan check out (it reports itself unavailable). */
+	readonly verifyGenerator?: VerifyGenerator | null;
+	/**
+	 * Captures per level for the check that runs again by itself after a change,
+	 * 1 to 8. Default 2: a quarter of the work of the full check, which
+	 * `verify/request` always runs at 8.
+	 */
+	readonly liveCaptureSeeds?: number;
 	/** Default: setTimeout(0) slices of about 8 ms. */
 	readonly scheduler?: Scheduler;
 	/** Milliseconds, monotonic. Default performance.now. */
@@ -628,11 +642,11 @@ export interface StudioOptions {
 	readonly verifyDebounceMs?: number;
 	/** For jpeg and webp exports. */
 	readonly rasterEncoder?: RasterEncoder | null;
-	/** SEAM(inspect). */
+	/** Default: inspect's `inspectImage` and `inspectText`. Null leaves reading codes out (unavailable). */
 	readonly inspector?: Inspector | null;
 	/** The PDF and EPS writers. Default: render's `sceneToPdf` and `sceneToEps`; null leaves both out. */
 	readonly printer?: Printer | null;
-	/** SEAM(verify). */
+	/** Default: verify's `suggestFixes`, over the studio's design registries. */
 	readonly suggestFixes?: FixSuggester;
 	/** The seed verify jobs and shuffles start from. Default 1. */
 	readonly seed?: number;

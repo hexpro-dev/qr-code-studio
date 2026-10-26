@@ -69,11 +69,9 @@ test('reads a code from a chosen picture, and remakes it as a static code', asyn
 	});
 	await expect(page.locator('.results__text')).toHaveText(SCANNED);
 	await expect(page.locator('.results__status')).toHaveText('Found 1 code.');
-	// Until the inspector is part of the build, its card says so in words;
-	// once it is, the kind of content takes that place.
-	await expect(
-		page.locator('.results__card').getByText(/not in this copy of the file yet|Kind of content/),
-	).toBeVisible();
+	// The inspector is part of the file: the card names the kind of content.
+	await expect(page.locator('.results__card').getByText('Kind of content')).toBeVisible();
+	await expect(page.locator('.results__card').getByText(/cannot be shown/)).toHaveCount(0);
 	await page.getByRole('button', { name: 'Remake as a static code' }).click();
 	await expect(page.getByRole('tab', { name: /Create/ })).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByLabel('Web address')).toHaveValue(SCANNED);

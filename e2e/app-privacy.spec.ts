@@ -47,6 +47,10 @@ async function fullSession(page: Page): Promise<void> {
 		await page.locator(`#${id} > summary`).click();
 	}
 	await page.locator('#card-frame input[value="banner-bottom"]').check();
+	// The scan check runs here too, in the tab, and to its end.
+	await page.locator('#card-check > summary').click();
+	await page.getByRole('button', { name: 'Check it scans' }).click();
+	await expect(page.locator('.check')).toHaveAttribute('data-status', 'done', { timeout: 120_000 });
 	await page.locator('#card-export > summary').click();
 	for (const format of ['svg', 'png', 'pdf']) {
 		await page.locator(`#card-export input[value="${format}"]`).check();

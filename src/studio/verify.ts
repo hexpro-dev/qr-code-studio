@@ -14,7 +14,8 @@ import { QrStudioError } from '../core/errors.js';
 import type { RgbaImage } from '../core/image.js';
 import { err } from '../core/result.js';
 import type { Result } from '../core/result.js';
-import type { DesignOverlay, DesignPaint, DesignRegistries, QrDesignV1 } from '../design/types.js';
+import type { DesignOverlay, QrDesignV1 } from '../design/types.js';
+import { designRequirements } from '../verify/prepare.js';
 import type { Registries } from '../registries.js';
 import { driveInSlices } from './slices.js';
 import type {
@@ -27,72 +28,44 @@ import type {
 } from './seams.js';
 import type { Scheduler } from './types.js';
 
-function paintEntries(paint: DesignPaint | undefined, out: Set<string>, fills: string): void {
-	if (paint?.kind === 'entry') out.add(`${fills}:${paint.ref.id}`);
-}
+/** The most captures per level verify makes, and what a check someone asked for runs at. */
+export const FULL_CAPTURE_SEEDS = 8;
+/** What the check that follows typing runs at by default: a quarter of the work. */
+export const LIVE_CAPTURE_SEEDS = 2;
 
 /**
- * The registry entries a design draws with, as `kind:id`, so a worker whose
- * registries lack one refuses the job by name rather than drawing squares.
+ * A job for verify, structured-cloneable so a website can post it to a
+ * worker. `requires` is verify's own `designRequirements`, the `kind:id` of
+ * every registry entry the design draws with, so a worker missing one
+ * refuses by name rather than drawing squares.
  */
-export function requiredEntries(design: QrDesignV1, registries: Registries): readonly string[] {
-	const out = new Set<string>();
-	const kinds: DesignRegistries = registries.design;
-	const fills = kinds.fills.kind;
-	out.add(`${registries.symbologies.kind}:${design.symbol.symbology}`);
-	out.add(`${kinds.moduleShapes.kind}:${design.modules.shape.id}`);
-	paintEntries(design.modules.paint, out, fills);
-	paintEntries(design.background ?? undefined, out, fills);
-	if (design.modules.light !== null) {
-		out.add(`${kinds.moduleShapes.kind}:${design.modules.light.shape.id}`);
-		paintEntries(design.modules.light.paint, out, fills);
-	}
-	for (const role of ['finder', 'sub-finder', 'corner-finder'] as const) {
-		const style = design.regions[role];
-		if (style === undefined) continue;
-		out.add(`${kinds.regionShapes.kind}:${style.outer.id}`);
-		out.add(`${kinds.regionShapes.kind}:${style.inner.id}`);
-		paintEntries(style.outerPaint, out, fills);
-		paintEntries(style.innerPaint, out, fills);
-	}
-	if (design.logo !== null) {
-		if (design.logo.source.kind === 'icon') out.add(`${kinds.icons.kind}:${design.logo.source.id}`);
-		paintEntries(design.logo.paint, out, fills);
-		paintEntries(design.logo.plate?.paint, out, fills);
-	}
-	if (design.frame !== null) {
-		out.add(`${kinds.frames.kind}:${design.frame.ref.id}`);
-		paintEntries(design.frame.paint, out, fills);
-		paintEntries(design.frame.text?.paint, out, fills);
-	}
-	return Object.freeze([...out].sort());
-}
-
-export function verifyJob(
-	content: string,
-	design: QrDesignV1,
-	conditions: VerifyConditions,
-	seed: number,
-	registries: Registries,
-	assets: Readonly<Record<string, RgbaImage>> | undefined,
-	overlay: DesignOverlay | null,
-): VerifyJob {
+export function verifyJob(parts: {
+	readonly content: string;
+	readonly design: QrDesignV1;
+	readonly conditions: VerifyConditions;
+	readonly seed: number;
+	readonly assets: Readonly<Record<string, RgbaImage>> | undefined;
+	readonly overlay: DesignOverlay | null;
+	readonly captureSeeds: number;
+}): VerifyJob {
+	const { content, design, conditions, seed, assets, overlay, captureSeeds } = parts;
 	return Object.freeze({
 		content,
 		design,
 		conditions,
 		seed,
-		requires: requiredEntries(design, registries),
+		requires: designRequirements(design),
 		...(assets === undefined ? {} : { assets }),
 		overlay,
+		captureSeeds,
 	});
 }
 
-/** The runner while the verify layer is still to merge: it says the check is not in this build. */
+/** The runner for a copy whose host left the scan check out (`verifyGenerator: null`). */
 export const UNAVAILABLE_RUNNER: VerifyRunner = Object.freeze({
 	run: async () =>
 		err(
-			new QrStudioError('platform/unavailable', 'The scan check is not part of this build yet.', {
+			new QrStudioError('platform/unavailable', 'The scan check is not part of this copy.', {
 				feature: 'verify',
 			}),
 		),

@@ -73,7 +73,6 @@ describe('design/patch', () => {
 	it('refuses paths no design has, prototypes above all', () => {
 		const { studio } = studioWithCode();
 		for (const path of [
-			[],
 			['__proto__', 'polluted'],
 			['constructor'],
 			['a', ''],

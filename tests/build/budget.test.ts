@@ -13,7 +13,8 @@
  * decision, and the budget is where it is written down.
  *
  * Measured at M8b, 26 October 2026, after the payload vectors moved out of
- * the runtime objects. Raise a budget only after reading what grew.
+ * the runtime objects; verify and inspect added when the studio wired them in.
+ * Raise a budget only after reading what grew.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -32,11 +33,13 @@ const BUDGETS: Readonly<Record<string, number>> = {
 	'src/decode': 49_500, // 44.9 kB: strict-v1's styled, tilt and zxing-cpp rules (tiled grid, ring kinds, finder centres)
 	'src/symbology': 34_000, // 31.0 kB
 	'src/core': 31_500, // 28.5 kB
+	'src/verify': 34_000, // 30.6 kB: the scan check, run in time slices in the tab
 	'src/batch': 29_000, // 26.5 kB
 	'src/segment': 18_500, // 16.9 kB
 	'src/dom': 26_000, // 23.4 kB, with the file library (M11)
 	'src/geometry': 11_200, // 10.2 kB
 	'src/text': 9_600, // 8.7 kB
+	'src/inspect': 5_800, // 5.2 kB: what a scanned code says, and whether to trust it
 	'src/encode': 4_900, // 4.5 kB
 	'src/registries.ts': 200, // 65 bytes
 };
