@@ -17,6 +17,12 @@ import {
 	paintInks,
 } from '../../src/conformance/preset.js';
 import { checkRegionShape } from '../../src/conformance/region-shape.js';
+import {
+	FAMILY_MODULES,
+	checkRegionCaptures,
+	familyPairs,
+} from '../../src/conformance/region-captures.js';
+import type { RegionCaptureCheck } from '../../src/conformance/region-captures.js';
 import { sampleParams } from '../../src/conformance/sample.js';
 import { defaultDesign } from '../../src/design/document.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
@@ -29,6 +35,7 @@ import type {
 	RegionShape,
 } from '../../src/design/types.js';
 import { QrStudioError } from '../../src/core/errors.js';
+import { Registry } from '../../src/core/registry.js';
 import { issue } from '../../src/core/issue.js';
 import { PathBuilder } from '../../src/geometry/path.js';
 import { assetOf, discImage } from '../design/helpers.js';
@@ -172,6 +179,82 @@ const circleRing = registries.regionShapes.require('circle');
 const circleCentre = registries.regionShapes.require('circle-centre');
 const octagonCentre = registries.regionShapes.require('octagon-centre');
 
+describe('checkRegionCaptures', () => {
+	// A stand-in for the scan check's captures: it misses the pairs it is told to.
+	const reader =
+		(misses: readonly string[]): RegionCaptureCheck =>
+		(module, ring, centre) => {
+			const key = `${module.id} ${ring.id} ${centre.id}`;
+			return {
+				captures: 96,
+				missed: misses.includes(key) ? ['small link at 6 px, ink: 2 of 8'] : [],
+			};
+		};
+
+	it("reads every pair the table offers on each family, among that family's modules", () => {
+		const asked: string[] = [];
+		const counting: RegionCaptureCheck = (module, ring, centre) => {
+			asked.push(`${module.id} ${ring.id} ${centre.id}`);
+			return { captures: 96, missed: [] };
+		};
+		expect(checkRegionCaptures(registries, counting)).toEqual([]);
+		for (const family of ['square', 'dot', 'hex'] as const) {
+			const module = FAMILY_MODULES[family];
+			expect(asked.filter((key) => key.startsWith(`${module} `)).length).toBe(
+				familyPairs(registries, family).length,
+			);
+		}
+		// A family's table is a part of the one among squares.
+		const square = new Set(familyPairs(registries, 'square').map(([r, c]) => `${r.id} ${c.id}`));
+		for (const [ring, centre] of familyPairs(registries, 'dot')) {
+			expect(square.has(`${ring.id} ${centre.id}`)).toBe(true);
+		}
+	});
+
+	it('finds a pair the table offers that a capture missed, and can check one entry alone', () => {
+		const found = checkRegionCaptures(registries, reader(['dot squircle rounded-centre']));
+		expect(found).toEqual([
+			{
+				entry: 'squircle',
+				rule: 'captures',
+				detail:
+					'with rounded-centre among dot modules, of 96 captures the strict reader missed small link at 6 px, ink: 2 of 8',
+			},
+		]);
+		expect(
+			checkRegionCaptures(registries, reader(['dot squircle rounded-centre']), {
+				families: ['dot'],
+				only: 'cushion',
+			}),
+		).toEqual([]);
+		// The table already leaves out what captures missed: the square ring and
+		// octagon centre read among squares and not among dots.
+		const dots = familyPairs(registries, 'dot').map(([r, c]) => `${r.id} ${c.id}`);
+		expect(dots).not.toContain('square octagon-centre');
+		expect(familyPairs(registries, 'square').map(([r, c]) => `${r.id} ${c.id}`)).toContain(
+			'square octagon-centre',
+		);
+	});
+
+	it('says when a family has no module shape to capture it with', () => {
+		const without: DesignRegistries = {
+			...registries,
+			moduleShapes: new Registry(
+				'module-shape',
+				registries.moduleShapes.list().filter((shape) => shape.id !== 'hex'),
+			),
+		};
+		expect(checkRegionCaptures(without, reader([]), { families: ['hex'] })).toEqual([
+			{
+				entry: 'hex',
+				rule: 'family',
+				detail:
+					'the hex family is captured with hex, which these registries do not have in that family',
+			},
+		]);
+	});
+});
+
 describe('checkRegionShape', () => {
 	it('requires rings to support the finder and the corner pattern, and centres the finder', () => {
 		const partial: RegionShape = { ...squareRing, id: 'partial', kinds: ['concentric-5'] };
@@ -199,7 +282,7 @@ describe('checkRegionShape', () => {
 			kinds: ['concentric-7', 'concentric-5', 'corner-l'],
 		};
 		const none = checkRegionShape(lonely, {
-			partners: [registries.regionShapes.require('star-centre')],
+			partners: [registries.regionShapes.require('flower-centre')],
 		});
 		expect(none.map((violation) => violation.detail).join(' ')).toContain(
 			'no partner supports this kind',

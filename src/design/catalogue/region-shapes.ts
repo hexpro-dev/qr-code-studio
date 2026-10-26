@@ -17,19 +17,31 @@
  * pair that measure accepts is one the strict reader's own finder search
  * finds. A ring also says how a reader that traces its sides takes it
  * (`ringKind`), which conformance measures with the strict reader's test:
- * the circle is round and the ring of dots dotted, the rest cornered. The sub-finder of rMQR (concentric-5) is the same ring
- * round a one-module centre; the corner pattern (corner-l) is an L of five
- * modules, square or rounded.
+ * the circle is round and the ring of dots dotted, the rest cornered. The
+ * sub-finder of rMQR (concentric-5) is the same ring round a one-module
+ * centre; the corner pattern (corner-l) is an L of five modules, square or
+ * rounded.
+ *
+ * Pictures that sharp are not photographs, so each pair is also captured as
+ * the scan check captures a print: a short and a long link at 6, 8 and 10
+ * pixels a module, clean and with ink spread or starved by 0.05 of a module,
+ * eight seeds each, among square modules, dots and hexagons, and read by the
+ * strict profile. Where a capture missed, the ring lists the centre as
+ * `unpaired` for that family of modules, and the studio does not offer the
+ * pair there. Two entries that once stood here missed in every family and
+ * were cut: the leaf ring, with two opposite corners rounded (2 of 96
+ * captures missed among squares whatever the centre, 22 to 45 among dots
+ * and hexagons), and the star centre (11 to 33 of 96 among squares, with
+ * every ring). The flower centre reads among squares only, in the squircle
+ * and extra-rounded rings.
  */
 
 import type { PathBuilder } from '../../geometry/path.js';
 import { num } from '../params.js';
 import type { RegionKind, RegionShape, RegionShapeContext } from '../types.js';
-import { direction } from '../paint.js';
 import {
 	circleContour,
 	octagonContour,
-	polygonContour,
 	roundedBox,
 	ring,
 	scoopedContour,
@@ -73,10 +85,20 @@ interface OuterDefinition {
 	readonly kinds: readonly RegionKind[];
 	/** How a reader that traces the ring's sides takes it; cornered when left out. */
 	readonly ringKind?: RegionShape['ringKind'];
+	/** Centres it makes no finder with among each family's modules, by capture. */
+	readonly unpaired?: RegionShape['unpaired'];
 	/** The outer edge and the hole, both clockwise, in a box of `size`. */
 	readonly ring: (size: number, ctx: RegionShapeContext) => readonly [Contour, Contour];
 	/** The corner pattern: rounded with this corner radius, or square when null. */
 	readonly corner: (ctx: RegionShapeContext) => number | null;
+}
+
+function freezeUnpaired(unpaired: NonNullable<RegionShape['unpaired']>): RegionShape['unpaired'] {
+	return Object.freeze(
+		Object.fromEntries(
+			Object.entries(unpaired).map(([family, ids]) => [family, Object.freeze([...ids])]),
+		),
+	);
 }
 
 function outer(definition: OuterDefinition): RegionShape {
@@ -87,6 +109,7 @@ function outer(definition: OuterDefinition): RegionShape {
 		kinds: definition.kinds,
 		part: 'outer',
 		...(definition.ringKind === undefined ? {} : { ringKind: definition.ringKind }),
+		...(definition.unpaired === undefined ? {} : { unpaired: freezeUnpaired(definition.unpaired) }),
 		path(ctx: RegionShapeContext, out: PathBuilder) {
 			if (ctx.kind === 'corner-l') {
 				const corner = definition.corner(ctx);
@@ -112,6 +135,11 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'square',
 		params: [],
 		kinds: BOTH,
+		unpaired: {
+			square: ['leaf-centre', 'flower-centre'],
+			dot: ['squircle-centre', 'leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+			hex: ['squircle-centre', 'leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+		},
 		ring: (size) => roundedRing(size, 0, 0),
 		corner: () => null,
 	}),
@@ -119,6 +147,11 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'rounded',
 		params: [numberParam('radius', 1, 0.5, 1.5, 0.05)],
 		kinds: BOTH,
+		unpaired: {
+			square: ['flower-centre'],
+			dot: ['rounded-centre', 'squircle-centre', 'flower-centre'],
+			hex: ['rounded-centre', 'squircle-centre', 'flower-centre'],
+		},
 		ring: (size, { kind, params }) => {
 			const r = scaled(num(params, 'radius'), kind);
 			return roundedRing(size, r, Math.max(r - 1, 0));
@@ -129,6 +162,24 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'extra-rounded',
 		params: [numberParam('radius', 2.5, 2, 2.5, 0.05)],
 		kinds: BOTH,
+		unpaired: {
+			dot: [
+				'square-centre',
+				'rounded-centre',
+				'circle-centre',
+				'octagon-centre',
+				'scooped-centre',
+				'flower-centre',
+			],
+			hex: [
+				'square-centre',
+				'rounded-centre',
+				'circle-centre',
+				'octagon-centre',
+				'scooped-centre',
+				'flower-centre',
+			],
+		},
 		ring: (size, { kind, params }) => {
 			const r = scaled(num(params, 'radius'), kind);
 			return roundedRing(size, r, r - 1);
@@ -152,6 +203,10 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'squircle',
 		params: [],
 		kinds: BOTH,
+		unpaired: {
+			dot: ['square-centre', 'circle-centre', 'flower-centre'],
+			hex: ['circle-centre', 'leaf-centre', 'flower-centre'],
+		},
 		ring: (size) => [
 			squircleContour(size / 2, size / 2, size / 2, size / 2),
 			squircleContour(size / 2, size / 2, size / 2 - 1, size / 2 - 1),
@@ -159,23 +214,14 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		corner: () => 1,
 	}),
 	outer({
-		id: 'leaf',
-		params: [numberParam('radius', 2.5, 1.5, 2.5, 0.05)],
-		kinds: BOTH,
-		ring: (size, { kind, params }) => {
-			const r = scaled(num(params, 'radius'), kind);
-			const h = r - 1;
-			return [
-				roundedBox(0, 0, size, size, [r, 0, r, 0]),
-				roundedBox(1, 1, size - 2, size - 2, [h, 0, h, 0]),
-			];
-		},
-		corner: () => 1,
-	}),
-	outer({
 		id: 'cushion',
 		params: [numberParam('radius', 1.25, 1, 1.5, 0.05)],
 		kinds: BOTH,
+		unpaired: {
+			square: ['flower-centre'],
+			dot: ['leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+			hex: ['leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+		},
 		ring: (size, { kind, params }) => {
 			const r = scaled(num(params, 'radius'), kind);
 			// The hole keeps a softer corner than `rounded` gives it, so both
@@ -234,6 +280,27 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'octagon',
 		params: [numberParam('cut', 1.1, 0.8, 1.4, 0.05)],
 		kinds: BOTH,
+		unpaired: {
+			square: ['flower-centre'],
+			dot: [
+				'square-centre',
+				'rounded-centre',
+				'squircle-centre',
+				'leaf-centre',
+				'octagon-centre',
+				'scooped-centre',
+				'flower-centre',
+			],
+			hex: [
+				'square-centre',
+				'rounded-centre',
+				'squircle-centre',
+				'leaf-centre',
+				'octagon-centre',
+				'scooped-centre',
+				'flower-centre',
+			],
+		},
 		ring: (size, { kind, params }) => {
 			const cut = scaled(num(params, 'cut'), kind);
 			// A cut edge one module further in, measured square to the cut, is
@@ -249,6 +316,11 @@ const OUTERS: readonly RegionShape[] = Object.freeze([
 		id: 'scooped',
 		params: [numberParam('bite', 0.8, 0.5, 1, 0.05)],
 		kinds: BOTH,
+		unpaired: {
+			square: ['flower-centre'],
+			dot: ['square-centre', 'leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+			hex: ['leaf-centre', 'octagon-centre', 'scooped-centre', 'flower-centre'],
+		},
 		ring: (size, { kind, params }) => {
 			const bite = scaled(num(params, 'bite'), kind);
 			return [scoopedContour(0, 0, size, size, bite), scoopedHole(0, 0, size, size, bite)];
@@ -346,26 +418,6 @@ const INNERS: readonly RegionShape[] = Object.freeze([
 		kinds: CENTRES,
 		centre: (x, size, { params }) =>
 			scoopedContour(x, x, size, size, centreScaled(num(params, 'bite'), size)),
-	}),
-	inner({
-		id: 'star',
-		params: [numberParam('inner', 0.8, 0.72, 0.9, 0.01)],
-		kinds: SEVEN,
-		// Eight points: four on the axes at the box's edges and four out to its
-		// corners, so the axis runs and the diagonal runs both keep the length
-		// a square centre gives them.
-		centre: (x, size, { params }) => {
-			const c = x + size / 2;
-			const half = size / 2;
-			const notch = half * num(params, 'inner');
-			const points: number[] = [];
-			for (let i = 0; i < 16; i += 1) {
-				const [dx, dy] = direction(i * 22.5);
-				const r = i % 2 === 1 ? notch : i % 4 === 0 ? half : half * Math.SQRT2;
-				points.push(c + r * dx, c + r * dy);
-			}
-			return polygonContour(points);
-		},
 	}),
 	inner({
 		id: 'flower',

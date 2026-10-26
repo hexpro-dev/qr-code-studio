@@ -66,6 +66,8 @@ describe('the catalogue', () => {
 		expect(banner?.text).toEqual({ maxLines: 1, maxChars: 24 });
 	});
 
+	const ring = (id: string) => catalogue.rings.find((entry) => entry.id === id)!;
+
 	it('gives each ring and centre the partners it makes a conforming finder with', () => {
 		for (const ring of catalogue.rings) {
 			for (const centre of catalogue.centres) {
@@ -82,8 +84,29 @@ describe('the catalogue', () => {
 				);
 				expect(ring.pairs.includes(centre.id), `${ring.id} with ${centre.id}`).toBe(conforms);
 				expect(centre.pairs.includes(ring.id), `${centre.id} with ${ring.id}`).toBe(conforms);
+				for (const family of ['square', 'dot', 'hex'] as const) {
+					const there = regionPairConforms(
+						outer,
+						resolveParams(outer.params, undefined),
+						inner,
+						resolveParams(inner.params, undefined),
+						'concentric-7',
+						family,
+					);
+					expect(ring.pairsByFamily[family].includes(centre.id), `${ring.id}, ${family}`).toBe(
+						there,
+					);
+					expect(centre.pairsByFamily[family].includes(ring.id), `${centre.id}, ${family}`).toBe(
+						there,
+					);
+				}
 			}
 		}
+		expect(ring('square').pairsByFamily.square).toContain('octagon-centre');
+		expect(ring('square').pairsByFamily.dot).not.toContain('octagon-centre');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'dot')?.family).toBe('dot');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'hex')?.family).toBe('hex');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'rounded')?.family).toBe('square');
 		const square = catalogue.rings.find((ring) => ring.id === 'square');
 		expect(square?.pairs).toContain('square-centre');
 		expect(square?.pairs).toBe(square?.pairs);

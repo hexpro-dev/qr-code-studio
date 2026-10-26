@@ -41,7 +41,7 @@ import type { FontRegistry } from '../text/types.js';
 import { base64Decode } from './base64.js';
 import { codePoints } from './caption.js';
 import { DESIGN_VERSION, LIMITS, MIN_QUIET_ZONE } from './document.js';
-import { regionPairConforms, ringKindOf } from './finder.js';
+import { moduleFamilyOf, regionPairConforms, ringKindOf } from './finder.js';
 import { paramProblem, resolveParams } from './params.js';
 import type {
 	DesignAsset,
@@ -52,6 +52,7 @@ import type {
 	DesignStop,
 	EntryRef,
 	Ink,
+	ModuleFamily,
 	ParamSchema,
 	ParamValue,
 	QrDesignV1,
@@ -481,7 +482,12 @@ function checkModules(checker: Checker, value: unknown): Checked<QrDesignV1['mod
 	return { shape: shape.ref, paint, light };
 }
 
-function checkRegions(checker: Checker, value: unknown): Checked<QrDesignV1['regions']> {
+/** `family` is the module shape's, whose finder pairs the QR finder is held to. */
+function checkRegions(
+	checker: Checker,
+	value: unknown,
+	family: ModuleFamily,
+): Checked<QrDesignV1['regions']> {
 	const path = ['regions'];
 	if (value === undefined) {
 		checker.warn('design.issue.filled-default', path);
@@ -549,6 +555,7 @@ function checkRegions(checker: Checker, value: unknown): Checked<QrDesignV1['reg
 				inner.entry,
 				resolveParams(inner.entry.params, inner.ref.params),
 				kind,
+				family,
 			)
 		) {
 			checker.warn('design.issue.region-pair', at, { kind });
@@ -913,7 +920,11 @@ export function validateDesign(
 	const modules = own(input, 'modules')
 		? checkModules(checker, input.modules)
 		: checker.error('design.issue.required', ['modules']);
-	const regions = checkRegions(checker, input.regions);
+	const regions = checkRegions(
+		checker,
+		input.regions,
+		modules === BAD ? 'square' : moduleFamilyOf(registries.moduleShapes.get(modules.shape.id)),
+	);
 	const assets = checkAssets(checker, input.assets);
 	const rawAssets = isRecord(input.assets) ? input.assets : null;
 	const logo = checkLogo(checker, input.logo, rawAssets);

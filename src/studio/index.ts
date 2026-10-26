@@ -14,6 +14,7 @@ export type {
 	FieldView,
 	FormView,
 	FrameCatalogueEntry,
+	ModuleCatalogueEntry,
 	InspectState,
 	BrandKit,
 	KitItem,

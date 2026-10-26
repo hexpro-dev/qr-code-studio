@@ -467,6 +467,20 @@ describe('validateDesign', () => {
 			['warning design.issue.region-pair regions.finder'],
 		],
 		[
+			'a pair that reads among squares and not among dots, on dots',
+			(d) => {
+				at(d, 'modules').shape = { id: 'dot' };
+				at(d, 'regions').finder = { outer: { id: 'square' }, inner: { id: 'octagon-centre' } };
+			},
+			['warning design.issue.region-pair regions.finder'],
+		],
+		[
+			'the same pair among rounded squares, where it reads',
+			(d) =>
+				(at(d, 'regions').finder = { outer: { id: 'square' }, inner: { id: 'octagon-centre' } }),
+			[],
+		],
+		[
 			'a round ring, which some readers lose at a slant',
 			(d) =>
 				(at(d, 'regions').finder = { outer: { id: 'circle' }, inner: { id: 'circle-centre' } }),
@@ -484,7 +498,7 @@ describe('validateDesign', () => {
 		[
 			'a ring of dots as the QR finder, with any centre',
 			(d) =>
-				(at(d, 'regions').finder = { outer: { id: 'dot-ring' }, inner: { id: 'star-centre' } }),
+				(at(d, 'regions').finder = { outer: { id: 'dot-ring' }, inner: { id: 'flower-centre' } }),
 			['error design.issue.ring-not-traceable regions.finder.outer'],
 		],
 		[
@@ -510,7 +524,7 @@ describe('validateDesign', () => {
 			(d) =>
 				(at(d, 'regions')['sub-finder'] = {
 					outer: { id: 'square' },
-					inner: { id: 'star-centre' },
+					inner: { id: 'flower-centre' },
 				}),
 			['info design.issue.region-kind regions.sub-finder.inner'],
 		],

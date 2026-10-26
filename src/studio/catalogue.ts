@@ -16,7 +16,7 @@
 
 import { createPrng } from '../core/prng.js';
 import { defaultDesign } from '../design/document.js';
-import { regionPairConforms, regionPath } from '../design/finder.js';
+import { moduleFamilyOf, regionPairConforms, regionPath } from '../design/finder.js';
 import { neighbourMasks } from '../design/neighbours.js';
 import { resolvePaint } from '../design/paint.js';
 import { resolveParams } from '../design/params.js';
@@ -26,6 +26,7 @@ import type {
 	DesignConstraints,
 	DesignRegistries,
 	FontRegistry,
+	ModuleFamily,
 	PresetCategory,
 	QrDesignV1,
 	RegionKind,
@@ -45,6 +46,7 @@ import type {
 	Catalogue,
 	CatalogueEntry,
 	FrameCatalogueEntry,
+	ModuleCatalogueEntry,
 	PayloadTypeEntry,
 	PresetCatalogueEntry,
 	PresetThumbnails,
@@ -264,7 +266,13 @@ function levelsOf(
 	return LEVELS.filter((level) => found.has(level));
 }
 
-function pairsOf(registries: DesignRegistries, shape: RegionShape): readonly string[] {
+const FAMILIES: readonly ModuleFamily[] = Object.freeze(['square', 'dot', 'hex']);
+
+function pairsOf(
+	registries: DesignRegistries,
+	shape: RegionShape,
+	family: ModuleFamily,
+): readonly string[] {
 	const kind = 'concentric-7';
 	if (!shape.kinds.includes(kind)) return Object.freeze([]);
 	const ownParams = resolveParams(shape.params, undefined);
@@ -277,7 +285,8 @@ function pairsOf(registries: DesignRegistries, shape: RegionShape): readonly str
 				? [shape, ownParams, other, otherParams]
 				: [other, otherParams, shape, ownParams];
 		try {
-			if (regionPairConforms(outer, outerParams, inner, innerParams, kind)) out.push(other.id);
+			if (regionPairConforms(outer, outerParams, inner, innerParams, kind, family))
+				out.push(other.id);
 		} catch {
 			// A shape of somebody else's that cannot draw is a pair with nothing.
 		}
@@ -323,17 +332,24 @@ export function buildCatalogue(registries: Registries, fonts?: FontRegistry): Ca
 		}),
 	);
 
-	const moduleShapes = design.moduleShapes.list().map((shape): CatalogueEntry =>
+	const moduleShapes = design.moduleShapes.list().map((shape): ModuleCatalogueEntry =>
 		Object.freeze({
 			id: shape.id,
 			labelKey: shape.labelKey,
 			params: shape.params,
+			family: moduleFamilyOf(shape),
 			thumbnail: once(() => moduleThumbnail(design, shape.id)),
 		}),
 	);
 
 	const region = (shape: RegionShape): RegionCatalogueEntry => {
-		let pairs: readonly string[] | undefined;
+		let byFamily: Readonly<Record<ModuleFamily, readonly string[]>> | undefined;
+		const pairsByFamily = (): Readonly<Record<ModuleFamily, readonly string[]>> =>
+			(byFamily ??= Object.freeze(
+				Object.fromEntries(
+					FAMILIES.map((family) => [family, pairsOf(design, shape, family)]),
+				) as Record<ModuleFamily, readonly string[]>,
+			));
 		return Object.freeze({
 			id: shape.id,
 			labelKey: shape.labelKey,
@@ -341,7 +357,10 @@ export function buildCatalogue(registries: Registries, fonts?: FontRegistry): Ca
 			part: shape.part,
 			kinds: shape.kinds,
 			get pairs() {
-				return (pairs ??= pairsOf(design, shape));
+				return pairsByFamily().square;
+			},
+			get pairsByFamily() {
+				return pairsByFamily();
 			},
 			thumbnail: once(() => regionThumbnail(design, shape.id)),
 		});

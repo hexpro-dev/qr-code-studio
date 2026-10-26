@@ -227,7 +227,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.25 } },
 			paint: solid('#6e2a12'),
 			background: solid('#fff8f2'),
-			eyes: eyes('leaf', 'leaf-centre'),
+			eyes: eyes('extra-rounded', 'leaf-centre'),
 		},
 		{
 			id: 'rounded-link',
@@ -399,7 +399,7 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'classy' },
 			paint: solid('#263238'),
 			background: WHITE,
-			eyes: eyes('leaf', 'leaf-centre'),
+			eyes: eyes('squircle', 'leaf-centre'),
 		},
 		{
 			// Recorded short of the everyday angle (20 degrees) with the long link:

@@ -48,7 +48,7 @@ import type { BuiltSymbol, StyleableRegion } from '../symbology/types.js';
 import { drawCaption } from './caption.js';
 import { squareModule } from './catalogue/module-shapes.js';
 import { LIMITS, MIN_QUIET_ZONE } from './document.js';
-import { regionPairConforms } from './finder.js';
+import { moduleFamilyOf, regionPairConforms } from './finder.js';
 import { placeLogo } from './logo.js';
 import { neighbourMasks } from './neighbours.js';
 import { paintSpace, resolvePaint } from './paint.js';
@@ -63,6 +63,7 @@ import type {
 	EntryRef,
 	FrameEntry,
 	FrameLayout,
+	ModuleFamily,
 	ModuleShape,
 	ParamSchema,
 	QrDesignV1,
@@ -597,7 +598,16 @@ export function buildScene(
 	layers.push(...drawn.nodes);
 
 	layers.push(
-		...drawRegions(symbol, alignments, design, geometry, builder, streams.regions, modulesPaint),
+		...drawRegions(
+			symbol,
+			alignments,
+			design,
+			geometry,
+			builder,
+			streams.regions,
+			modulesPaint,
+			moduleFamilyOf(modules.shape),
+		),
 	);
 	layers.push(...logo.nodes);
 
@@ -682,6 +692,7 @@ function drawRegions(
 	builder: Builder,
 	prng: Prng,
 	modulesPaint: DesignPaint,
+	family: ModuleFamily,
 ): SceneNode[] {
 	const { registries, issues } = builder;
 	const { layout, matrix } = symbol;
@@ -839,7 +850,14 @@ function drawRegions(
 		const centre = inner as { shape: RegionShape; params: ResolvedParams };
 		if (
 			!alignment &&
-			!regionPairConforms(outer.shape, outer.params, centre.shape, centre.params, region.kind)
+			!regionPairConforms(
+				outer.shape,
+				outer.params,
+				centre.shape,
+				centre.params,
+				region.kind,
+				family,
+			)
 		) {
 			once(
 				`${styleRole}.pair.${region.kind}`,

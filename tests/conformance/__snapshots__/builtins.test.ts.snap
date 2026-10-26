@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`region shapes > pair as recorded, each ring and centre at its defaults 1`] = `
+exports[`region shapes > pair as recorded, each ring and centre at its defaults, the QR finder by module family 1`] = `
 {
   "concentric-5": {
     "circle": [
@@ -30,14 +30,6 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "square-centre",
       "rounded-centre",
       "circle-centre",
-      "squircle-centre",
-      "leaf-centre",
-      "octagon-centre",
-      "scooped-centre",
-    ],
-    "leaf": [
-      "square-centre",
-      "rounded-centre",
       "squircle-centre",
       "leaf-centre",
       "octagon-centre",
@@ -86,7 +78,82 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "scooped-centre",
     ],
   },
-  "concentric-7": {
+  "concentric-7 dot": {
+    "circle": [
+      "circle-centre",
+      "squircle-centre",
+      "octagon-centre",
+      "scooped-centre",
+    ],
+    "cushion": [
+      "square-centre",
+      "rounded-centre",
+      "squircle-centre",
+    ],
+    "dot-ring": [],
+    "extra-rounded": [
+      "squircle-centre",
+      "leaf-centre",
+    ],
+    "octagon": [],
+    "rounded": [
+      "square-centre",
+    ],
+    "scooped": [
+      "rounded-centre",
+      "squircle-centre",
+    ],
+    "square": [
+      "square-centre",
+      "rounded-centre",
+    ],
+    "squircle": [
+      "rounded-centre",
+      "squircle-centre",
+      "leaf-centre",
+      "octagon-centre",
+      "scooped-centre",
+    ],
+  },
+  "concentric-7 hex": {
+    "circle": [
+      "circle-centre",
+      "squircle-centre",
+      "octagon-centre",
+      "scooped-centre",
+    ],
+    "cushion": [
+      "square-centre",
+      "rounded-centre",
+      "squircle-centre",
+    ],
+    "dot-ring": [],
+    "extra-rounded": [
+      "squircle-centre",
+      "leaf-centre",
+    ],
+    "octagon": [],
+    "rounded": [
+      "square-centre",
+    ],
+    "scooped": [
+      "square-centre",
+      "rounded-centre",
+      "squircle-centre",
+    ],
+    "square": [
+      "square-centre",
+      "rounded-centre",
+    ],
+    "squircle": [
+      "square-centre",
+      "rounded-centre",
+      "squircle-centre",
+      "octagon-centre",
+      "scooped-centre",
+    ],
+  },
+  "concentric-7 square": {
     "circle": [
       "circle-centre",
       "squircle-centre",
@@ -100,8 +167,6 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
-      "flower-centre",
     ],
     "dot-ring": [],
     "extra-rounded": [
@@ -112,17 +177,6 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
-      "flower-centre",
-    ],
-    "leaf": [
-      "square-centre",
-      "rounded-centre",
-      "squircle-centre",
-      "leaf-centre",
-      "octagon-centre",
-      "scooped-centre",
-      "star-centre",
       "flower-centre",
     ],
     "octagon": [
@@ -132,15 +186,11 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
-      "flower-centre",
     ],
     "rounded": [
       "square-centre",
       "rounded-centre",
       "squircle-centre",
-      "star-centre",
-      "flower-centre",
     ],
     "scooped": [
       "square-centre",
@@ -149,18 +199,13 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
-      "flower-centre",
     ],
     "square": [
       "square-centre",
       "rounded-centre",
       "squircle-centre",
-      "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
-      "flower-centre",
     ],
     "squircle": [
       "square-centre",
@@ -170,7 +215,6 @@ exports[`region shapes > pair as recorded, each ring and centre at its defaults 
       "leaf-centre",
       "octagon-centre",
       "scooped-centre",
-      "star-centre",
       "flower-centre",
     ],
   },

@@ -32,6 +32,7 @@ import type {
 	DesignOverlay,
 	FontRegistry,
 	Ink,
+	ModuleFamily,
 	ParamSchema,
 	PresetCategory,
 	QrDesignV1,
@@ -509,8 +510,15 @@ export interface CatalogueEntry {
 export interface RegionCatalogueEntry extends CatalogueEntry {
 	readonly part: 'outer' | 'inner';
 	readonly kinds: readonly RegionKind[];
-	/** The other part's ids this makes a finder the strict reader finds with, at default params. */
+	/** The other part's ids this makes a finder the strict reader finds with, at default params, among square modules. */
 	readonly pairs: readonly string[];
+	/** The same for each family of modules (`ModuleCatalogueEntry.family`). A contract addition. */
+	readonly pairsByFamily: Readonly<Record<ModuleFamily, readonly string[]>>;
+}
+
+export interface ModuleCatalogueEntry extends CatalogueEntry {
+	/** Which family of finder pairs the shape is drawn with. A contract addition. */
+	readonly family: ModuleFamily;
 }
 
 export interface FrameCatalogueEntry extends CatalogueEntry {
@@ -550,7 +558,7 @@ export interface Catalogue {
 		readonly types: readonly PayloadTypeEntry[];
 	}[];
 	readonly symbologies: readonly SymbologyCatalogueEntry[];
-	readonly moduleShapes: readonly CatalogueEntry[];
+	readonly moduleShapes: readonly ModuleCatalogueEntry[];
 	readonly rings: readonly RegionCatalogueEntry[];
 	readonly centres: readonly RegionCatalogueEntry[];
 	readonly fills: readonly CatalogueEntry[];

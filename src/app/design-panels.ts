@@ -16,6 +16,7 @@ import type {
 	DesignStop,
 	EntryRef,
 	Ink,
+	ModuleFamily,
 	ParamValue,
 	QrDesignV1,
 	RegionRole,
@@ -423,6 +424,20 @@ function regionsFor(
 	return out;
 }
 
+/** The family of finder pairs the design's module shape is drawn with. */
+function moduleFamily(snapshot: StudioSnapshot): ModuleFamily {
+	const id = snapshot.document.design.modules.shape.id;
+	return snapshot.catalogue.moduleShapes.find((entry) => entry.id === id)?.family ?? 'square';
+}
+
+/** The centres a ring is offered with among the design's modules. */
+function ringPairs(
+	ring: RegionCatalogueEntry | undefined,
+	snapshot: StudioSnapshot,
+): readonly string[] {
+	return ring === undefined ? [] : ring.pairsByFamily[moduleFamily(snapshot)];
+}
+
 function currentEyes(snapshot: StudioSnapshot): { outer: EntryRef; inner: EntryRef } {
 	const finder = snapshot.document.design.regions.finder;
 	return {
@@ -445,7 +460,7 @@ export function createEyes(ctx: AppContext): Panel {
 			const ring = snapshot.catalogue.rings.find((entry) => entry.id === value);
 			const { inner } = currentEyes(snapshot);
 			// Keep the centre if it pairs with the new ring; otherwise the first that does.
-			const pairs = ring?.pairs ?? [];
+			const pairs = ringPairs(ring, snapshot);
 			const centre = pairs.includes(inner.id) ? inner : { id: pairs[0] ?? 'square-centre' };
 			setEyes({ id: value }, centre);
 		},
@@ -485,19 +500,23 @@ export function createEyes(ctx: AppContext): Panel {
 		centreParams,
 	]);
 	let shownCatalogue: unknown = null;
+	let shownFamily: ModuleFamily | null = null;
 	let shownPairs = '';
 	return {
 		root,
 		update(snapshot) {
 			const catalogue = snapshot.catalogue;
 			const { outer, inner } = currentEyes(snapshot);
-			if (shownCatalogue !== catalogue) {
+			const family = moduleFamily(snapshot);
+			if (shownCatalogue !== catalogue || shownFamily !== family) {
 				shownCatalogue = catalogue;
-				// A ring no centre makes a readable finder with (the dotted ring, for a
-				// QR code) is left out rather than offered with nothing to pair it.
+				shownFamily = family;
+				// A ring no centre makes a readable finder with among these modules
+				// (the dotted ring, for a QR code) is left out rather than offered
+				// with nothing to pair it.
 				rings.setChoices(
 					catalogue.rings
-						.filter((entry) => entry.pairs === undefined || entry.pairs.length > 0)
+						.filter((entry) => entry.pairsByFamily[family].length > 0 || entry.id === outer.id)
 						.map((entry) => ({
 							value: entry.id,
 							label: t(entry.labelKey),
@@ -509,7 +528,8 @@ export function createEyes(ctx: AppContext): Panel {
 			const ring: RegionCatalogueEntry | undefined = catalogue.rings.find(
 				(entry) => entry.id === outer.id,
 			);
-			const pairs = ring?.pairs ?? catalogue.centres.map((entry) => entry.id);
+			const pairs =
+				ring === undefined ? catalogue.centres.map((entry) => entry.id) : ringPairs(ring, snapshot);
 			const key = `${outer.id}:${pairs.join(',')}`;
 			if (key !== shownPairs) {
 				shownPairs = key;

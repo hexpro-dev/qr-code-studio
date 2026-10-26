@@ -31,6 +31,12 @@ export {
 	withMargin,
 } from './preset.js';
 export type { Calibration, PresetVerifierOptions, PresetViolation, Shortfall } from './preset.js';
+export { regionCaptureReader } from './region.js';
+export type {
+	RegionCaptureReader,
+	RegionCaptureReaderOptions,
+	RegionCaptureResult,
+} from './region.js';
 export type {
 	Baseline,
 	CaptureAxis,
