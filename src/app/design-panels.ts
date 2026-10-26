@@ -493,12 +493,16 @@ export function createEyes(ctx: AppContext): Panel {
 			const { outer, inner } = currentEyes(snapshot);
 			if (shownCatalogue !== catalogue) {
 				shownCatalogue = catalogue;
+				// A ring no centre makes a readable finder with (the dotted ring, for a
+				// QR code) is left out rather than offered with nothing to pair it.
 				rings.setChoices(
-					catalogue.rings.map((entry) => ({
-						value: entry.id,
-						label: t(entry.labelKey),
-						picture: thumbnailUrl('ring', entry),
-					})),
+					catalogue.rings
+						.filter((entry) => entry.pairs === undefined || entry.pairs.length > 0)
+						.map((entry) => ({
+							value: entry.id,
+							label: t(entry.labelKey),
+							picture: thumbnailUrl('ring', entry),
+						})),
 				);
 				shownPairs = '';
 			}

@@ -1037,6 +1037,19 @@ export function decodeDesignLink(fragment: string): QrDesignV1; // throws design
 - Seams: captions (`SEAM(M9)` in scene.ts, issue `caption-pending`); the Swiss QR-bill cross
   (issue `overlay-required`).
 
+### Settled when finder rings met the strict reader (m6-rings)
+
+- `RegionShape.ringKind?: 'cornered' | 'round' | 'dotted'` (default cornered) and `ringKindOf()`.
+  `validateDesign` gives `design.issue.ring-not-traceable` (error) for a dotted ring as a QR
+  finder, and `design.issue.ring-round` (warning) for a round one; neither for Micro QR or rMQR,
+  which draw that ring square.
+- Conformance imports decode (design does not, so the root bundle stays free of it).
+  `checkRegionShape` requires every pair the 4 px model accepts to be found by
+  `strictFindsFinder`, and every ring to measure as the kind it declares (`ringKind`);
+  `checkPreset` puts the preset's finder pair through the same tests.
+- `dot-ring` stays in the registry for saved designs but pairs with nothing at concentric-7, so
+  views that list only rings with pairs never offer it.
+
 Conformance (in `./conformance`, pure, returning `Violation[]`):
 
 - `checkModuleShape(shape)`: for every neighbour combination and seeded
