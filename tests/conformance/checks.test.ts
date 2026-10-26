@@ -585,8 +585,23 @@ describe('checkPreset', () => {
 			...preset,
 			design: { ...preset.design, symbol: { symbology: 'qr' } },
 			ecLevels: ['L'],
+			sizesMm: {},
 		} as Preset;
 		expect(rules(checkPreset(unset, null, registries))).toEqual(['ec-levels']);
+		const sizes = (sizesMm: Preset['sizesMm']): string[] =>
+			checkPreset({ ...preset, ecLevels: ['M', 'Q', 'H'], sizesMm }, null, registries).map(
+				(v) => v.detail,
+			);
+		expect(sizes({ M: preset.minSizeMm, Q: 30, H: 33 })).toEqual([]);
+		expect(sizes({ L: 20 })).toEqual([
+			'there is a size for level L, which the preset does not allow',
+		]);
+		expect(sizes({ Q: 0 })).toEqual([
+			'the size for level Q is not a positive number of millimetres',
+		]);
+		expect(sizes({ M: preset.minSizeMm + 1 })).toEqual([
+			"the size for level M, the design's own, is not minSizeMm",
+		]);
 	});
 
 	it('finds a design that does not validate cleanly, or does not build cleanly', () => {

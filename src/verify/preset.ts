@@ -12,6 +12,7 @@
  * size and are left to the full report.
  */
 
+import { presetSizeMm } from '../design/preset-size.js';
 import type { Preset, DesignRegistries } from '../design/types.js';
 import type { EcLevel } from '../segment/types.js';
 import { createSymbologyRegistry } from '../symbology/registry.js';
@@ -84,6 +85,8 @@ export interface PresetRunOptions extends RunOptions {
 	readonly seed?: number;
 	/** Shortfalls each preset is known to have at every size, by preset id. */
 	readonly known?: Readonly<Record<string, readonly Shortfall[]>>;
+	/** The level to calibrate at; default the preset's own. */
+	readonly ecLevel?: EcLevel;
 }
 
 /**
@@ -132,6 +135,8 @@ export function presetReport(
 
 export interface Calibration {
 	readonly id: string;
+	/** The level the sizes are for. A contract addition. */
+	readonly level: EcLevel;
 	/** The smallest size, in whole millimetres, at which each content scanned; null when none did up to the limit. */
 	readonly passedMm: Readonly<Record<ContentSize, number | null>>;
 	/** The largest of those plus the margin; null when any content never scanned. */
@@ -160,7 +165,7 @@ export function floorMm(modulesAcross: number): number {
 
 /**
  * The smallest whole millimetre size at which `preset` scans with each
- * content at its own level, climbing 1 mm at a time from the smallest size a
+ * content at its own level (or `options.ecLevel`), climbing 1 mm at a time from the smallest size a
  * phone can resolve at all. A content that still fails one millimetre past
  * the size where larger stops helping (see `saturationMm`) never passes, and
  * nor does any larger content after it.
@@ -170,7 +175,7 @@ export function calibratePreset(
 	registries: VerifyRegistries,
 	options: PresetRunOptions = {},
 ): Calibration {
-	const level = preset.design.symbol.ecLevel ?? 'M';
+	const level = options.ecLevel ?? preset.design.symbol.ecLevel ?? 'M';
 	const passed: Record<ContentSize, number | null> = { small: null, medium: null, large: null };
 	let from = 0;
 	for (const size of ['small', 'medium', 'large'] as const) {
@@ -199,7 +204,7 @@ export function calibratePreset(
 	}
 	const values = Object.values(passed);
 	if (values.some((value) => value === null)) {
-		return { id: preset.id, passedMm: passed, minSizeMm: null };
+		return { id: preset.id, level, passedMm: passed, minSizeMm: null };
 	}
 	// The reader is not monotonic in size below saturation (a capture at a
 	// few more pixels a module can read worse), so the size with its margin is
@@ -217,9 +222,9 @@ export function calibratePreset(
 				known,
 			),
 		);
-		if (all) return { id: preset.id, passedMm: passed, minSizeMm: mm };
+		if (all) return { id: preset.id, level, passedMm: passed, minSizeMm: mm };
 	}
-	return { id: preset.id, passedMm: passed, minSizeMm: null };
+	return { id: preset.id, level, passedMm: passed, minSizeMm: null };
 }
 
 /** What the conformance gate collects: the same shape as its own `Violation`. */
@@ -235,8 +240,9 @@ export interface PresetVerifierOptions extends PresetRunOptions {
 }
 
 /**
- * The strict scan check as `checkPreset`'s hook: every content, at
- * `minSizeMm`, at the preset's own level (or every level it allows).
+ * The strict scan check as `checkPreset`'s hook: every content at the
+ * preset's own level and size (or at every level it allows, each at its own
+ * size, `presetSizeMm`).
  */
 export function presetVerifier(
 	options: PresetVerifierOptions = {},
@@ -248,10 +254,11 @@ export function presetVerifier(
 		const out: PresetViolation[] = [];
 		for (const level of levels) {
 			for (const size of ['small', 'medium', 'large'] as const) {
+				const sizeMm = presetSizeMm(preset, level);
 				const report = presetReport(
 					preset,
 					PRESET_CONTENT[size],
-					preset.minSizeMm,
+					sizeMm,
 					level,
 					registries,
 					options,
@@ -260,7 +267,7 @@ export function presetVerifier(
 					out.push({
 						entry: preset.id,
 						rule: 'scan-check',
-						detail: `${size} content at level ${level} does not scan at ${preset.minSizeMm} mm: ${describe(report)}`,
+						detail: `${size} content at level ${level} does not scan at ${sizeMm} mm: ${describe(report)}`,
 					});
 				}
 			}

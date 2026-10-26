@@ -960,8 +960,9 @@ export interface Preset {
 	readonly category:
 		'classic' | 'rounded' | 'dots' | 'hex' | 'fluid' | 'bold' | 'minimal' | 'colour' | 'print';
 	readonly design: QrDesignV1;
-	readonly minSizeMm: number;
+	readonly minSizeMm: number; // at the design's own level
 	readonly ecLevels: readonly EcLevel[];
+	readonly sizesMm?: Readonly<Partial<Record<EcLevel, number>>>; // per allowed level
 }
 
 export interface DesignRegistries {
@@ -1050,6 +1051,35 @@ export function decodeDesignLink(fragment: string): QrDesignV1; // throws design
 - `dot-ring` stays in the registry for saved designs but pairs with nothing at concentric-7, so
   views that list only rings with pairs never offer it.
 
+### Settled when the catalogue met captures and levels (m6-catalogue)
+
+- Finder pairs are held to captures, not only to sharp pictures. `ModuleFamily` is
+  `'square' | 'dot' | 'hex'`; `ModuleShape.family?` names a shape's (default square: dots,
+  diamonds, stars, small squares and mosaic are dot, the hexagon hex). `RegionShape.unpaired?`
+  lists, per family, the centres a ring makes no QR finder with there. `regionPairConforms`
+  takes the family as an optional sixth argument (default square) and applies `unpaired` at
+  concentric-7 only; the validator, the scene builder, the studio and shuffle pass the design's
+  own (`moduleFamilyOf(shape)`).
+- `checkRegionCaptures(registries, read, options?)` in conformance reads every pair the table
+  offers on each family, at default params, among that family's module shape (`FAMILY_MODULES`:
+  square, dot, hex), with a reader verify supplies (`regionCaptureReader`): a short and a long
+  link at their own level, 6, 8 and 10 px a module, clean and with ink spread or starved by
+  0.05, eight seeds each (96 captures). One miss fails the pair; the ring then lists the centre
+  as `unpaired` for that family. An entry that misses in every family is cut: the leaf ring and
+  the star centre were. The studio catalogue gives each ring and centre `pairsByFamily` (and
+  `pairs`, the square family's), and each module entry its `family`.
+- A preset records a size per allowed level, `sizesMm`, with `minSizeMm` the one at its own
+  level; `presetSizeMm(preset, level?)` reads it, and `PresetCatalogueEntry.sizesMm` carries it
+  to views, which show the size for the level the design will be built at. `calibratePreset`
+  takes `ecLevel`; `pnpm verify:sizes [--write]` calibrates every preset at every level.
+  `presetVerifier` with `levels: 'all'` checks each level at its own size, and the nightly run
+  checks each recorded size reproduces. `checkPreset` refuses a size for a level the preset
+  does not allow, one that is not a positive number, and an own-level size that is not
+  `minSizeMm`.
+- The two contrast checks are named apart: `VERIFY_MESSAGE_KEYS.gradeNames` and
+  `checkNameKey(check)` in verify, `checkKey(id, grade?)` in the studio. Symbol contrast is
+  "Overall contrast", modulation "Clear squares".
+
 Conformance (in `./conformance`, pure, returning `Violation[]`):
 
 - `checkModuleShape(shape)`: for every neighbour combination and seeded
@@ -1064,8 +1094,10 @@ Conformance (in `./conformance`, pure, returning `Violation[]`):
   the centre separated by a light ring at least 0.6 modules wide.
 - `checkFrame(frame)`: nothing inside the quiet zone, for the default and
   extreme params.
-- `checkPreset(preset, verify)`: the strict scan check passes at `minSizeMm`
-  for small, medium and large versions at each allowed level.
+- `checkPreset(preset, verify)`: the strict scan check passes at the preset's size for each
+  level (`presetSizeMm`) for small, medium and large versions at each allowed level.
+- `checkRegionCaptures(registries, read)`: every pair the table offers on a family reads in
+  every capture among that family's modules (see the m6-catalogue notes above).
 - `checkPayloadType(type)`: vectors reproduce; schema-generated values
   round-trip.
 

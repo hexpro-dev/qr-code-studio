@@ -40,6 +40,7 @@ export type {
 } from './types.js';
 export { DESIGN_VERSION, LIMITS, MIN_QUIET_ZONE, defaultDesign } from './document.js';
 export { createDesignRegistries } from './registries.js';
+export { presetSizeMm } from './preset-size.js';
 export { validateDesign } from './validate.js';
 export { migrateDesign } from './migrate.js';
 export { applyConstraints } from './constraints.js';

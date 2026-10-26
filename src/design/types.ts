@@ -344,8 +344,16 @@ export interface Preset {
 	readonly labelKey: MessageKey;
 	readonly category: PresetCategory;
 	readonly design: QrDesignV1;
+	/** The smallest printed width that scans, at the level the design asks for. */
 	readonly minSizeMm: number;
 	readonly ecLevels: readonly EcLevel[];
+	/**
+	 * The smallest printed width at each level the preset allows: a higher
+	 * level fits the same content in a larger symbol, whose modules are
+	 * smaller at the same width. A level left out takes `minSizeMm`. The
+	 * built-ins give every level they allow. A contract addition.
+	 */
+	readonly sizesMm?: Readonly<Partial<Record<EcLevel, number>>>;
 }
 
 export interface DesignRegistries {

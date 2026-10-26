@@ -20,6 +20,7 @@ import { moduleFamilyOf, regionPairConforms, regionPath } from '../design/finder
 import { neighbourMasks } from '../design/neighbours.js';
 import { resolvePaint } from '../design/paint.js';
 import { resolveParams } from '../design/params.js';
+import { presetSizeMm } from '../design/preset-size.js';
 import { buildScene } from '../design/scene.js';
 import { applyConstraints } from '../design/constraints.js';
 import type {
@@ -419,6 +420,11 @@ export function buildCatalogue(registries: Registries, fonts?: FontRegistry): Ca
 						category: preset.category,
 						minSizeMm: preset.minSizeMm,
 						ecLevels: preset.ecLevels,
+						sizesMm: Object.freeze(
+							Object.fromEntries(
+								preset.ecLevels.map((level) => [level, presetSizeMm(preset, level)]),
+							),
+						),
 						thumbnail: once(() =>
 							designThumbnail(design, sampled(), preset.design, 'preset', preset.id, fonts),
 						),

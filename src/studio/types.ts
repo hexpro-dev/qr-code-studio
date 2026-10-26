@@ -527,8 +527,14 @@ export interface FrameCatalogueEntry extends CatalogueEntry {
 
 export interface PresetCatalogueEntry extends CatalogueEntry {
 	readonly category: PresetCategory;
+	/** The smallest printed width that scans, at the preset's own level. */
 	readonly minSizeMm: number;
 	readonly ecLevels: readonly EcLevel[];
+	/**
+	 * The smallest printed width at each level in `ecLevels`: show or suggest
+	 * the one for the level the design will be built at. A contract addition.
+	 */
+	readonly sizesMm: Readonly<Partial<Record<EcLevel, number>>>;
 }
 
 export interface PayloadTypeEntry {

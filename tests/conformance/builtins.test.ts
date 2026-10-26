@@ -88,6 +88,17 @@ describe('presets', () => {
 		});
 	}
 
+	it("give a size for every level they allow, the own level's being minSizeMm", () => {
+		for (const preset of registries.presets.list()) {
+			expect(Object.keys(preset.sizesMm ?? {}).sort(), preset.id).toEqual(
+				[...preset.ecLevels].sort(),
+			);
+			expect(preset.sizesMm?.[preset.design.symbol.ecLevel ?? 'M'], preset.id).toBe(
+				preset.minSizeMm,
+			);
+		}
+	});
+
 	it('aim for 7:1 and all but a few reach it', () => {
 		const under: string[] = [];
 		for (const preset of registries.presets.list()) {

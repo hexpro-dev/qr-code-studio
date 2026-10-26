@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { presetSizeMm } from '../../src/design/preset-size.js';
 import { regionPairConforms } from '../../src/design/finder.js';
 import { resolveParams } from '../../src/design/params.js';
 import { createRegistries } from '../../src/registries.js';
@@ -57,6 +58,13 @@ describe('the catalogue', () => {
 		expect(ids(catalogue.fills)).toEqual(registries.design.fills.ids());
 		expect(ids(catalogue.frames)).toEqual(registries.design.frames.ids());
 		expect(ids(catalogue.icons)).toEqual(registries.design.icons.ids());
+		for (const entry of catalogue.presets.flatMap((group) => group.presets)) {
+			const preset = registries.design.presets.require(entry.id);
+			expect(entry.sizesMm, entry.id).toEqual(
+				Object.fromEntries(preset.ecLevels.map((level) => [level, presetSizeMm(preset, level)])),
+			);
+			expect(entry.sizesMm[preset.design.symbol.ecLevel ?? 'M'], entry.id).toBe(entry.minSizeMm);
+		}
 		expect(catalogue.presets.flatMap((group) => ids(group.presets)).sort()).toEqual(
 			registries.design.presets.ids().slice().sort(),
 		);
