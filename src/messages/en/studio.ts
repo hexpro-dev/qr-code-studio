@@ -42,7 +42,7 @@ export const STUDIO_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'studio.issue.unknown-fix': 'That suggestion no longer applies. Run the scan check again.',
 	'studio.issue.conditions': 'Enter a number greater than zero, or leave this empty.',
 	'studio.issue.document-repaired':
-		'Part of this saved code could not be used as it was, so the standard setting was used instead.',
+		'Part of what was opened could not be used as it was, so the standard setting was used instead.',
 
 	// Exports.
 	'studio.issue.quiet-zone-below-minimum':
@@ -128,12 +128,13 @@ export const STUDIO_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 		'This spreadsheet file could not be read. Save it as CSV from your spreadsheet and try again.',
 	'error.batch.too-many-rows': 'This file has more rows than can be made into codes at once.',
 	'error.batch.unknown-column': 'A column this needs is not in the file.',
-	'error.library.unavailable': 'Saved codes are not available in this browser.',
+	'error.library.unavailable':
+		'The library is not available in this browser, so designs and brand kits cannot be saved here.',
 	'error.library.not-enabled':
-		'The library is switched off. Switch it on to save codes in this browser.',
+		'The library is switched off. Switch it on to save designs and brand kits in this browser.',
 	'error.library.quota':
-		'This browser has no more room for saved codes. Remove some and try again.',
-	'error.library.corrupt': 'A saved code is damaged and cannot be opened.',
+		'This browser has no more room for saved designs and brand kits. Remove some and try again.',
+	'error.library.corrupt': 'A saved design or brand kit is damaged and cannot be opened.',
 	'error.camera.permission-denied':
 		'The camera is not allowed for this page. Allow it in the browser settings, or choose a picture instead.',
 	'error.camera.unavailable': 'No camera could be opened. Choose a picture instead.',

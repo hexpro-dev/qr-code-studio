@@ -1191,7 +1191,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	function notEnabled(): QrStudioError {
 		return new QrStudioError(
 			'library/not-enabled',
-			'The library is switched off. Switch it on to save codes in this browser.',
+			'The library is switched off. Switch it on to save designs and brand kits in this browser.',
 		);
 	}
 
