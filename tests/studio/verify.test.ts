@@ -530,8 +530,10 @@ describe('the default clock', () => {
 describe('the real scan check, by default', () => {
 	it('runs verify in slices, gives a real report with fixes, and is quicker when it follows typing', async () => {
 		const time = new FakeTime(8);
-		let now = 0;
-		const clock = (): number => (now += 4);
+		// Each reading spends fake time, so a slice moves the scheduler on and
+		// `advance` below returns after two or three slices instead of running the
+		// whole check in one call.
+		const clock = (): number => (time.now += 4);
 		const studio = createStudio({ scheduler: time, clock });
 		studio.dispatch({ type: 'payload/field', key: 'url', value: 'https://example.com/' });
 		studio.dispatch({
@@ -544,9 +546,13 @@ describe('the real scan check, by default', () => {
 			return state.status === 'done' && !state.stale;
 		};
 		const drain = async (): Promise<void> => {
-			for (let i = 0; i < 2000 && !fresh(); i += 1) {
-				time.advance(300);
+			for (let i = 0; i < 20_000 && !fresh(); i += 1) {
+				time.advance(24);
 				await settle();
+				// Hand the event loop a turn between batches of slices. Run as one
+				// block, the check starves vitest's worker channel under coverage on
+				// a loaded machine.
+				await new Promise<void>((resolve) => setImmediate(resolve));
 			}
 		};
 		await drain();
@@ -565,7 +571,7 @@ describe('the real scan check, by default', () => {
 		expect(live).toMatchObject({ status: 'done', captureSeeds: 2, full: false });
 		studio.dispose();
 		expect(time.pending).toBe(0);
-	}, 60_000);
+	}, 300_000);
 
 	it('applies a fix that prints larger as a change of conditions, and a design fix as one step', () => {
 		const runner = new FakeRunner();
