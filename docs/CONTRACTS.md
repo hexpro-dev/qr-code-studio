@@ -1078,7 +1078,8 @@ export function decodeDesignLink(fragment: string): QrDesignV1; // throws design
   `minSizeMm`.
 - The two contrast checks are named apart: `VERIFY_MESSAGE_KEYS.gradeNames` and
   `checkNameKey(check)` in verify, `checkKey(id, grade?)` in the studio. Symbol contrast is
-  "Overall contrast", modulation "Clear squares".
+  "Overall contrast", modulation "Clear squares". Since m10-text-fixes both return the same
+  keys (see the studio section).
 
 Conformance (in `./conformance`, pure, returning `Violation[]`):
 
@@ -1435,3 +1436,13 @@ checked by the same check as the code on screen; with `verifyGenerator: null`
 it passes none, and a batch asked to check its rows fails with
 'platform/unavailable' (`{ feature: 'verify' }`), as a single code's check
 does.
+
+### Settled when the translators read the studio (m10-text-fixes)
+
+- A scan check has one name. `checkKey(id, grade?)` returns verify's `checkNameKey({ id, grade })`,
+  `verify.check-name.<id>` (modulation `verify.check-name.modulation`), and the studio has no
+  `studio.check.*` keys of its own: the offline app and the website showed the studio's names
+  beside the report's, which called the same check something else. The names are Clear margin,
+  Overall contrast, Clear squares, Dark on light, Patterns readers look for, Logo size, Print
+  size, Corner square shape, Colours under red light and Phone support. `studio.axis.*`, what the
+  check is doing while it runs, is unchanged.

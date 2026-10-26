@@ -11,17 +11,18 @@
  */
 
 export const VERIFY_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-	// What each check is called.
+	// What each check is called: the one set of names, which the studio's
+	// `checkKey` hands to both views too.
 	'verify.check-name.quiet-zone': 'Clear margin',
 	'verify.check-name.contrast': 'Overall contrast',
 	'verify.check-name.modulation': 'Clear squares',
 	'verify.check-name.polarity': 'Dark on light',
 	'verify.check-name.function-patterns': 'Patterns readers look for',
-	'verify.check-name.logo-budget': 'Logo',
+	'verify.check-name.logo-budget': 'Logo size',
 	'verify.check-name.module-size': 'Print size',
-	'verify.check-name.finder-shape': 'Corner squares',
-	'verify.check-name.colour-red-channel': 'Red light scanners',
-	'verify.check-name.reader-support': 'Readers',
+	'verify.check-name.finder-shape': 'Corner square shape',
+	'verify.check-name.colour-red-channel': 'Colours under red light',
+	'verify.check-name.reader-support': 'Phone support',
 
 	'verify.status.pass': 'Passes',
 	'verify.status.warn': 'Worth checking',

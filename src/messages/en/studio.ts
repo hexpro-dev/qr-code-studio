@@ -1,8 +1,10 @@
 /**
  * English for every message key the studio emits in its own words: why an
  * action changed nothing, why the code on screen is not the latest, the
- * headings it gives the catalogue and the form, the names of the scan
- * check's rows and stages, and the generic sentence for every error code.
+ * headings it gives the catalogue and the form, the scan check's stages,
+ * and the generic sentence for every error code. What each check is called
+ * is the scan check's own (`verify.check-name.*`, src/messages/en/verify.ts),
+ * which `checkKey` returns, so a person sees one name for each.
  *
  * Error sentences are `error.<area>.<detail>` for the code `<area>/<detail>`
  * (`errorMessageKey` in src/studio/keys.ts). The studio uses a more specific
@@ -80,18 +82,6 @@ export const STUDIO_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'studio.group.phones': 'Phone numbers',
 	'studio.group.time': 'Date and time',
 	'studio.group.utm': 'Campaign tracking',
-
-	// The scan check's rows.
-	'studio.check.quiet-zone': 'Quiet zone',
-	'studio.check.contrast': 'Overall contrast',
-	'studio.check.modulation': 'Clear squares',
-	'studio.check.polarity': 'Dark on light',
-	'studio.check.function-patterns': 'Corner and timing patterns',
-	'studio.check.logo-budget': 'Logo size',
-	'studio.check.module-size': 'Module size',
-	'studio.check.finder-shape': 'Corner square shape',
-	'studio.check.colour-red-channel': 'Colours under red light',
-	'studio.check.reader-support': 'Phone support',
 
 	// What the scan check is doing.
 	'studio.axis.static': 'Checking the design',

@@ -20,6 +20,7 @@ import { issue } from '../core/issue.js';
 import type { Issue, MessageKey } from '../core/issue.js';
 import type { PayloadCategory } from '../payload/types.js';
 import type { PresetCategory } from '../design/types.js';
+import { checkNameKey } from '../verify/keys.js';
 import type { CaptureAxis, CheckId, VerifyCheck } from './seams.js';
 import type { StudioError } from './types.js';
 
@@ -64,12 +65,13 @@ export function groupKey(group: string): MessageKey {
 }
 
 /**
- * A scan check's name, for the row a view shows its result in. Contrast is
- * checked twice, as symbol contrast and as modulation (`grade` 'MOD'), and
- * each has a name of its own.
+ * A scan check's name, for the row a view shows its result in: verify's own
+ * (`checkNameKey`), so the studio, the report and every view call a check by
+ * one name. Contrast is checked twice, as symbol contrast and as modulation
+ * (`grade` 'MOD'), and each has a name of its own.
  */
 export function checkKey(id: CheckId, grade?: VerifyCheck['grade']): MessageKey {
-	return id === 'contrast' && grade === 'MOD' ? 'studio.check.modulation' : `studio.check.${id}`;
+	return checkNameKey({ id, grade });
 }
 
 /** What the scan check is doing, for its progress. */
