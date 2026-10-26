@@ -20,7 +20,7 @@ import { issue } from '../core/issue.js';
 import type { Issue, MessageKey } from '../core/issue.js';
 import type { PayloadCategory } from '../payload/types.js';
 import type { PresetCategory } from '../design/types.js';
-import type { CaptureAxis, CheckId } from './seams.js';
+import type { CaptureAxis, CheckId, VerifyCheck } from './seams.js';
 import type { StudioError } from './types.js';
 
 /** Everything the studio says in its own words. */
@@ -63,9 +63,13 @@ export function groupKey(group: string): MessageKey {
 	return `studio.group.${group}`;
 }
 
-/** A scan check's name, for the row a view shows its result in. */
-export function checkKey(id: CheckId): MessageKey {
-	return `studio.check.${id}`;
+/**
+ * A scan check's name, for the row a view shows its result in. Contrast is
+ * checked twice, as symbol contrast and as modulation (`grade` 'MOD'), and
+ * each has a name of its own.
+ */
+export function checkKey(id: CheckId, grade?: VerifyCheck['grade']): MessageKey {
+	return id === 'contrast' && grade === 'MOD' ? 'studio.check.modulation' : `studio.check.${id}`;
 }
 
 /** What the scan check is doing, for its progress. */

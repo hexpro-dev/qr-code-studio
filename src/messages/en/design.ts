@@ -33,7 +33,6 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'design.region.extra-rounded': 'Extra rounded',
 	'design.region.circle': 'Circle',
 	'design.region.squircle': 'Squircle',
-	'design.region.leaf': 'Leaf',
 	'design.region.cushion': 'Cushion',
 	'design.region.dot-ring': 'Ring of dots',
 	'design.region.octagon': 'Octagon',
@@ -47,7 +46,6 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'design.region.leaf-centre': 'Leaf',
 	'design.region.octagon-centre': 'Octagon',
 	'design.region.scooped-centre': 'Scooped corners',
-	'design.region.star-centre': 'Star',
 	'design.region.flower-centre': 'Flower',
 
 	// Fills.

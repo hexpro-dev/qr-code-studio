@@ -83,7 +83,8 @@ export const STUDIO_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 
 	// The scan check's rows.
 	'studio.check.quiet-zone': 'Quiet zone',
-	'studio.check.contrast': 'Contrast',
+	'studio.check.contrast': 'Overall contrast',
+	'studio.check.modulation': 'Clear squares',
 	'studio.check.polarity': 'Dark on light',
 	'studio.check.function-patterns': 'Corner and timing patterns',
 	'studio.check.logo-budget': 'Logo size',

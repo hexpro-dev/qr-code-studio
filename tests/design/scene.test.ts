@@ -426,7 +426,7 @@ describe('buildScene', () => {
 				quietZone: 2,
 				regions: {
 					finder: { outer: { id: 'square' }, inner: { id: 'square-centre' } },
-					'sub-finder': { outer: { id: 'square' }, inner: { id: 'star-centre' } },
+					'sub-finder': { outer: { id: 'square' }, inner: { id: 'flower-centre' } },
 					'corner-finder': { outer: { id: 'circle-centre' }, inner: { id: 'square-centre' } },
 				},
 			}),
@@ -477,7 +477,7 @@ describe('buildScene', () => {
 		const kind = buildScene(
 			v2,
 			designWith({
-				regions: { finder: { outer: { id: 'square' }, inner: { id: 'flower-centre' } } },
+				regions: { finder: { outer: { id: 'squircle' }, inner: { id: 'flower-centre' } } },
 			}),
 			{ registries },
 		);
@@ -487,7 +487,7 @@ describe('buildScene', () => {
 			buildScene(
 				v7,
 				designWith({
-					regions: { finder: { outer: { id: 'square' }, inner: { id: 'flower-centre' } } },
+					regions: { finder: { outer: { id: 'squircle' }, inner: { id: 'flower-centre' } } },
 				}),
 				{ registries },
 			).issues,

@@ -7,17 +7,21 @@
  * finder pairs all make a finder the strict reader finds, and those with a
  * logo ask for a level that can pay for it.
  *
- * `minSizeMm` is the smallest printed width of the symbol with its quiet
- * zone, in whole millimetres, at which the scan check passes the preset at
- * everyday conditions with a short, a medium and a long link at its own
- * level (src/verify/preset.ts, `calibratePreset`): the strict reader, all
- * eight seeds of every capture axis up to its everyday level, climbing 1 mm
- * at a time. The largest of the three, plus a tenth and at least 2 mm
- * (`withMargin`), is the value here. Shortfalls a preset has at every size
- * (tests/verify/shortfalls.ts) are left out of the climb, and a recorded
- * distance shortfall leaves the distance axis out too, so a reader's refusal
- * never turns into a larger size. Measured 2026-10-26; the nightly run
- * (QRS_VERIFY_NIGHTLY=1) checks each value reproduces.
+ * `sizesMm` gives, for each level the preset allows, the smallest printed
+ * width of the symbol with its quiet zone, in whole millimetres, at which
+ * the scan check passes the preset at everyday conditions with a short, a
+ * medium and a long link at that level (src/verify/preset.ts,
+ * `calibratePreset`): the strict reader, all eight seeds of every capture
+ * axis up to its everyday level, climbing 1 mm at a time. The largest of the
+ * three, plus a tenth and at least 2 mm (`withMargin`), is the value here,
+ * and `minSizeMm` is the one at the preset's own level. A higher level puts
+ * the same link in a larger symbol, so its size is larger too. Shortfalls a
+ * preset has at every size (tests/verify/shortfalls.ts) are left out of the
+ * climb, and a recorded distance shortfall leaves the distance axis out too,
+ * so a reader's refusal never turns into a larger size. A level at which a
+ * preset never passes, at any size, is left out of its `ecLevels`, with the
+ * reason beside it. Measured 2026-10-26 with `pnpm verify:sizes`; the
+ * nightly run (QRS_VERIFY_NIGHTLY=1) checks each value reproduces.
  *
  * Built by a function so that importing the catalogue builds nothing.
  */
@@ -74,7 +78,8 @@ function eyes(
 interface PresetSpec {
 	readonly id: string;
 	readonly category: PresetCategory;
-	readonly minSizeMm: number;
+	/** The smallest printed width at each level in `ecLevels`; `minSizeMm` is the one at `ecLevel`. */
+	readonly sizesMm: Readonly<Partial<Record<EcLevel, number>>>;
 	readonly ecLevels: readonly EcLevel[];
 	readonly ecLevel?: EcLevel;
 	readonly shape: EntryRef;
@@ -111,7 +116,8 @@ function preset(spec: PresetSpec): Preset {
 		labelKey: `design.preset.${spec.id}`,
 		category: spec.category,
 		design,
-		minSizeMm: spec.minSizeMm,
+		minSizeMm: spec.sizesMm[spec.ecLevel ?? 'M'] as number,
+		sizesMm: Object.freeze({ ...spec.sizesMm }),
 		ecLevels: spec.ecLevels,
 	});
 }
@@ -125,7 +131,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-black',
 			category: 'classic',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#000000'),
@@ -135,7 +141,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-navy',
 			category: 'classic',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#0b1f3a'),
@@ -145,7 +151,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-soft-corners',
 			category: 'classic',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 31 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.15 } },
 			paint: solid('#111111'),
@@ -155,8 +161,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-ink-blue',
 			category: 'classic',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { M: 25, Q: 28, H: 29 },
+			// Not L: there the short link's captures fall short under the everyday
+			// defocus at every size.
+			ecLevels: ['M', 'Q', 'H'],
 			shape: { id: 'square' },
 			paint: solid('#0b3d91'),
 			background: solid('#f7f9fc'),
@@ -165,8 +173,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-octagon',
 			category: 'classic',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 25, Q: 28 },
+			// Not H: there the short link takes version 3, which does not read even
+			// in a clean capture at any size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'square' },
 			paint: solid('#1c2430'),
 			background: WHITE,
@@ -176,8 +186,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-graphite',
 			category: 'rounded',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 25, Q: 28 },
+			// Not H: there the long link takes version 10, which falls short at 15
+			// degrees at every size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: solid('#222831'),
 			background: WHITE,
@@ -186,7 +198,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-ocean',
 			category: 'rounded',
-			minSizeMm: 29,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.35 } },
 			paint: solid('#0a3d62'),
@@ -196,7 +208,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-forest',
 			category: 'rounded',
-			minSizeMm: 26,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'squircle' },
 			paint: solid('#1b4332'),
@@ -206,8 +218,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-plum',
 			category: 'rounded',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 25, Q: 28 },
+			// Not H: there the long link takes version 10, which falls short of the
+			// everyday angle at every size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'rounded', params: { radius: 0.4 } },
 			paint: solid('#3c1642'),
 			background: solid('#fdf7ff'),
@@ -222,17 +236,17 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-terracotta',
 			category: 'rounded',
-			minSizeMm: 30,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.25 } },
 			paint: solid('#6e2a12'),
 			background: solid('#fff8f2'),
-			eyes: eyes('leaf', 'leaf-centre'),
+			eyes: eyes('extra-rounded', 'leaf-centre'),
 		},
 		{
 			id: 'rounded-link',
 			category: 'rounded',
-			minSizeMm: 32,
+			sizesMm: { H: 29 },
 			// A logo with a plate hides every codeword under the plate's box, and
 			// at Q a short link's blocks run out of correction before any print
 			// size can help. H keeps a margin for every length of content.
@@ -255,7 +269,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'midnight-dots',
 			category: 'dots',
-			minSizeMm: 26,
+			sizesMm: { M: 26, Q: 31, H: 30 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#10173a'),
@@ -265,8 +279,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'charcoal-dots',
 			category: 'dots',
-			minSizeMm: 25,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 25, Q: 29 },
+			// Not H: there the long link takes version 10, which falls short of the
+			// everyday angle at every size.
+			ecLevels: ['M', 'Q'],
 			shape: { id: 'dot', params: { size: 0.98 } },
 			paint: solid('#262626'),
 			background: solid('#fafafa'),
@@ -275,7 +291,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'teal-dots',
 			category: 'dots',
-			minSizeMm: 28,
+			sizesMm: { M: 26, Q: 31, H: 30 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#064e57'),
@@ -285,7 +301,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'berry-dots',
 			category: 'dots',
-			minSizeMm: 27,
+			sizesMm: { M: 26, Q: 34, H: 31 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#5b0e2d'),
@@ -295,7 +311,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'confetti-dots',
 			category: 'dots',
-			minSizeMm: 26,
+			sizesMm: { M: 26, Q: 30, H: 29 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.98 } },
 			paint: {
@@ -321,7 +337,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-pro-blue',
 			category: 'hex',
-			minSizeMm: 26,
+			sizesMm: { M: 25, Q: 40, H: 30 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0a4f96'),
@@ -331,8 +347,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-graphite',
 			category: 'hex',
-			minSizeMm: 25,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 25, Q: 31 },
+			// Not H: there the long link takes version 10, which falls short of the
+			// everyday angle at every size.
+			ecLevels: ['M', 'Q'],
 			shape: { id: 'hex', params: { size: 1, orientation: 'flat' } },
 			paint: solid('#1f2933'),
 			background: WHITE,
@@ -341,7 +359,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-honey',
 			category: 'hex',
-			minSizeMm: 25,
+			sizesMm: { M: 25, Q: 31, H: 31 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#3d2600'),
@@ -351,7 +369,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-night',
 			category: 'hex',
-			minSizeMm: 33,
+			sizesMm: { M: 25, Q: 31, H: 31 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0d1b2a'),
@@ -362,8 +380,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-ink',
 			category: 'fluid',
-			minSizeMm: 37,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 38, Q: 33 },
+			// Not H: there the short link falls short under starved ink, and the long
+			// link (version 10) at the everyday angle, at every size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'fluid' },
 			paint: solid('#111827'),
 			background: WHITE,
@@ -372,8 +392,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-lagoon',
 			category: 'fluid',
-			minSizeMm: 28,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 37 },
+			// Not Q or H: there the long link takes version 9 or 10, which falls short
+			// at the everyday angle or distance at every size.
+			ecLevels: ['L', 'M'],
 			shape: { id: 'fluid', params: { radius: 0.4 } },
 			paint: linear(45, '#0b3954', '#055c5e'),
 			background: WHITE,
@@ -384,7 +406,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-aubergine',
 			category: 'fluid',
-			minSizeMm: 25,
+			sizesMm: { L: 24, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'fluid' },
 			paint: solid('#3b0d3b'),
@@ -394,12 +416,14 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classy-slate',
 			category: 'fluid',
-			minSizeMm: 38,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 25, Q: 28 },
+			// Not H: there the short link takes version 3, which falls short under the
+			// everyday defocus at every size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'classy' },
 			paint: solid('#263238'),
 			background: WHITE,
-			eyes: eyes('leaf', 'leaf-centre'),
+			eyes: eyes('squircle', 'leaf-centre'),
 		},
 		{
 			// Recorded short of the everyday angle (20 degrees) with the long link:
@@ -409,7 +433,7 @@ function specs(): readonly PresetSpec[] {
 			// side by side into blocks, which is no longer this look.
 			id: 'cobalt-bars',
 			category: 'fluid',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'bars-vertical' },
 			paint: solid('#0d2c6c'),
@@ -420,7 +444,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'poster-yellow',
 			category: 'bold',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#000000'),
@@ -435,7 +459,7 @@ function specs(): readonly PresetSpec[] {
 			// Without the card it reads; the card is the look, so it stays.
 			id: 'bold-tomato',
 			category: 'bold',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid('#1a1a1a'),
@@ -446,7 +470,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'bold-crosses',
 			category: 'bold',
-			minSizeMm: 25,
+			sizesMm: { M: 25, Q: 28, H: 31 },
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'cross', params: { thickness: 0.6 } },
 			paint: solid('#101010'),
@@ -456,7 +480,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'slate-bars',
 			category: 'bold',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'bars-horizontal', params: { thickness: 0.85 } },
 			paint: solid('#0f172a'),
@@ -466,8 +490,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'red-badge',
 			category: 'bold',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { M: 25, Q: 28 },
+			// Not L or H: at L the short link falls short at 15 degrees, and at H at
+			// the everyday distance, at every size.
+			ecLevels: ['M', 'Q'],
 			shape: { id: 'square' },
 			paint: solid('#111111'),
 			background: WHITE,
@@ -477,7 +503,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'chat-bubble',
 			category: 'bold',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.35 } },
 			paint: solid('#1e1b4b'),
@@ -489,8 +515,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-tiny',
 			category: 'minimal',
-			minSizeMm: 32,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 32 },
+			// Only M: at Q and H the long link takes version 9 or 10, which falls
+			// short of the everyday angle at every size.
+			ecLevels: ['M'],
 			shape: { id: 'tiny-square', params: { scale: 0.7 } },
 			paint: solid('#222222'),
 			background: WHITE,
@@ -499,8 +527,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-diamond',
 			category: 'minimal',
-			minSizeMm: 25,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 25, H: 40 },
+			// Not Q: there the long link takes version 9, which falls short at 15
+			// degrees at every size. H takes version 10 and reads from 40 mm.
+			ecLevels: ['M', 'H'],
 			shape: { id: 'diamond' },
 			paint: solid('#2d2d2d'),
 			background: solid('#fbfbf8'),
@@ -509,7 +539,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-brackets',
 			category: 'minimal',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#1c1c1c'),
@@ -520,8 +550,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-stars',
 			category: 'minimal',
-			minSizeMm: 25,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 25 },
+			// Only M: at Q and H the long link takes version 9 or 10, which falls
+			// short of the everyday angle at every size.
+			ecLevels: ['M'],
 			shape: { id: 'star', params: { inner: 0.65 } },
 			paint: solid('#1e1b4b'),
 			background: WHITE,
@@ -536,7 +568,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'sunset-gradient',
 			category: 'colour',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 35 },
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: linear(45, '#5c1530', '#87300f'),
@@ -555,7 +587,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'deep-sea-gradient',
 			category: 'colour',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'squircle' },
 			paint: linear(90, '#0b3c5d', '#1b4d3e'),
@@ -565,8 +597,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'two-tone',
 			category: 'colour',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { M: 25, Q: 28 },
+			// Not L or H: at L the short link falls short under the everyday defocus,
+			// and at H at the everyday distance, at every size.
+			ecLevels: ['M', 'Q'],
 			shape: { id: 'square' },
 			paint: {
 				kind: 'entry',
@@ -581,7 +615,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'violet-glow',
 			category: 'colour',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 31, H: 37 },
 			ecLevels: ALL,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: {
@@ -601,8 +635,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'mosaic-tiles',
 			category: 'colour',
-			minSizeMm: 26,
-			ecLevels: MEDIUM_UP,
+			sizesMm: { M: 26 },
+			// Only M: at Q and H the long link takes version 9 or 10, which falls
+			// short of the everyday angle at every size.
+			ecLevels: ['M'],
 			shape: { id: 'mosaic' },
 			paint: {
 				kind: 'entry',
@@ -620,8 +656,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'teal-and-rust',
 			category: 'colour',
-			minSizeMm: 34,
-			ecLevels: ALL,
+			sizesMm: { L: 22, M: 25, Q: 28 },
+			// Not H: there the short link takes version 3, which falls short under the
+			// everyday defocus at every size.
+			ecLevels: ['L', 'M', 'Q'],
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid('#064e57'),
 			background: WHITE,
@@ -633,7 +671,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'shop-tag',
 			category: 'colour',
-			minSizeMm: 33,
+			sizesMm: { H: 29 },
 			// The same reason as rounded-link: the circular plate costs its whole
 			// box in codewords, so a logo preset is held at H.
 			ecLevels: LOGO,
@@ -656,7 +694,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-black',
 			category: 'print',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#000000', cmyk: [0, 0, 0, 1] }),
@@ -667,7 +705,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-navy',
 			category: 'print',
-			minSizeMm: 25,
+			sizesMm: { L: 22, M: 25, Q: 28, H: 29 },
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#13294b', cmyk: [1, 0.75, 0.2, 0.55] }),
@@ -678,8 +716,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-ticket',
 			category: 'print',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { M: 25, Q: 28, H: 30 },
+			// Not L: there the short and long links fall short in dim light at every
+			// size.
+			ecLevels: ['M', 'Q', 'H'],
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid({ srgb: '#1a1a1a', cmyk: [0, 0, 0, 0.9] }),
 			background: solid({ srgb: '#ffffff', cmyk: [0, 0, 0, 0] }),
@@ -690,8 +730,10 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-stamp',
 			category: 'print',
-			minSizeMm: 25,
-			ecLevels: ALL,
+			sizesMm: { M: 25, Q: 28, H: 30 },
+			// Not L: there the short link falls short under everyday ink spread at
+			// every size.
+			ecLevels: ['M', 'Q', 'H'],
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#1f2a44', cmyk: [0.9, 0.7, 0.3, 0.6] }),
 			background: solid({ srgb: '#fffdf7', cmyk: [0, 0, 0.03, 0] }),

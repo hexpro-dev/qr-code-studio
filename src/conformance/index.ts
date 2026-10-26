@@ -10,6 +10,8 @@ export {
 export type { ModuleShapeCheckOptions } from './module-shape.js';
 export { checkRegionShape } from './region-shape.js';
 export type { RegionShapeCheckOptions } from './region-shape.js';
+export { FAMILY_MODULES, checkRegionCaptures, familyPairs } from './region-captures.js';
+export type { RegionCaptureCheck, RegionCaptureOptions } from './region-captures.js';
 export { FRAME_SIZES, checkFrame } from './frame.js';
 export type { FrameCheckOptions, FrameSize } from './frame.js';
 export {

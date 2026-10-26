@@ -8,6 +8,10 @@
  * centre cross (0.5 plus or minus 0.2 on both axes) inked, which is where a
  * reader samples, and the ranges of their parameters are set so that holds at
  * both ends: conformance draws all 256 neighbour masks at each.
+ *
+ * A shape that leaves light all round each dark module is in the `dot`
+ * family of finder pairs, the hexagon in its own: styled finders that read
+ * among squares fail among those (see `RegionShape.unpaired`).
  */
 
 import { cos, sin } from '../../core/math.js';
@@ -68,6 +72,7 @@ const dot = shape({
 	// Below 0.6 the disc no longer covers the pixels round the centre cross.
 	params: [numberParam('size', 0.9, 0.6, 1, 0.05)],
 	connects: false,
+	family: 'dot',
 	path({ params }, out) {
 		circleContour(0.5, 0.5, num(params, 'size') / 2).emit(out);
 	},
@@ -78,6 +83,7 @@ const diamond = shape({
 	labelKey: 'design.module.diamond',
 	params: [numberParam('size', 1, 0.7, 1, 0.05)],
 	connects: false,
+	family: 'dot',
 	path({ params }, out) {
 		const h = num(params, 'size') / 2;
 		polygonContour([0.5, 0.5 - h, 0.5 + h, 0.5, 0.5, 0.5 + h, 0.5 - h, 0.5]).emit(out);
@@ -107,6 +113,7 @@ const hex = shape({
 		selectParam('orientation', 'pointy', ['pointy', 'flat']),
 	],
 	connects: false,
+	family: 'hex',
 	path({ params }, out) {
 		const r = num(params, 'size') / 2;
 		const start = str(params, 'orientation') === 'pointy' ? -90 : 0;
@@ -201,6 +208,7 @@ const tinySquare = shape({
 	// Under 0.55 the square stops covering the pixels round the centre cross.
 	params: [numberParam('scale', 0.7, 0.55, 1, 0.05)],
 	connects: false,
+	family: 'dot',
 	fillsCell: (params) => num(params, 'scale') === 1,
 	path({ params }, out) {
 		const s = num(params, 'scale');
@@ -224,6 +232,7 @@ const mosaic = shape({
 	labelKey: 'design.module.mosaic',
 	params: [numberParam('jitter', 0.6, 0, 1, 0.05)],
 	connects: false,
+	family: 'dot',
 	path({ params, prng }, out) {
 		const jitter = num(params, 'jitter');
 		const tilt = (prng.next() * 2 - 1) * MOSAIC_TILT * jitter;
@@ -258,6 +267,7 @@ const star = shape({
 	labelKey: 'design.module.star',
 	params: [numberParam('inner', 0.55, 0.45, 0.7, 0.01)],
 	connects: false,
+	family: 'dot',
 	path({ params }, out) {
 		const outer = 0.5;
 		// The lowest tips sit at sin(54) of the radius below the centre, so the

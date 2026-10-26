@@ -41,7 +41,14 @@ import { flattenPath } from '../geometry/flatten.js';
 import { PathBuilder } from '../geometry/path.js';
 import type { Path } from '../geometry/path.js';
 import { rasterise } from '../render/raster.js';
-import type { RegionKind, RegionShape, ResolvedParams, RingKind } from './types.js';
+import type {
+	ModuleFamily,
+	ModuleShape,
+	RegionKind,
+	RegionShape,
+	ResolvedParams,
+	RingKind,
+} from './types.js';
 
 /** Slack per run, in modules, as the strict reader allows it on the axes. */
 export const FINDER_TOLERANCE = 0.35;
@@ -299,12 +306,23 @@ export function finderProblems(
 
 const cache = new WeakMap<RegionShape, WeakMap<RegionShape, Map<string, boolean>>>();
 
+/** The family of finder pairs a module shape is drawn with; `square` when it does not say, or there is none. */
+export function moduleFamilyOf(shape: ModuleShape | undefined): ModuleFamily {
+	return shape?.family ?? 'square';
+}
+
 /**
  * True when this ring and this centre make a finder of `kind` the strict
- * reader finds. Remembered per pair of shapes and their parameters, since a
- * design asks about the same pair on every rebuild; keyed by the shapes
- * themselves, so two registries' entries of the same name never share an
- * answer.
+ * reader finds, among modules of `family` (default `square`). Remembered per
+ * pair of shapes and their parameters, since a design asks about the same
+ * pair on every rebuild; keyed by the shapes themselves, so two registries'
+ * entries of the same name never share an answer.
+ *
+ * The runs measured here hold for every family; a QR finder is also held to
+ * what the ring says about the family (`unpaired`), which captures of the
+ * pair among those modules measured. The alignment patterns take the
+ * finder's style and were in those captures, so the smaller kind is asked
+ * about by runs alone.
  */
 export function regionPairConforms(
 	outer: RegionShape,
@@ -312,7 +330,11 @@ export function regionPairConforms(
 	inner: RegionShape,
 	innerParams: ResolvedParams,
 	kind: 'concentric-7' | 'concentric-5',
+	family: ModuleFamily = 'square',
 ): boolean {
+	if (kind === 'concentric-7' && outer.unpaired?.[family]?.includes(inner.id) === true) {
+		return false;
+	}
 	let byOuter = cache.get(outer);
 	if (byOuter === undefined) {
 		byOuter = new WeakMap();

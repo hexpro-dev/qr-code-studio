@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { presetSizeMm } from '../../src/design/preset-size.js';
 import { regionPairConforms } from '../../src/design/finder.js';
 import { resolveParams } from '../../src/design/params.js';
 import { createRegistries } from '../../src/registries.js';
@@ -57,6 +58,13 @@ describe('the catalogue', () => {
 		expect(ids(catalogue.fills)).toEqual(registries.design.fills.ids());
 		expect(ids(catalogue.frames)).toEqual(registries.design.frames.ids());
 		expect(ids(catalogue.icons)).toEqual(registries.design.icons.ids());
+		for (const entry of catalogue.presets.flatMap((group) => group.presets)) {
+			const preset = registries.design.presets.require(entry.id);
+			expect(entry.sizesMm, entry.id).toEqual(
+				Object.fromEntries(preset.ecLevels.map((level) => [level, presetSizeMm(preset, level)])),
+			);
+			expect(entry.sizesMm[preset.design.symbol.ecLevel ?? 'M'], entry.id).toBe(entry.minSizeMm);
+		}
 		expect(catalogue.presets.flatMap((group) => ids(group.presets)).sort()).toEqual(
 			registries.design.presets.ids().slice().sort(),
 		);
@@ -65,6 +73,8 @@ describe('the catalogue', () => {
 		const banner = catalogue.frames.find((entry) => entry.id === 'banner-bottom');
 		expect(banner?.text).toEqual({ maxLines: 1, maxChars: 24 });
 	});
+
+	const ring = (id: string) => catalogue.rings.find((entry) => entry.id === id)!;
 
 	it('gives each ring and centre the partners it makes a conforming finder with', () => {
 		for (const ring of catalogue.rings) {
@@ -82,8 +92,29 @@ describe('the catalogue', () => {
 				);
 				expect(ring.pairs.includes(centre.id), `${ring.id} with ${centre.id}`).toBe(conforms);
 				expect(centre.pairs.includes(ring.id), `${centre.id} with ${ring.id}`).toBe(conforms);
+				for (const family of ['square', 'dot', 'hex'] as const) {
+					const there = regionPairConforms(
+						outer,
+						resolveParams(outer.params, undefined),
+						inner,
+						resolveParams(inner.params, undefined),
+						'concentric-7',
+						family,
+					);
+					expect(ring.pairsByFamily[family].includes(centre.id), `${ring.id}, ${family}`).toBe(
+						there,
+					);
+					expect(centre.pairsByFamily[family].includes(ring.id), `${centre.id}, ${family}`).toBe(
+						there,
+					);
+				}
 			}
 		}
+		expect(ring('square').pairsByFamily.square).toContain('octagon-centre');
+		expect(ring('square').pairsByFamily.dot).not.toContain('octagon-centre');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'dot')?.family).toBe('dot');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'hex')?.family).toBe('hex');
+		expect(catalogue.moduleShapes.find((entry) => entry.id === 'rounded')?.family).toBe('square');
 		const square = catalogue.rings.find((ring) => ring.id === 'square');
 		expect(square?.pairs).toContain('square-centre');
 		expect(square?.pairs).toBe(square?.pairs);

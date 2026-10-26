@@ -204,12 +204,24 @@ export interface ModuleShapeContext {
 	readonly prng: Prng;
 }
 
+/**
+ * Which kind of module a finder is drawn among, for the pairs of ring and
+ * centre that read there: `square`, modules that fill their cell or join
+ * their neighbours; `dot`, modules that leave light all round them (dots,
+ * diamonds, stars, small squares, mosaic); `hex`, the hexagon. A styled
+ * finder that reads among squares can fail among dots, so the pair table is
+ * kept per family (`RegionShape.unpaired`).
+ */
+export type ModuleFamily = 'square' | 'dot' | 'hex';
+
 export interface ModuleShape {
 	readonly id: string;
 	readonly labelKey: MessageKey;
 	readonly params: readonly ParamSchema[];
 	/** Draws towards dark neighbours (bars, fluid). Conformance allows it to leave the cell only on those sides. */
 	readonly connects: boolean;
+	/** The family of finder pairs this shape is drawn with; `square` when left out. A contract addition. */
+	readonly family?: ModuleFamily;
 	/**
 	 * True when the shape is exactly the unit square at these params, whatever
 	 * the neighbours, so the builder may trace a run of them as one outline. A
@@ -248,6 +260,13 @@ export interface RegionShape {
 	 * A contract addition.
 	 */
 	readonly ringKind?: RingKind;
+	/**
+	 * For a ring, the centres it makes no finder with on a module family,
+	 * although the runs measured in design/finder.ts accept the pair: captures
+	 * of the pair among that family's modules did not read (see the capture
+	 * rule in conformance). A contract addition.
+	 */
+	readonly unpaired?: Readonly<Partial<Record<ModuleFamily, readonly string[]>>>;
 	/** Draw into the region's own box in modules: 7x7 for concentric-7 (outer ring 7, inner 3x3 at 2,2). */
 	path(ctx: RegionShapeContext, out: PathBuilder): void;
 }
@@ -325,8 +344,16 @@ export interface Preset {
 	readonly labelKey: MessageKey;
 	readonly category: PresetCategory;
 	readonly design: QrDesignV1;
+	/** The smallest printed width that scans, at the level the design asks for. */
 	readonly minSizeMm: number;
 	readonly ecLevels: readonly EcLevel[];
+	/**
+	 * The smallest printed width at each level the preset allows: a higher
+	 * level fits the same content in a larger symbol, whose modules are
+	 * smaller at the same width. A level left out takes `minSizeMm`. The
+	 * built-ins give every level they allow. A contract addition.
+	 */
+	readonly sizesMm?: Readonly<Partial<Record<EcLevel, number>>>;
 }
 
 export interface DesignRegistries {

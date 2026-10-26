@@ -39,13 +39,19 @@ describe('region shapes', () => {
 		});
 	}
 
-	it('pair as recorded, each ring and centre at its defaults', () => {
+	it('pair as recorded, each ring and centre at its defaults, the QR finder by module family', () => {
 		const shapes = registries.regionShapes.list();
 		const table: Record<string, Record<string, string[]>> = {};
-		for (const kind of ['concentric-7', 'concentric-5'] as const) {
-			table[kind] = {};
+		const tables = [
+			['concentric-7 square', 'concentric-7', 'square'],
+			['concentric-7 dot', 'concentric-7', 'dot'],
+			['concentric-7 hex', 'concentric-7', 'hex'],
+			['concentric-5', 'concentric-5', 'square'],
+		] as const;
+		for (const [name, kind, family] of tables) {
+			table[name] = {};
 			for (const outer of shapes.filter((shape) => shape.part === 'outer')) {
-				(table[kind] as Record<string, string[]>)[outer.id] = shapes
+				(table[name] as Record<string, string[]>)[outer.id] = shapes
 					.filter((inner) => inner.part === 'inner' && inner.kinds.includes(kind))
 					.filter((inner) =>
 						regionPairConforms(
@@ -54,6 +60,7 @@ describe('region shapes', () => {
 							inner,
 							resolveParams(inner.params, undefined),
 							kind,
+							family,
 						),
 					)
 					.map((inner) => inner.id);
@@ -80,6 +87,17 @@ describe('presets', () => {
 			expect(checkPreset(preset, null, registries)).toEqual([]);
 		});
 	}
+
+	it("give a size for every level they allow, the own level's being minSizeMm", () => {
+		for (const preset of registries.presets.list()) {
+			expect(Object.keys(preset.sizesMm ?? {}).sort(), preset.id).toEqual(
+				[...preset.ecLevels].sort(),
+			);
+			expect(preset.sizesMm?.[preset.design.symbol.ecLevel ?? 'M'], preset.id).toBe(
+				preset.minSizeMm,
+			);
+		}
+	});
 
 	it('aim for 7:1 and all but a few reach it', () => {
 		const under: string[] = [];

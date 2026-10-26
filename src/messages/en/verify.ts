@@ -13,7 +13,8 @@
 export const VERIFY_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	// What each check is called.
 	'verify.check-name.quiet-zone': 'Clear margin',
-	'verify.check-name.contrast': 'Contrast',
+	'verify.check-name.contrast': 'Overall contrast',
+	'verify.check-name.modulation': 'Clear squares',
 	'verify.check-name.polarity': 'Dark on light',
 	'verify.check-name.function-patterns': 'Patterns readers look for',
 	'verify.check-name.logo-budget': 'Logo',

@@ -28,11 +28,12 @@
 
 import { createPrng } from '../core/prng.js';
 import type { Prng } from '../core/prng.js';
-import { regionPairConforms, ringKindOf } from '../design/finder.js';
+import { moduleFamilyOf, regionPairConforms, ringKindOf } from '../design/finder.js';
 import { resolveParams } from '../design/params.js';
 import type {
 	DesignPaint,
 	DesignRegistries,
+	ModuleFamily,
 	QrDesignV1,
 	RegionShape,
 	RegionStyle,
@@ -157,9 +158,15 @@ function finderStyle(
 	base: QrDesignV1,
 	pairs: readonly (readonly [RegionShape, RegionShape])[],
 	against: string,
+	family: ModuleFamily,
 ): RegionStyle | null {
 	const single = base.symbol.symbology !== 'qr';
-	const usable = single ? pairs.filter(([ring]) => ring.id === 'square') : pairs;
+	// Only the pairs that read among this family of modules: `pairs` is the
+	// table among squares, which every other family's is a part of.
+	const read = pairs.filter(
+		([ring, centre]) => ring.unpaired?.[family]?.includes(centre.id) !== true,
+	);
+	const usable = single ? read.filter(([ring]) => ring.id === 'square') : read;
 	if (usable.length === 0) return null;
 	const [ring, centre] = pick(prng, usable);
 	const style: { -readonly [K in keyof RegionStyle]: RegionStyle[K] } = {
@@ -183,7 +190,8 @@ export function shuffleDesign(
 	const paint = prng.fork(2);
 	const shapes = registries.moduleShapes.list();
 	const shape = shapes.length === 0 ? base.modules.shape : { id: pick(prng.fork(3), shapes).id };
-	const finder = finderStyle(prng.fork(4), base, pairs, light);
+	const family = moduleFamilyOf(registries.moduleShapes.get(shape.id));
+	const finder = finderStyle(prng.fork(4), base, pairs, light, family);
 	const frames = registries.frames.list().filter((frame) => frame.id !== 'none');
 	const framing = prng.fork(5);
 	const framed =

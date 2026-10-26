@@ -24,6 +24,7 @@ import { buildScene } from '../design/scene.js';
 import { inkColour } from '../design/paint.js';
 import type { DesignPaint, DesignRegistries, Ink, Preset, QrDesignV1 } from '../design/types.js';
 import { validateDesign } from '../design/validate.js';
+import type { EcLevel } from '../segment/types.js';
 import { createSymbologyRegistry } from '../symbology/registry.js';
 import type { BuiltSymbol } from '../symbology/types.js';
 import { strictFinderProblems } from './finder.js';
@@ -124,6 +125,15 @@ export function checkPreset(
 		report('min-size', 'minSizeMm is not a positive number of millimetres');
 	}
 	const level = preset.design.symbol.ecLevel ?? 'M';
+	for (const [at, size] of Object.entries(preset.sizesMm ?? {})) {
+		if (!preset.ecLevels.includes(at as EcLevel)) {
+			report('min-size', `there is a size for level ${at}, which the preset does not allow`);
+		} else if (!(typeof size === 'number' && size > 0 && Number.isFinite(size))) {
+			report('min-size', `the size for level ${at} is not a positive number of millimetres`);
+		} else if (at === level && size !== preset.minSizeMm) {
+			report('min-size', `the size for level ${at}, the design's own, is not minSizeMm`);
+		}
+	}
 	if (preset.ecLevels.length === 0 || !preset.ecLevels.includes(level)) {
 		report(
 			'ec-levels',

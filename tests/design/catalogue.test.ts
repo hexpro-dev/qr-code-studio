@@ -38,7 +38,6 @@ describe('the built-in catalogue', () => {
 			'extra-rounded',
 			'circle',
 			'squircle',
-			'leaf',
 			'cushion',
 			'dot-ring',
 			'octagon',
@@ -52,7 +51,6 @@ describe('the built-in catalogue', () => {
 			'leaf-centre',
 			'octagon-centre',
 			'scooped-centre',
-			'star-centre',
 			'flower-centre',
 		]);
 		for (const shape of regions) {

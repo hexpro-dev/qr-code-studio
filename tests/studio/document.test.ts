@@ -213,6 +213,9 @@ describe('message keys', () => {
 		expect(presetCategoryKey('print')).toBe('studio.preset-category.print');
 		expect(groupKey('address')).toBe('studio.group.address');
 		expect(checkKey('quiet-zone')).toBe('studio.check.quiet-zone');
+		// Contrast is checked twice, and each check has its own name.
+		expect(checkKey('contrast', 'SC')).toBe('studio.check.contrast');
+		expect(checkKey('contrast', 'MOD')).toBe('studio.check.modulation');
 		expect(axisKey('static')).toBe('studio.axis.static');
 		expect(errorMessageKey('encode/too-much-data')).toBe('error.encode.too-much-data');
 		expect(errorMessageKey('cancelled')).toBe('error.cancelled');

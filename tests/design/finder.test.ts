@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	finderProblems,
 	outlineGap,
+	moduleFamilyOf,
 	regionPairConforms,
 	ringKindOf,
 } from '../../src/design/finder.js';
@@ -71,6 +72,20 @@ describe('finderProblems', () => {
 		expect(
 			outlineGap(a, new PathBuilder().moveTo(5, 5).lineTo(5, 5).lineTo(5, 6).build()),
 		).toBeGreaterThan(0);
+	});
+
+	it('holds a QR finder to the pairs its ring reads with among each family of modules', () => {
+		const square = registries.regionShapes.require('square');
+		const octagon = registries.regionShapes.require('octagon-centre');
+		expect(regionPairConforms(square, {}, octagon, { cut: 0.6 }, 'concentric-7')).toBe(true);
+		expect(regionPairConforms(square, {}, octagon, { cut: 0.6 }, 'concentric-7', 'dot')).toBe(
+			false,
+		);
+		// The alignment pattern takes the finder's style and is asked by runs alone.
+		expect(regionPairConforms(square, {}, octagon, { cut: 0.6 }, 'concentric-5', 'dot')).toBe(true);
+		expect(moduleFamilyOf(registries.moduleShapes.require('star'))).toBe('dot');
+		expect(moduleFamilyOf(registries.moduleShapes.require('fluid'))).toBe('square');
+		expect(moduleFamilyOf(undefined)).toBe('square');
 	});
 
 	it('never pairs a ring of dots as the QR finder, and takes a ring as cornered unless it says', () => {
