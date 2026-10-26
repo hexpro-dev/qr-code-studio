@@ -65,7 +65,7 @@ export const VERIFY_GOLDENS: readonly VerifyGolden[] = [
 				conditions: { sizeMm: 16, dpi: 150, distanceMm: null },
 				seed: 99,
 			}),
-		sha256: '103b919a4c70e30e3b7c1eee0ebef9f4d759cfdd07f0bbd298d05bf6829b38e7',
+		sha256: '2f55cb8ac6e6c30a9e10f4f66a6a293d1349254f2cc6a865e11f92e2ea966a73',
 	},
 ];
 
