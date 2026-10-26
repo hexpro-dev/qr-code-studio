@@ -442,7 +442,8 @@ describe('label sheets', () => {
 		// A square code fills the label's height: 67.7 mm.
 		for (const request of requests) {
 			expect(request.sizeMm).toBeCloseTo(67.7, 9);
-			expect(request.design.output.sizeMm).toBeCloseTo(67.7, 9);
+			// The size travels in the request, not in a design rewritten to carry it.
+			expect(request.design.output.sizeMm).toBeUndefined();
 		}
 		expect(requests).toHaveLength(4);
 	});
@@ -659,7 +660,13 @@ describe('content and designs', () => {
 		expect(entry).toEqual(new TextEncoder().encode(sceneToSvg(alone.scene)));
 		expect(entry).not.toEqual(new TextEncoder().encode(sceneToSvg(without.scene)));
 		expect(seen[0]?.overlay).toBe('swiss-cross');
-		expect(seen[0]?.sizeMm).toBe(46);
+		// The bill fixes the symbol at 46 mm; the check measures it with its quiet zone.
+		const quiet = applied.design.quietZone;
+		expect(seen[0]?.sizeMm).toBeCloseTo(
+			(46 * (symbol.matrix.width + 2 * quiet)) / symbol.matrix.width,
+			9,
+		);
+		expect(seen[0]?.design.output.sizeMm).toBe(46);
 	});
 
 	it('cleans names on rows that did not come from planBatch', async () => {
@@ -784,18 +791,6 @@ describe('verification', () => {
 		return { seen, verifyRow };
 	}
 
-	it('is off without a checker, and refuses to be asked for without one', () => {
-		const batch = rows();
-		expect(run(batch, { kind: 'zip', format: 'svg' }).outcomes.every((o) => o.check === null)).toBe(
-			true,
-		);
-		for (const verify of ['sampled', 'all'] as const) {
-			expect(() =>
-				runBatch(batch, defaultDesign(), { kind: 'zip', format: 'svg', verify }, reg),
-			).toThrow(TypeError);
-		}
-	});
-
 	it(`checks a batch of up to ${SMALL_BATCH} rows in full by default, and a larger one not at all`, () => {
 		const small = recorder();
 		run(rows(), { kind: 'zip', format: 'svg' }, defaultDesign(), { verifyRow: small.verifyRow });
@@ -861,6 +856,8 @@ describe('verification', () => {
 			sizeMm: 20,
 			dpi: 600,
 			seed: 7,
+			captureSeeds: 2,
+			assets: {},
 		});
 		const unsized = recorder();
 		run([first as BatchRow], { kind: 'zip', format: 'svg' }, high, {

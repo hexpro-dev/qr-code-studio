@@ -17,10 +17,14 @@
  * - `BatchOutput` options beyond the contract's: `dpi`, `colourSpace` and
  *   `includeContent` for a ZIP, `sizeMm` and `skip` for a sheet, a sheet
  *   template given as a `SheetTemplate` as well as by id, and the
- *   verification mode on both. They live on the output rather than in a
+ *   verification mode, sample rate and seed count on both. They live on the output rather than in a
  *   separate argument so the studio's `batch` command carries them as it is.
  * - `runBatch` takes a fifth argument for what cannot be posted to a worker:
- *   the per-row verifier, fonts, the seed and the archive date.
+ *   the per-row verifier, fonts, the seed and the archive date. The verifier
+ *   is passed rather than defaulted so that `run.ts` does not import verify:
+ *   the offline file leaves the scan check out until the studio is given
+ *   one, and a default here would put it back in through the batch command.
+ *   `scanCheckVerifier(registries)` in `verify.ts` is the scan check.
  * - Each progress event may carry the outcome of the row it follows, which
  *   is how a sheet run (a PDF, with no manifest inside it) reports skipped
  *   rows and labels too small for their codes.
@@ -28,6 +32,7 @@
  *   bag. The root bag satisfies it structurally.
  */
 
+import type { RgbaImage } from '../core/image.js';
 import type { Issue } from '../core/issue.js';
 import type { Registry } from '../core/registry.js';
 import type { DesignOverlay, DesignRegistries, QrDesignV1 } from '../design/types.js';
@@ -99,16 +104,22 @@ export interface BatchRegistries {
 
 /**
  * Which rows the scan check runs on. 'sampled' checks every Nth row written
- * (`verifyEvery`, default 20) and the row with the longest content, which
- * makes the densest code. When the output gives none, a batch of up to 10
- * rows is checked in full and a larger one not at all.
+ * (`verifyEvery`) and the row with the longest content, which makes the
+ * densest code. When the output gives none, a batch of up to 5 rows
+ * (`SMALL_BATCH`) is checked in full and a larger one not at all.
  */
 export type BatchVerifyMode = 'off' | 'sampled' | 'all';
 
 interface BatchOutputOptions {
 	readonly verify?: BatchVerifyMode;
-	/** For 'sampled': check every this-many rows written. A whole number from 1. Default 20. */
+	/**
+	 * For 'sampled': check every this-many rows written. A whole number from
+	 * 1. Default 20, or more in a large batch so that at most 10 rows and the
+	 * longest are checked.
+	 */
 	readonly verifyEvery?: number;
+	/** Seeded captures a level, 1 to 8. Default 2 for 'all' and 8, verify's full count, for 'sampled'. */
+	readonly verifySeeds?: number;
 }
 
 export interface BatchZipOutput extends BatchOutputOptions {
@@ -118,7 +129,11 @@ export interface BatchZipOutput extends BatchOutputOptions {
 	readonly widthPx?: number;
 	/** PNG: pixels per inch, written into the file. Defaults to the design's. */
 	readonly dpi?: number;
-	/** Printed width of each symbol, quiet zone included. Defaults to the design's, else 30 for PDF and EPS. */
+	/**
+	 * Printed width of each code, measured as the design's `sizeBasis` says
+	 * (the whole artwork unless the design says the symbol). Defaults to the
+	 * design's, else 30 for PDF and EPS.
+	 */
 	readonly sizeMm?: number;
 	/** PDF and EPS. Defaults to the design's. */
 	readonly colourSpace?: 'srgb' | 'cmyk';
@@ -132,8 +147,9 @@ export interface BatchSheetOutput extends BatchOutputOptions {
 	readonly template: string | SheetTemplate;
 	readonly colourSpace: 'srgb' | 'cmyk';
 	/**
-	 * Printed width of each symbol, quiet zone included. Defaults to the
-	 * design's. With neither, each code is scaled to fill its label.
+	 * Printed width of each code, measured as the design's `sizeBasis` says.
+	 * Defaults to the design's. With neither, each code is scaled to fill its
+	 * label.
 	 */
 	readonly sizeMm?: number;
 	/** Labels on the first sheet already used. Default 0. */
@@ -151,11 +167,19 @@ export interface BatchVerifyRequest {
 	readonly design: QrDesignV1;
 	/** What the content type draws over its code whatever the design: the Swiss QR-bill's cross. */
 	readonly overlay: DesignOverlay | null;
-	/** Printed width of the symbol with its quiet zone, when the output has one. */
+	/**
+	 * Printed width of the symbol with its quiet zone, worked out from the
+	 * scene as drawn, when the output has a size. Not the design's own
+	 * `sizeMm`, which may measure the whole artwork.
+	 */
 	readonly sizeMm: number | null;
 	/** Pixels per inch, for a PNG. */
 	readonly dpi: number | null;
 	readonly seed: number;
+	/** Seeded captures a level, 1 to 8, chosen by the mode or `verifySeeds`. */
+	readonly captureSeeds: number;
+	/** The design's embedded pictures, decoded, which a check draws the design with. */
+	readonly assets: Readonly<Record<string, RgbaImage>>;
 }
 
 export interface BatchVerifyResult {
@@ -174,7 +198,10 @@ export type BatchVerifier = (
 ) => BatchVerifyResult | Iterator<unknown, BatchVerifyResult>;
 
 export interface RunBatchOptions {
-	/** The scan check for one row. Without one, verification is off. */
+	/**
+	 * The check for one row. `scanCheckVerifier(registries)` is the scan
+	 * check, stepped one capture a slice. Without one, rows are not checked.
+	 */
 	readonly verifyRow?: BatchVerifier;
 	/** Fonts for frame captions. Default: the built-in family. */
 	readonly fonts?: FontRegistry;

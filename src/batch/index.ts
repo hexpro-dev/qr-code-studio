@@ -14,11 +14,15 @@ export {
 	DEFAULT_PRINT_SIZE_MM,
 	DEFAULT_VERIFY_EVERY,
 	DEFAULT_WIDTH_PX,
+	MAX_SAMPLES,
 	MAX_WIDTH_PX,
+	SEEDS_ALL,
+	SEEDS_SAMPLED,
 	SMALL_BATCH,
 	errorIssue,
 	runBatch,
 } from './run.js';
+export { reportResult, scanCheckJob, scanCheckVerifier } from './verify.js';
 export type {
 	BatchMapping,
 	BatchOutcome,
