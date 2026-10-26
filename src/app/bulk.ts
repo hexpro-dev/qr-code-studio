@@ -566,15 +566,25 @@ export function createBulk(ctx: AppContext): BulkView {
 						runStatus,
 						t('app.bulk.done', { written: batch.written, skipped: batch.skipped }),
 					);
-					const skipped = batch.outcomes
-						.filter((outcome) => outcome.status === 'skipped')
+					// Skipped rows, and written rows the scan check had something to say
+					// about: their issues carry the verdict and the checks behind it.
+					const noted = batch.outcomes
+						.filter(
+							(outcome) =>
+								outcome.status === 'skipped' ||
+								outcome.check === 'fail' ||
+								outcome.check === 'warn',
+						)
 						.slice(0, 8);
-					skippedList.hidden = skipped.length === 0;
+					skippedList.hidden = noted.length === 0;
 					replace(
 						skippedList,
-						skipped.map((outcome) =>
+						noted.map((outcome) =>
 							h('li', {
-								className: 'note note--warning',
+								className:
+									outcome.status === 'skipped' || outcome.check === 'fail'
+										? 'note note--warning'
+										: 'note note--info',
 								text: `${t('app.bulk.row', { row: outcome.rowNumber })}: ${outcome.issues.map(issueText).join(' ')}`,
 							}),
 						),

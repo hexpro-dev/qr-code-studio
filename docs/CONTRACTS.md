@@ -1273,6 +1273,14 @@ The manifest written into a ZIP neutralises spreadsheet formulas (a cell
 starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with an
 apostrophe), because a person opens it in a spreadsheet.
 
+As built, rows are checked only through an injected `verifyRow` (the fifth
+argument). `scanCheckVerifier(registries, generator = runVerifyJob)` in
+`batch/verify.ts` is the scan check, stepped one capture a slice: 'all' at 2
+seeds a row, 'sampled' at verify's full 8 on at most ten rows and the longest,
+and `verifySeeds` on the output to change either. `run.ts` never imports
+verify, so the `./batch` subpath carries no scan check of its own; the caller
+decides.
+
 ---
 
 ## studio
@@ -1387,3 +1395,11 @@ Snapshots are immutable and structurally shared: a slice that did not change
 keeps its identity, so `React.memo` and a vanilla view's own diffing both work.
 Async results carry the revision they were computed for and are dropped if a
 newer one has started.
+
+The batch command's rows follow the studio's verify seam. With a
+`verifyGenerator` (verify's `runVerifyJob` unless one is given) it passes
+`scanCheckVerifier(registries, verifyGenerator)` to `runBatch`, so rows are
+checked by the same check as the code on screen; with `verifyGenerator: null`
+it passes none, and a batch asked to check its rows fails with
+'platform/unavailable' (`{ feature: 'verify' }`), as a single code's check
+does.

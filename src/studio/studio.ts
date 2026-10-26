@@ -38,6 +38,7 @@ import { decodeCsvBytes } from '../batch/text-decoding.js';
 import { parseCsv } from '../batch/csv.js';
 import { planBatch } from '../batch/plan.js';
 import { runBatch } from '../batch/run.js';
+import { scanCheckVerifier } from '../batch/verify.js';
 import type { BatchOutcome, BatchRow } from '../batch/types.js';
 import { createRegistries } from '../registries.js';
 import { createFontRegistry } from '../text/registry.js';
@@ -1072,13 +1073,30 @@ export function createStudio(options: StudioOptions = {}): Studio {
 			if (thrown instanceof TypeError) throw thrown;
 			return failed(asStudioError(thrown, 'batch/malformed-csv'));
 		}
+		const asked = command.output.verify;
+		if (generator === null && asked !== undefined && asked !== 'off') {
+			// Asked to check rows in a build without the scan check: the same
+			// answer a single code gets from the unavailable runner.
+			return failed(
+				new QrStudioError('platform/unavailable', 'The scan check is not part of this build yet.', {
+					feature: 'verify',
+				}),
+			);
+		}
 		let written = 0;
 		let skipped = 0;
 		const outcomes: BatchOutcome[] = [];
 		setBatch({ status: 'running', done: 0, total: rows.length + 1, written, skipped, issues });
 		const design = document.design;
 		const result = await driveInSlices(
-			() => runBatch(rows, design, command.output, registries, { fonts, seed }),
+			() =>
+				runBatch(rows, design, command.output, registries, {
+					fonts,
+					seed,
+					// Rows are checked by whatever the studio checks its code with: the
+					// real scan check by default, a test's stand-in, or nothing.
+					...(generator === null ? {} : { verifyRow: scanCheckVerifier(registries, generator) }),
+				}),
 			{
 				scheduler: timers,
 				clock,

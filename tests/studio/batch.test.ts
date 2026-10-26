@@ -15,11 +15,22 @@ import { createRegistries } from '../../src/registries.js';
 import { createFontRegistry } from '../../src/text/registry.js';
 import { driveInSlices } from '../../src/studio/slices.js';
 import type { Studio, StudioCommand } from '../../src/studio/types.js';
-import { FakeTime, settle, studioWith } from './helpers.js';
+import type { VerifyJob, VerifyProgress, VerifyReport } from '../../src/studio/seams.js';
+import { createStudio } from '../../src/studio/studio.js';
+import { FakeTime, reportFor, settle, studioWith } from './helpers.js';
 
 const CSV = 'name,link\nOne,https://example.com/1\nTwo,https://example.com/2\nBad,not a link\n';
 const MAPPING = { typeId: 'url', fields: { url: { column: 'link' } }, filename: '{name}' };
 const ZIP: BatchOutput = { kind: 'zip', format: 'svg' };
+
+/**
+ * A studio without the scan check. These tests are about the batch itself;
+ * with a check, a batch of two rows is checked in full by default, which is
+ * seconds of real captures a row.
+ */
+function quiet() {
+	return studioWith({ verifyGenerator: null });
+}
 
 /** Run a command to the end, moving the fake clock as the slices ask. */
 async function finish<T>(time: FakeTime, pending: Promise<T>): Promise<T> {
@@ -41,7 +52,7 @@ function batch(studio: Studio, overrides: Partial<Extract<StudioCommand, { type:
 
 describe('the batch command', () => {
 	it('makes a ZIP, byte for byte what the batch layer makes, with progress on the way', async () => {
-		const { studio, time } = studioWith();
+		const { studio, time } = quiet();
 		studio.dispatch({ type: 'design/shuffle', seed: 6 });
 		const states: string[] = [];
 		studio.subscribe(() => {
@@ -73,7 +84,7 @@ describe('the batch command', () => {
 	});
 
 	it('reads a spreadsheet given as bytes, saying how it was encoded', async () => {
-		const { studio, time } = studioWith();
+		const { studio, time } = quiet();
 		const text = 'link\nhttps://example.com/1\n';
 		const utf16 = new Uint8Array(2 + text.length * 2);
 		utf16[0] = 0xff;
@@ -91,7 +102,7 @@ describe('the batch command', () => {
 	});
 
 	it('fails with the reason for a file it cannot read or a column it does not have', async () => {
-		const { studio } = studioWith();
+		const { studio } = quiet();
 		const broken = await batch(studio, { csv: 'link\n"https://example.com/' });
 		expect(!broken.ok && broken.error.code).toBe('batch/malformed-csv');
 		expect(studio.getSnapshot().batch).toMatchObject({
@@ -105,14 +116,14 @@ describe('the batch command', () => {
 	});
 
 	it("refuses a mapping that is not one, as a caller's mistake", async () => {
-		const { studio } = studioWith();
+		const { studio } = quiet();
 		await expect(batch(studio, { mapping: { ...MAPPING, filename: 5 as never } })).rejects.toThrow(
 			TypeError,
 		);
 	});
 
 	it('reports a design the batch layer refuses as a failed run', async () => {
-		const { studio, time } = studioWith();
+		const { studio, time } = quiet();
 		const result = await finish(
 			time,
 			batch(studio, { output: { kind: 'sheet', template: 'no-such-sheet', colourSpace: 'srgb' } }),
@@ -122,7 +133,7 @@ describe('the batch command', () => {
 	});
 
 	it('stops the run before when a new one starts, and stops on dispose', async () => {
-		const { studio, time } = studioWith();
+		const { studio, time } = quiet();
 		const first = batch(studio);
 		const second = batch(studio);
 		const [a, b] = await finish(time, Promise.all([first, second]));
@@ -137,7 +148,7 @@ describe('the batch command', () => {
 	});
 
 	it('leaves the snapshot to the newer run when an older one fails late', async () => {
-		const { studio, time } = studioWith();
+		const { studio, time } = quiet();
 		const first = batch(studio, {
 			output: { kind: 'sheet', template: 'no-such-sheet', colourSpace: 'srgb' },
 		});
@@ -145,6 +156,77 @@ describe('the batch command', () => {
 		await finish(time, Promise.all([first, second]));
 		expect(studio.getSnapshot().batch.status).toBe('done');
 	});
+});
+
+describe('checking the rows', () => {
+	it('checks each row with the generator the studio was given', async () => {
+		const jobs: VerifyJob[] = [];
+		function* fake(job: VerifyJob): Generator<VerifyProgress, VerifyReport> {
+			jobs.push(job);
+			yield { done: 0, total: 1, axis: 'static' };
+			return reportFor(job, job.content.endsWith('/2') ? 'fail' : 'pass');
+		}
+		const { studio, time } = studioWith({ verifyGenerator: fake });
+		const result = await finish(time, batch(studio));
+		expect(result.ok).toBe(true);
+		const done = studio.getSnapshot().batch;
+		if (done.status !== 'done') throw new Error('the batch did not finish');
+		expect(done.outcomes.map((row) => row.check)).toEqual(['pass', 'fail', null]);
+		expect(done.outcomes[1]?.issues.map((found) => found.code)).toEqual([
+			'batch.issue.check-failed',
+		]);
+		// A small batch is checked in full, at the 2 seeds a row 'all' uses.
+		expect(jobs.map((job) => job.captureSeeds)).toEqual([2, 2]);
+		expect(jobs[0]?.conditions.sizeMm).toBeNull();
+	});
+
+	it('checks nothing when the studio has no scan check', async () => {
+		const { studio, time } = quiet();
+		await finish(time, batch(studio));
+		const done = studio.getSnapshot().batch;
+		expect(done.status === 'done' && done.outcomes.map((row) => row.check)).toEqual([
+			null,
+			null,
+			null,
+		]);
+		const asked = await finish(time, batch(studio, { output: { ...ZIP, verify: 'all' } }));
+		expect(!asked.ok && asked.error).toMatchObject({
+			code: 'platform/unavailable',
+			params: { feature: 'verify' },
+		});
+		expect(studio.getSnapshot().batch.status).toBe('failed');
+		// Asking for none is not asking for the check.
+		expect((await finish(time, batch(studio, { output: { ...ZIP, verify: 'off' } }))).ok).toBe(
+			true,
+		);
+	});
+
+	it('reaches real verdicts with the default scan check, at one seed', async () => {
+		const time = new FakeTime(8);
+		// Each reading spends fake time, so a slice moves the scheduler on and
+		// each `advance` below runs two or three slices, not the whole batch.
+		const clock = (): number => (time.now += 4);
+		const studio = createStudio({ scheduler: time, clock });
+		const pending = batch(studio, {
+			csv: 'name,link\nOne,https://example.com/1\n',
+			output: { kind: 'zip', format: 'pdf', sizeMm: 30, verifySeeds: 1 },
+		});
+		let settled = false;
+		void pending.then(() => (settled = true));
+		for (let i = 0; i < 50_000 && !settled; i += 1) {
+			time.advance(24);
+			await settle();
+			// Hand the event loop a turn between batches of slices, so the check
+			// does not starve vitest's worker channel under coverage.
+			await new Promise<void>((resolve) => setImmediate(resolve));
+		}
+		const result = await pending;
+		expect(result.ok).toBe(true);
+		const done = studio.getSnapshot().batch;
+		if (done.status !== 'done') throw new Error('the batch did not finish');
+		expect(done.outcomes[0]?.check).toMatch(/^(pass|warn)$/);
+		studio.dispose();
+	}, 300_000);
 });
 
 describe('the slice driver', () => {

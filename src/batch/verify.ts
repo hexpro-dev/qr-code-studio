@@ -29,7 +29,7 @@ import type { Issue } from '../core/issue.js';
 import { runVerifyJob } from '../verify/job.js';
 import { VERIFY_MESSAGE_KEYS } from '../verify/keys.js';
 import { designRequirements } from '../verify/prepare.js';
-import type { VerifyJob, VerifyRegistries, VerifyReport } from '../verify/types.js';
+import type { VerifyJob, VerifyProgress, VerifyRegistries, VerifyReport } from '../verify/types.js';
 import type { BatchVerifier, BatchVerifyRequest, BatchVerifyResult } from './types.js';
 
 /** The scan check's job for one row. */
@@ -70,10 +70,28 @@ export function reportResult(report: VerifyReport): BatchVerifyResult {
 	return { verdict: report.verdict, issues };
 }
 
-/** The scan check as a batch's `verifyRow`, over these registries. */
-export function scanCheckVerifier(registries: VerifyRegistries): BatchVerifier {
+/**
+ * What runs a job: verify's `runVerifyJob`, or a stand-in with its shape.
+ * Structurally the studio's `VerifyGenerator` seam, which batch may not
+ * import, so the studio hands its own generator over as it is.
+ */
+export type ScanCheckGenerator<R extends VerifyRegistries = VerifyRegistries> = (
+	job: VerifyJob,
+	registries: R,
+) => Generator<VerifyProgress, VerifyReport>;
+
+/**
+ * The scan check as a batch's `verifyRow`, over these registries. `generator`
+ * is what runs each job, `runVerifyJob` unless the caller has its own: the
+ * studio passes the one it was given, so batch rows are checked the way its
+ * single code is.
+ */
+export function scanCheckVerifier<R extends VerifyRegistries>(
+	registries: R,
+	generator: ScanCheckGenerator<R> = runVerifyJob,
+): BatchVerifier {
 	return function* check(request) {
-		const report = yield* runVerifyJob(scanCheckJob(request), registries);
+		const report = yield* generator(scanCheckJob(request), registries);
 		return reportResult(report);
 	};
 }
