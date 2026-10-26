@@ -14,6 +14,7 @@ import { VERIFY_MESSAGE_KEYS, checkNameKey } from '../../src/verify/keys.js';
 import type { VerifyJob, VerifyReport } from '../../src/verify/types.js';
 import { alwaysReads, design, run } from './helpers.js';
 import { checkHouseStyle } from './style.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -124,14 +125,14 @@ describe('the verify message catalogue', () => {
 			for (const { key, params } of said) {
 				const sentence = VERIFY_MESSAGES[key] as string;
 				expect(sentence, key).toBeDefined();
-				for (const match of sentence.matchAll(/\{(\w+)\}/g)) {
-					expect(params, `${key} uses {${match[1]}}`).toHaveProperty(match[1] as string);
+				for (const name of messageArguments(sentence)) {
+					expect(params, `${key} uses {${name}}`).toHaveProperty(name);
 					reached.add(key);
 				}
 			}
 		}
 		const withPlaceholders = Object.entries(VERIFY_MESSAGES)
-			.filter(([, sentence]) => /\{\w+\}/.test(sentence))
+			.filter(([, sentence]) => messageArguments(sentence).length > 0)
 			.map(([key]) => key);
 		expect(withPlaceholders.filter((key) => !reached.has(key))).toEqual([]);
 	});

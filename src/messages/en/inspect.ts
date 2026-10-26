@@ -34,7 +34,8 @@ export const INSPECT_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 	'inspect.text-source.shift-jis': 'Japanese',
 	'inspect.text-source.eci': 'Declared by the code',
 
-	'inspect.set.complete': 'All {total} parts were found and put together.',
+	'inspect.set.complete':
+		'{total, plural, one {The one part of this set was found and read.} other {All # parts were found and put together.}}',
 	'inspect.set.incomplete':
 		'This is one part of a set of {total}. Scan the other parts too to see the whole message.',
 	'inspect.set.parity-mismatch':

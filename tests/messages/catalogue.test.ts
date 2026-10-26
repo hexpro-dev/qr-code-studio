@@ -60,6 +60,8 @@ import type { BitstreamProfile } from '../../src/segment/types.js';
 import { createStudio } from '../../src/studio/studio.js';
 import { importLogo } from '../../src/dom/logo.js';
 import { blobOf, fakeDecoding } from '../dom/fakes.js';
+import { shownForms } from './forms.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -227,6 +229,7 @@ function batchKeys(): string[] {
 		...reasons.map((reason) => errorKey(new QrStudioError('batch/malformed-csv', '', { reason }))),
 		errorKey(new QrStudioError('batch/too-many-rows', '')),
 		errorKey(new QrStudioError('batch/unknown-column', '')),
+		errorKey(new QrStudioError('platform/unavailable', '', { feature: 'text-encoding' })),
 		...Object.values(BATCH_ISSUES),
 	];
 }
@@ -363,15 +366,13 @@ describe('the English catalogue', () => {
 		for (const found of issues) {
 			const sentence = EN_MESSAGES[found.code];
 			expect(sentence, found.code).toBeDefined();
-			for (const match of (sentence as string).matchAll(/\{(\w+)\}/g)) {
+			for (const name of messageArguments(sentence as string)) {
 				reached.add(found.code);
-				expect(found.params ?? {}, `${found.code} uses {${match[1]}}`).toHaveProperty(
-					match[1] as string,
-				);
+				expect(found.params ?? {}, `${found.code} uses {${name}}`).toHaveProperty(name);
 			}
 		}
 		const ours = Object.entries({ ...MESSAGE_AREAS.studio, ...MESSAGE_AREAS.dom })
-			.filter(([, sentence]) => /\{\w+\}/.test(sentence))
+			.filter(([, sentence]) => messageArguments(sentence).length > 0)
 			.map(([key]) => key);
 		expect(ours.filter((key) => !reached.has(key))).toEqual([]);
 	});
@@ -429,17 +430,21 @@ describe('house style', () => {
 	for (const [key, sentence] of Object.entries(EN_MESSAGES)) {
 		it(key, () => {
 			expect(key).toMatch(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/);
-			expect(sentence.trim()).toBe(sentence);
-			expect(sentence.length).toBeGreaterThan(0);
-			expect(sentence).not.toMatch(/\s{2,}/);
-			expect(sentence).toMatch(/^[A-Z0-9]/);
 			for (const [char, name] of FORBIDDEN)
 				expect(sentence.includes(char), `${key} has ${name}`).toBe(false);
 			const lower = sentence.toLowerCase();
 			for (const word of [...MARKETING, ...AMERICAN])
 				expect(lower.includes(word), `${key}: ${word}`).toBe(false);
-			// An issue or an error is a sentence; a heading or a label is not.
-			if (/\.issue\.|^error\./.test(key)) expect(sentence, key).toMatch(/[.]$/);
+			// The shape is checked as a person reads it: each plural branch is a
+			// sentence of its own, and a block may start one.
+			for (const shown of shownForms(sentence)) {
+				expect(shown.trim(), key).toBe(shown);
+				expect(shown.length, key).toBeGreaterThan(0);
+				expect(shown, key).not.toMatch(/\s{2,}/);
+				expect(shown, key).toMatch(/^[A-Z0-9]/);
+				// An issue or an error is a sentence; a heading or a label is not.
+				if (/\.issue\.|^error\./.test(key)) expect(shown, key).toMatch(/[.]$/);
+			}
 		});
 	}
 });

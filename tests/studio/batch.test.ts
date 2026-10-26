@@ -5,12 +5,13 @@
  * give the same file whether the studio or runBatch makes it.
  */
 
-import { describe, expect, it } from 'vitest';
+import iconv from 'iconv-lite';
+import { describe, expect, it, vi } from 'vitest';
 import { QrStudioError } from '../../src/core/errors.js';
 import { parseCsv } from '../../src/batch/csv.js';
 import { planBatch } from '../../src/batch/plan.js';
 import { runBatch } from '../../src/batch/run.js';
-import type { BatchOutput } from '../../src/batch/types.js';
+import type { BatchOutput, CsvFallbackEncoding } from '../../src/batch/types.js';
 import { createRegistries } from '../../src/registries.js';
 import { createFontRegistry } from '../../src/text/registry.js';
 import { driveInSlices } from '../../src/studio/slices.js';
@@ -99,6 +100,93 @@ describe('the batch command', () => {
 		expect(done.status === 'done' && done.issues.map((found) => found.code)).toContain(
 			'batch.csv.utf-16',
 		);
+	});
+
+	it('reads bytes that are not UTF-8 in its fallback, and a command can choose another', async () => {
+		const mapping = { ...MAPPING, filename: '{name}' };
+		const japanese = new Uint8Array(
+			iconv.encode('name,link\r\n\u898b\u672c,https://example.com/1\r\n', 'shift_jis'),
+		);
+		const chinese = new Uint8Array(
+			iconv.encode('name,link\r\n\u793a\u4f8b,https://example.com/1\r\n', 'gb18030'),
+		);
+		const read = async (
+			studio: Studio,
+			time: FakeTime,
+			csv: Uint8Array,
+			encoding?: 'auto' | CsvFallbackEncoding,
+		) => {
+			const result = await finish(
+				time,
+				batch(studio, { csv, mapping, ...(encoding === undefined ? {} : { encoding }) }),
+			);
+			expect(result.ok).toBe(true);
+			const done = studio.getSnapshot().batch;
+			if (done.status !== 'done') throw new Error('the batch did not finish');
+			const fallback = done.issues.find((found) => found.code === 'batch.csv.fallback-encoding');
+			return { names: done.outcomes.map((row) => row.filename), encoding: fallback?.params };
+		};
+
+		const { studio, time } = studioWith({
+			verifyGenerator: null,
+			csvFallbackEncoding: 'shift_jis',
+		});
+		expect(await read(studio, time, japanese)).toEqual({
+			names: ['\u898b\u672c.svg'],
+			encoding: { encoding: 'shift_jis' },
+		});
+		expect(await read(studio, time, chinese, 'gb18030')).toEqual({
+			names: ['\u793a\u4f8b.svg'],
+			encoding: { encoding: 'gb18030' },
+		});
+		// 'auto' is the studio's own fallback again.
+		expect((await read(studio, time, japanese, 'auto')).names).toEqual(['\u898b\u672c.svg']);
+		// Text needs no fallback, whatever the command says.
+		const text = await finish(time, batch(studio, { encoding: 'big5' }));
+		expect(text.ok).toBe(true);
+
+		// A studio told nothing reads Windows-1252, as before.
+		const plain = quiet();
+		expect((await read(plain.studio, plain.time, japanese)).encoding).toEqual({
+			encoding: 'windows-1252',
+		});
+	});
+
+	it('refuses an encoding it does not know, as a mistake by its caller', async () => {
+		expect(() => createStudio({ csvFallbackEncoding: 'latin1' as never })).toThrow(TypeError);
+		expect(() => createStudio({ csvFallbackEncoding: 'Shift_JIS' as never })).toThrow(TypeError);
+		const { studio } = quiet();
+		await expect(batch(studio, { encoding: 'utf-8' as never })).rejects.toThrow(TypeError);
+		expect(studio.getSnapshot().batch.status).toBe('idle');
+	});
+
+	it('fails with its own sentence when this browser cannot read the encoding', async () => {
+		const Real = TextDecoder;
+		class Utf8Only extends Real {
+			constructor(label?: string, options?: TextDecoderOptions) {
+				if (label !== 'utf-8') throw new RangeError(`The "${label}" encoding is not supported`);
+				super(label, options);
+			}
+		}
+		vi.stubGlobal('TextDecoder', Utf8Only);
+		try {
+			const { studio } = studioWith({ verifyGenerator: null, csvFallbackEncoding: 'euc-kr' });
+			const korean = new Uint8Array(
+				iconv.encode('name,link\r\n\uc608\uc2dc,https://example.com/1\r\n', 'euc-kr'),
+			);
+			const result = await batch(studio, { csv: korean });
+			expect(!result.ok && result.error.code).toBe('platform/unavailable');
+			expect(studio.getSnapshot().batch).toMatchObject({
+				status: 'failed',
+				error: {
+					code: 'platform/unavailable',
+					messageKey: 'batch.encoding-unavailable',
+					params: { feature: 'text-encoding', encoding: 'euc-kr' },
+				},
+			});
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 
 	it('fails with the reason for a file it cannot read or a column it does not have', async () => {

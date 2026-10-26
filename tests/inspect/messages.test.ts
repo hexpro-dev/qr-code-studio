@@ -10,6 +10,7 @@ import { GS1_AIS } from '../../src/inspect/gs1.js';
 import { INSPECT_MESSAGE_KEYS, gs1MessageKey } from '../../src/inspect/keys.js';
 import { INSPECT_MESSAGES } from '../../src/messages/en/inspect.js';
 import { checkHouseStyle } from '../verify/style.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -51,8 +52,8 @@ describe('the inspect message catalogue', () => {
 
 	it('uses only the placeholders a set carries', () => {
 		for (const key of Object.values(INSPECT_MESSAGE_KEYS.sets)) {
-			for (const match of (INSPECT_MESSAGES[key] as string).matchAll(/\{(\w+)\}/g)) {
-				expect(['total', 'parity'], key).toContain(match[1]);
+			for (const name of messageArguments(INSPECT_MESSAGES[key] as string)) {
+				expect(['total', 'parity'], key).toContain(name);
 			}
 		}
 	});

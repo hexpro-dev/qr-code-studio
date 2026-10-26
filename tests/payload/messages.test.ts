@@ -27,6 +27,7 @@ import { SAFETY_CODES, safetyMessageKey } from '../../src/payload/safety.js';
 import type { SafetyCode } from '../../src/payload/types.js';
 import { ISSUE_CASES, VALID } from './cases.js';
 import { valueArbitrary } from './support.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const root = resolve(import.meta.dirname, '../..');
 const registry = createPayloadRegistry();
@@ -169,10 +170,8 @@ describe('the message catalogues', () => {
 	it('fill every placeholder from the params the issue carries', () => {
 		for (const found of emitted) {
 			const sentence = ALL_MESSAGES[found.code] as string;
-			for (const match of sentence.matchAll(/\{(\w+)\}/g)) {
-				expect(found.params ?? {}, `${found.code} uses {${match[1]}}`).toHaveProperty(
-					match[1] as string,
-				);
+			for (const name of messageArguments(sentence)) {
+				expect(found.params ?? {}, `${found.code} uses {${name}}`).toHaveProperty(name);
 			}
 		}
 	});

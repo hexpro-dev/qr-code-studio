@@ -5,7 +5,7 @@
  * provoking each one through the public functions, not by listing them.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseCsv } from '../../src/batch/csv.js';
 import { BATCH_ISSUES } from '../../src/batch/issues.js';
 import { planBatch } from '../../src/batch/plan.js';
@@ -19,6 +19,7 @@ import { BATCH_MESSAGES } from '../../src/messages/en/batch.js';
 import { designWith } from '../design/helpers.js';
 import { checkRegister } from '../encode/register.js';
 import { drain, registries } from './helpers.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 /** The key an error is shown with, and the params it can use. */
 function errorKey(run: () => unknown): { key: string; params: Readonly<Record<string, unknown>> } {
@@ -29,6 +30,9 @@ function errorKey(run: () => unknown): { key: string; params: Readonly<Record<st
 		expect(error).toBeInstanceOf(QrStudioError);
 		if (code === 'batch/malformed-csv')
 			return { key: `batch.malformed-csv.${String(params.reason)}`, params };
+		// The studio's errorKey gives a text encoding this browser lacks the batch layer's sentence.
+		if (code === 'platform/unavailable' && params.feature === 'text-encoding')
+			return { key: 'batch.encoding-unavailable', params };
 		return { key: code.replace('/', '.'), params };
 	}
 	throw new Error('expected a failure');
@@ -101,8 +105,25 @@ function provokeIssues(): Issue[] {
 	return found;
 }
 
+/** A fallback this engine's TextDecoder cannot read, as in a build without full ICU. */
+function encodingUnavailable(): ReturnType<typeof errorKey> {
+	class Utf8Only extends TextDecoder {
+		constructor(label?: string, options?: TextDecoderOptions) {
+			if (label !== 'utf-8') throw new RangeError('unsupported');
+			super(label, options);
+		}
+	}
+	vi.stubGlobal('TextDecoder', Utf8Only);
+	try {
+		return errorKey(() => decodeCsvBytes(new Uint8Array([0x82, 0xa0]), { fallback: 'shift_jis' }));
+	} finally {
+		vi.unstubAllGlobals();
+	}
+}
+
 describe('the batch messages', () => {
 	const errors = [
+		encodingUnavailable(),
 		errorKey(() => parseCsv('a\n"open')),
 		errorKey(() => parseCsv('a\nb"c')),
 		errorKey(() => parseCsv('a\n"b"c')),
@@ -143,8 +164,8 @@ describe('the batch messages', () => {
 		for (const error of errors) add(error.key, error.params);
 		for (const found of issues) add(found.code, found.params);
 		for (const [key, sentence] of Object.entries(BATCH_MESSAGES)) {
-			for (const [, name] of sentence.matchAll(/\{(\w+)\}/g)) {
-				expect(params.get(key)?.has(name as string), `${key} uses {${name}}`).toBe(true);
+			for (const name of messageArguments(sentence)) {
+				expect(params.get(key)?.has(name), `${key} uses {${name}}`).toBe(true);
 			}
 		}
 	});

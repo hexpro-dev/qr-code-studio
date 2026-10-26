@@ -28,8 +28,10 @@ import {
 	presetCategoryKey,
 	studioError,
 } from '../../src/studio/keys.js';
+import { CHECK_IDS } from '../../src/studio/seams.js';
 import { createStudio } from '../../src/studio/studio.js';
 import type { StudioDocument } from '../../src/studio/types.js';
+import { checkNameKey } from '../../src/verify/keys.js';
 
 const registries = createRegistries();
 
@@ -212,10 +214,16 @@ describe('message keys', () => {
 		expect(categoryKey('payment')).toBe('studio.category.payment');
 		expect(presetCategoryKey('print')).toBe('studio.preset-category.print');
 		expect(groupKey('address')).toBe('studio.group.address');
-		expect(checkKey('quiet-zone')).toBe('studio.check.quiet-zone');
+		// A check has one name: the scan check's own, which its report is shown with too.
+		expect(checkKey('quiet-zone')).toBe('verify.check-name.quiet-zone');
 		// Contrast is checked twice, and each check has its own name.
-		expect(checkKey('contrast', 'SC')).toBe('studio.check.contrast');
-		expect(checkKey('contrast', 'MOD')).toBe('studio.check.modulation');
+		expect(checkKey('contrast')).toBe('verify.check-name.contrast');
+		expect(checkKey('contrast', 'SC')).toBe('verify.check-name.contrast');
+		expect(checkKey('contrast', 'MOD')).toBe('verify.check-name.modulation');
+		for (const id of CHECK_IDS) {
+			expect(checkKey(id)).toBe(checkNameKey({ id }));
+			expect(checkKey(id).startsWith('studio.')).toBe(false);
+		}
 		expect(axisKey('static')).toBe('studio.axis.static');
 		expect(errorMessageKey('encode/too-much-data')).toBe('error.encode.too-much-data');
 		expect(errorMessageKey('cancelled')).toBe('error.cancelled');
@@ -251,6 +259,10 @@ describe('message keys', () => {
 			'error.render.format-unavailable',
 		);
 		expect(key('camera/in-use')).toBe('error.camera.in-use');
+		expect(key('platform/unavailable', { feature: 'text-encoding', encoding: 'shift_jis' })).toBe(
+			'batch.encoding-unavailable',
+		);
+		expect(key('platform/unavailable', { feature: 'verify' })).toBe('error.platform.unavailable');
 		expect(key('batch/malformed-csv', { reason: 'stray-quote' })).toBe(
 			'batch.malformed-csv.stray-quote',
 		);

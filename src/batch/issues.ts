@@ -16,8 +16,8 @@ export const BATCH_ISSUES = {
 	longRow: 'batch.csv.long-row',
 	/** Warning, path ['headers', i]: a header used before; a mapping finds the first. */
 	duplicateHeader: 'batch.csv.duplicate-header',
-	/** Warning: the bytes were not UTF-8, and were read as Windows-1252 (Western European). */
-	windows1252: 'batch.csv.windows-1252',
+	/** Warning, params { encoding }: the bytes were not UTF-8, and were read as the fallback, by its WHATWG label. */
+	fallbackEncoding: 'batch.csv.fallback-encoding',
 	/** Info: the bytes started with a UTF-16 byte order mark and were read as UTF-16. */
 	utf16: 'batch.csv.utf-16',
 	/** Warning: a UTF-16 file with an odd number of bytes; the last byte was dropped. */

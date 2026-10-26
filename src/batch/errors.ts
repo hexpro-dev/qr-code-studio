@@ -10,6 +10,7 @@
  */
 
 import { QrStudioError } from '../core/errors.js';
+import type { CsvFallbackEncoding } from './types.js';
 
 /** Why a CSV file could not be read. Each is a message key under `batch.malformed-csv.`. */
 export type CsvFailure =
@@ -44,6 +45,22 @@ export class MalformedCsvError extends QrStudioError {
 			line: where.line,
 		});
 		this.reason = reason;
+	}
+}
+
+/**
+ * This engine's `TextDecoder` cannot read the encoding a CSV was to be read
+ * in. Refused rather than read as something else, which would give the person
+ * wrong letters and no word about why. Code 'platform/unavailable', with the
+ * encoding's WHATWG label as a param.
+ */
+export class EncodingUnavailableError extends QrStudioError {
+	constructor(encoding: CsvFallbackEncoding) {
+		super(
+			'platform/unavailable',
+			'This browser cannot read text in the encoding chosen for this file. Choose another, or save the file from your spreadsheet as CSV UTF-8.',
+			{ feature: 'text-encoding', encoding },
+		);
 	}
 }
 

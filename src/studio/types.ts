@@ -46,6 +46,7 @@ import type {
 	PayloadCategory,
 	SafetyFinding,
 } from '../payload/types.js';
+import type { CsvFallbackEncoding } from '../batch/types.js';
 import type { Scene } from '../render/types.js';
 import type { Registries } from '../registries.js';
 import type { EcLevel, Mode } from '../segment/types.js';
@@ -154,6 +155,13 @@ export type StudioCommand =
 			readonly type: 'batch';
 			/** The spreadsheet as text, or as the file's bytes, whose encoding is worked out. */
 			readonly csv: string | Uint8Array;
+			/**
+			 * What bytes that are not UTF-8 are read as: 'auto' (the default) is the
+			 * studio's `csvFallbackEncoding`, and a label overrides it for this run. A
+			 * byte order mark and valid UTF-8 are read as what they are whatever this
+			 * says, and text ignores it.
+			 */
+			readonly encoding?: 'auto' | CsvFallbackEncoding;
 			readonly mapping: BatchMapping;
 			readonly output: BatchOutput;
 	  }
@@ -664,6 +672,14 @@ export interface StudioOptions {
 	readonly suggestFixes?: FixSuggester;
 	/** The seed verify jobs and shuffles start from. Default 1. */
 	readonly seed?: number;
+	/**
+	 * What a spreadsheet's bytes that are not UTF-8 are read as, by WHATWG
+	 * label. Default 'windows-1252'. The website sets it from the visitor's
+	 * language (shift_jis for Japanese, gb18030 for Chinese, windows-1256 for
+	 * Arabic), since that is what Excel there writes; a batch command can
+	 * override it.
+	 */
+	readonly csvFallbackEncoding?: CsvFallbackEncoding;
 }
 
 export interface Studio {

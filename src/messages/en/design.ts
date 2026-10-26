@@ -237,7 +237,7 @@ export const DESIGN_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'design.issue.caption-unsupported':
 		'This frame has no space for a caption, so the caption was left out.',
 	'design.issue.caption-missing-glyphs':
-		'This font cannot draw {count} of the characters in the caption, so they were left out. Choose another font, or change the text.',
+		'This font cannot draw {count, plural, one {one of the characters in the caption, so it was} other {# of the characters in the caption, so they were}} left out. Choose another font, or change the text.',
 	'design.issue.caption-overflow':
 		'The caption does not fit this frame even at its smallest size, so it is cut off. Shorten it, or choose a frame with more room.',
 	'design.issue.font-unavailable':

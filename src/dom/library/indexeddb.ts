@@ -100,13 +100,16 @@ function unavailable(reason?: 'blocked'): QrStudioError {
 				'The library is open in another tab. Close that tab and the library will be deleted.',
 				{ reason },
 			)
-		: new QrStudioError('library/unavailable', 'Saved codes are not available in this browser.');
+		: new QrStudioError(
+				'library/unavailable',
+				'The library is not available in this browser, so designs and brand kits cannot be saved here.',
+			);
 }
 
 function notEnabled(): QrStudioError {
 	return new QrStudioError(
 		'library/not-enabled',
-		'The library is switched off. Switch it on to save codes in this browser.',
+		'The library is switched off. Switch it on to save designs and brand kits in this browser.',
 	);
 }
 
@@ -122,7 +125,7 @@ function storageError(cause: unknown): QrStudioError {
 	if (name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED') {
 		return new QrStudioError(
 			'library/quota',
-			'This browser has no more room for saved codes. Remove some and try again.',
+			'This browser has no more room for saved designs and brand kits. Remove some and try again.',
 		);
 	}
 	return unavailable();

@@ -222,7 +222,7 @@ export const PAYLOAD_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 	'payload.wifi.issue.wpa-ascii':
 		'A WPA password uses only the letters, digits and symbols on an English keyboard.',
 	'payload.wifi.issue.wpa-length':
-		'This password is {length} characters. A WPA password is {min} to {max}.',
+		'This password is {length, plural, one {# character} other {# characters}}. A WPA password is {min} to {max}.',
 	'payload.wifi.issue.eap-ignored':
 		'The enterprise settings are only used when Security is Enterprise.',
 	'payload.wifi.issue.hex-ssid':

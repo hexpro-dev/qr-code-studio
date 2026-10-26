@@ -49,6 +49,7 @@ import {
 	registries,
 	wifiDocument,
 } from './library/helpers.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const NOW = 1_761_436_800_000;
 
@@ -652,15 +653,13 @@ describe('what it says', () => {
 		const reached = new Set<string>();
 		for (const found of issues) {
 			const sentence = LIBRARY_MESSAGES[found.code] as string;
-			for (const match of sentence.matchAll(/\{(\w+)\}/g)) {
+			for (const name of messageArguments(sentence)) {
 				reached.add(found.code);
-				expect(found.params ?? {}, `${found.code} uses {${match[1]}}`).toHaveProperty(
-					match[1] as string,
-				);
+				expect(found.params ?? {}, `${found.code} uses {${name}}`).toHaveProperty(name);
 			}
 		}
 		const placeholders = Object.entries(LIBRARY_MESSAGES)
-			.filter(([, sentence]) => /\{\w+\}/.test(sentence))
+			.filter(([, sentence]) => messageArguments(sentence).length > 0)
 			.map(([key]) => key);
 		expect(placeholders.filter((key) => !reached.has(key))).toEqual([]);
 	});

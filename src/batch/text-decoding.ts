@@ -2,8 +2,10 @@
  * The bytes of a dropped CSV file, as text.
  *
  * A spreadsheet saves CSV in whatever its platform calls the default. Excel
- * on Windows writes "CSV (comma delimited)" in the machine's ANSI code page,
- * which for English and Western European installs is Windows-1252; "CSV
+ * on Windows writes "CSV (comma delimited)" in the machine's ANSI code page:
+ * Windows-1252 for English and Western European installs, Shift_JIS for
+ * Japanese, GBK for Simplified Chinese, Big5 for Traditional Chinese, EUC-KR
+ * for Korean, Windows-1251 for Cyrillic and Windows-1256 for Arabic. "CSV
  * UTF-8" adds a byte order mark; "Unicode Text" is UTF-16 little endian with
  * one. Google Sheets and Numbers write UTF-8. So:
  *
@@ -11,22 +13,53 @@
  *    starts that way: neither byte can begin UTF-8, and a Windows-1252 file
  *    opening with "y" diaeresis and thorn is not a spreadsheet.
  * 2. Otherwise strict UTF-8, which refuses any byte sequence UTF-8 cannot
- *    produce. A Windows-1252 file with an accented letter in it is almost
- *    never valid UTF-8 by accident, because a lone byte from 0x80 up is not.
- * 3. Otherwise Windows-1252, with a warning that says so, because a file in
- *    another code page (Cyrillic, Greek, Central European) will have come out
- *    wrong and the person is the only one who can tell.
+ *    produce. A file in a code page with a letter beyond ASCII in it is
+ *    almost never valid UTF-8 by accident, because a lone byte from 0x80 up
+ *    is not.
+ * 3. Otherwise the fallback the caller chose (Windows-1252 unless it says),
+ *    with a warning that names it, because a file in another code page will
+ *    have come out wrong and the person is the only one who can tell.
  *
  * Windows-1252 is the WHATWG Encoding Standard's table, written out here
  * rather than asked of `TextDecoder`, which has it only in builds with full
  * ICU. The same goes for UTF-16, which is two lines. UTF-8 is `TextDecoder`'s,
- * which every engine has.
+ * which every engine has. The other fallbacks are `TextDecoder`'s too, and an
+ * engine without one is refused out loud rather than read as something else.
  */
 
 import { issue } from '../core/issue.js';
 import type { Issue } from '../core/issue.js';
+import { EncodingUnavailableError } from './errors.js';
 import { BATCH_ISSUES } from './issues.js';
-import type { DecodedText } from './types.js';
+import type { CsvFallbackEncoding, DecodeCsvOptions, DecodedText } from './types.js';
+
+/** What a file that is not UTF-8 may be read as: WHATWG labels, each a spreadsheet's default somewhere. */
+export const CSV_FALLBACK_ENCODINGS: readonly CsvFallbackEncoding[] = Object.freeze([
+	'windows-1252',
+	'shift_jis',
+	'gb18030',
+	'big5',
+	'euc-kr',
+	'windows-1251',
+	'windows-1256',
+]);
+
+/** The fallback when none is given: English and Western European Excel's. */
+export const DEFAULT_CSV_FALLBACK: CsvFallbackEncoding = 'windows-1252';
+
+export function isCsvFallbackEncoding(value: unknown): value is CsvFallbackEncoding {
+	return (CSV_FALLBACK_ENCODINGS as readonly unknown[]).includes(value);
+}
+
+/**
+ * A caller's fallback option: the default when it is undefined, and a
+ * TypeError (`${what} one of ...`) when it is not a label this layer reads.
+ */
+export function csvFallbackOption(value: unknown, what: string): CsvFallbackEncoding {
+	if (value === undefined) return DEFAULT_CSV_FALLBACK;
+	if (isCsvFallbackEncoding(value)) return value;
+	throw new TypeError(`${what} one of ${CSV_FALLBACK_ENCODINGS.join(', ')}.`);
+}
 
 /**
  * Windows-1252 bytes 0x80 to 0x9F, from the WHATWG index. The five bytes the
@@ -80,9 +113,36 @@ function decodeUtf8(bytes: Uint8Array): string | null {
 	}
 }
 
-/** The text of a CSV file's bytes, the encoding it was read as, and a warning when that was a guess. */
-export function decodeCsvBytes(bytes: Uint8Array): DecodedText {
+/**
+ * `TextDecoder`'s reading of a code page, or the refusal when this engine has
+ * none. A decoder that answers to the label as another encoding (a polyfill
+ * that knows only UTF-8 does) counts as none: it would read the file wrongly
+ * and say nothing. Bytes the code page has no character for become U+FFFD,
+ * and the fallback's warning already tells the person to check the letters.
+ */
+function decodeCodePage(bytes: Uint8Array, label: CsvFallbackEncoding): string {
+	let decoder: TextDecoder;
+	try {
+		decoder = new TextDecoder(label);
+	} catch {
+		throw new EncodingUnavailableError(label);
+	}
+	if (decoder.encoding !== label) throw new EncodingUnavailableError(label);
+	return decoder.decode(bytes);
+}
+
+/**
+ * The text of a CSV file's bytes, the encoding it was read as, and a warning
+ * when that was the fallback. Throws 'platform/unavailable' (params
+ * `{ feature: 'text-encoding', encoding }`) when the fallback is needed and
+ * this engine cannot decode it.
+ */
+export function decodeCsvBytes(bytes: Uint8Array, options: DecodeCsvOptions = {}): DecodedText {
 	if (!(bytes instanceof Uint8Array)) throw new TypeError('decodeCsvBytes: bytes is a Uint8Array.');
+	if (typeof options !== 'object' || options === null) {
+		throw new TypeError('decodeCsvBytes: options is an object.');
+	}
+	const fallback = csvFallbackOption(options.fallback, 'decodeCsvBytes: fallback is');
 	const issues: Issue[] = [];
 	const b0 = bytes[0];
 	const b1 = bytes[1];
@@ -98,7 +158,10 @@ export function decodeCsvBytes(bytes: Uint8Array): DecodedText {
 	}
 	const utf8 = decodeUtf8(bytes);
 	if (utf8 !== null) return { text: utf8, encoding: 'utf-8', issues };
-	issues.push(issue(BATCH_ISSUES.windows1252, [], 'warning'));
 	const bom = b0 === 0xef && b1 === 0xbb && bytes[2] === 0xbf ? 3 : 0;
-	return { text: decodeWindows1252(bytes.subarray(bom)), encoding: 'windows-1252', issues };
+	const rest = bytes.subarray(bom);
+	const text =
+		fallback === 'windows-1252' ? decodeWindows1252(rest) : decodeCodePage(rest, fallback);
+	issues.push(issue(BATCH_ISSUES.fallbackEncoding, [], 'warning', { encoding: fallback }));
+	return { text, encoding: fallback, issues };
 }

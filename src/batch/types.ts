@@ -62,7 +62,25 @@ export interface ParseCsvOptions {
 	readonly maxRows?: number;
 }
 
-export type TextEncodingName = 'utf-8' | 'utf-16le' | 'utf-16be' | 'windows-1252';
+/**
+ * What a CSV that is not UTF-8 is read as: the WHATWG label of a code page a
+ * spreadsheet writes CSV in by default somewhere. Windows-1252 for English and
+ * Western European Excel, Shift_JIS for Japanese, GB18030 (which reads GBK) for
+ * Simplified Chinese, Big5 for Traditional Chinese, EUC-KR for Korean,
+ * Windows-1251 for Cyrillic and Windows-1256 for Arabic.
+ */
+export type CsvFallbackEncoding =
+	'windows-1252' | 'shift_jis' | 'gb18030' | 'big5' | 'euc-kr' | 'windows-1251' | 'windows-1256';
+
+export type TextEncodingName = 'utf-8' | 'utf-16le' | 'utf-16be' | CsvFallbackEncoding;
+
+export interface DecodeCsvOptions {
+	/**
+	 * What to read the bytes as when they have no UTF-16 byte order mark and are
+	 * not UTF-8. Default 'windows-1252'.
+	 */
+	readonly fallback?: CsvFallbackEncoding;
+}
 
 export interface DecodedText {
 	readonly text: string;

@@ -10,6 +10,7 @@
  * unused.
  */
 
+import { formatMessage } from '../format.js';
 import { APP_MESSAGES } from './app.js';
 import { BATCH_MESSAGES } from './batch.js';
 import { DECODE_MESSAGES } from './decode.js';
@@ -64,9 +65,11 @@ export const EN_MESSAGES: Readonly<Record<string, string>> = Object.freeze(
 
 /**
  * The English sentence for `key`, its `{name}` placeholders filled from
- * `params`. A key with no sentence comes back as itself, so a gap shows as a
- * key a tester can search for rather than as an empty space; a placeholder
- * with no param is left as written, for the same reason.
+ * `params` and its plural and select blocks resolved (src/messages/format.ts,
+ * the subset the website's formatter reads). A key with no sentence comes
+ * back as itself, so a gap shows as a key a tester can search for rather than
+ * as an empty space; a placeholder with no param is left as written, for the
+ * same reason.
  */
 export function message(
 	key: string,
@@ -76,9 +79,7 @@ export function message(
 		? EN_MESSAGES[key]
 		: undefined;
 	if (sentence === undefined) return key;
-	return sentence.replace(/\{(\w+)\}/g, (whole, name: string) =>
-		Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : whole,
-	);
+	return formatMessage(sentence, params);
 }
 
 export {
