@@ -1446,3 +1446,12 @@ does.
   Overall contrast, Clear squares, Dark on light, Patterns readers look for, Logo size, Print
   size, Corner square shape, Colours under red light and Phone support. `studio.axis.*`, what the
   check is doing while it runs, is unchanged.
+- A sentence chooses its words by count. The catalogue's sentences may use the ICU subset the
+  website's formatter reads (`@hex-pro/i18n/message`): `{name}`, `{n, plural, =0 {...} one {...}
+other {...}}` with `#` for the count, and `{k, select, a {...} other {...}}`, nested.
+  `message()` in `./messages` renders them through `src/messages/format.ts` with English plural
+  rules (`=N`, then `one` at exactly 1, then `other`), no `Intl`, and leaves a block it cannot
+  fill as written. A count that chooses a branch is passed as a number. Where a count before a
+  plural noun can be 1 the sentence has a block; where it cannot (a fixed limit, a minimum of 2
+  or 4, a count only over a limit) it is written plainly and listed with its reason in
+  `tests/messages/plurals.test.ts`, which fails on a new "1 squares".

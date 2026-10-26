@@ -22,12 +22,12 @@ export const BATCH_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 		'Row {row}, column {column} has text straight after the end of a quoted cell. Save the file again from your spreadsheet.',
 	'batch.malformed-csv.empty': 'This file has no rows in it.',
 	'batch.too-many-rows':
-		'This file has more than {max} rows. Split it into smaller files and make each batch on its own.',
+		'This file has more than {max, plural, one {# row} other {# rows}}. Split it into smaller files and make each batch on its own.',
 	'batch.unknown-column':
 		'This refers to a column the file does not have. Choose one of its columns.',
 
 	'batch.csv.short-row':
-		'Row {row} has {cells} cells where the header has {expected}. The missing ones were left empty.',
+		'Row {row} has {cells, plural, one {# cell} other {# cells}} where the header has {expected}. The missing ones were left empty.',
 	'batch.csv.long-row':
 		'Row {row} has {cells} cells where the header has {expected}. The extra ones have no column and were left out.',
 	'batch.csv.duplicate-header':

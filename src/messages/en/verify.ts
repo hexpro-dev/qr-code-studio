@@ -41,7 +41,7 @@ export const VERIFY_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'verify.check.quiet-zone.pass':
 		'There is a clear margin {modules} squares wide all round the code.',
 	'verify.check.quiet-zone.fail':
-		'The clear margin round the code is only {modules} squares wide. Readers need at least {minimum}, with nothing printed in it.',
+		'{modules, plural, =0 {There is no clear margin round the code.} one {The clear margin round the code is only # square wide.} other {The clear margin round the code is only # squares wide.}} Readers need one at least {minimum} squares wide, with nothing printed in it.',
 
 	// Contrast, as symbol contrast and as modulation.
 	'verify.check.contrast.sc.pass':
@@ -77,9 +77,9 @@ export const VERIFY_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'verify.check.logo-budget.none':
 		'Nothing covers the code, so all of its error correction is kept for wear and poor light.',
 	'verify.check.logo-budget.pass':
-		'The logo covers {codewords} pieces of the code, and enough error correction is left for wear and poor light.',
+		'The logo covers {codewords, plural, one {# piece} other {# pieces}} of the code, and enough error correction is left for wear and poor light.',
 	'verify.check.logo-budget.warn':
-		'The logo covers {codewords} pieces of the code. It reads, but little error correction is left for wear and poor light.',
+		'The logo covers {codewords, plural, one {# piece} other {# pieces}} of the code. It reads, but little error correction is left for wear and poor light.',
 	'verify.check.logo-budget.fail':
 		'The logo covers too much of the code: repairing it would use up the error correction kept for wear and poor light.',
 

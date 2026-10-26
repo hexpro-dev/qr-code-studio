@@ -6,6 +6,7 @@
  */
 
 import { expect } from 'vitest';
+import { shownForms } from '../messages/forms.js';
 
 /** As escapes, so a search of this repository for one finds none in the file that bans them. */
 const FORBIDDEN = [
@@ -51,18 +52,21 @@ export function checkHouseStyle(
 ): void {
 	for (const [key, sentence] of Object.entries(catalogue)) {
 		expect(key).toMatch(new RegExp(`^${prefix}(?:\\.[a-z0-9]+(?:-[a-z0-9]+)*)+$`));
-		expect(sentence.trim(), key).toBe(sentence);
-		expect(sentence.length, key).toBeGreaterThan(0);
-		expect(sentence, key).not.toMatch(/\s{2,}/);
 		for (const [char, name] of FORBIDDEN)
 			expect(sentence.includes(char), `${key} has ${name}`).toBe(false);
 		const lower = sentence.toLowerCase();
 		for (const word of [...MARKETING, ...AMERICAN])
 			expect(lower.includes(word), `${key}: ${word}`).toBe(false);
-		if (kind(key) === 'sentence') expect(sentence, key).toMatch(/^[A-Z].*[.]$/);
-		else {
-			expect(sentence, key).not.toMatch(/\.$/);
-			expect(sentence, key).toMatch(/^[A-Z0-9]/);
+		// Each plural branch as a person reads it, a block that starts the sentence included.
+		for (const shown of shownForms(sentence)) {
+			expect(shown.trim(), key).toBe(shown);
+			expect(shown.length, key).toBeGreaterThan(0);
+			expect(shown, key).not.toMatch(/\s{2,}/);
+			if (kind(key) === 'sentence') expect(shown, key).toMatch(/^[A-Z].*[.]$/);
+			else {
+				expect(shown, key).not.toMatch(/\.$/);
+				expect(shown, key).toMatch(/^[A-Z0-9]/);
+			}
 		}
 	}
 }

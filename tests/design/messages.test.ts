@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import type { Issue } from '../../src/core/issue.js';
 import { DESIGN_MESSAGES } from '../../src/messages/en/design.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
+import { messageArguments } from '../../src/messages/format.js';
 
 const root = resolve(import.meta.dirname, '../..');
 const registries = createDesignRegistries();
@@ -147,16 +148,14 @@ describe('the design message catalogue', () => {
 		for (const found of issues) {
 			const sentence = DESIGN_MESSAGES[found.code] as string;
 			expect(sentence, found.code).toBeDefined();
-			for (const match of sentence.matchAll(/\{(\w+)\}/g)) {
+			for (const name of messageArguments(sentence)) {
 				placeholders.add(found.code);
-				expect(found.params ?? {}, `${found.code} uses {${match[1]}}`).toHaveProperty(
-					match[1] as string,
-				);
+				expect(found.params ?? {}, `${found.code} uses {${name}}`).toHaveProperty(name);
 			}
 		}
 		// Every sentence with a placeholder was reached at least once above.
 		const withPlaceholders = Object.entries(DESIGN_MESSAGES)
-			.filter(([, sentence]) => /\{\w+\}/.test(sentence))
+			.filter(([, sentence]) => messageArguments(sentence).length > 0)
 			.map(([key]) => key);
 		expect(withPlaceholders.filter((key) => !placeholders.has(key))).toEqual([]);
 	});
