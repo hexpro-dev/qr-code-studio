@@ -74,12 +74,27 @@ export const DEFAULT_WIDTH_PX = 1024;
 /** The widest PNG a batch makes. Wider is a poster, made one at a time. */
 export const MAX_WIDTH_PX = 8192;
 const MIN_WIDTH_PX = 16;
-/** A PDF or EPS code's printed width, quiet zone included, when nothing says otherwise. */
+/** A PDF or EPS code's printed width, as the design's `sizeBasis` measures it, when nothing says otherwise. */
 export const DEFAULT_PRINT_SIZE_MM = 30;
-/** For 'sampled': one row in this many is checked. */
+/** For 'sampled': one row in this many is checked, or fewer in a large batch (`MAX_SAMPLES`). */
 export const DEFAULT_VERIFY_EVERY = 20;
-/** Up to this many rows are checked in full when the output does not say; more are not checked. */
-export const SMALL_BATCH = 10;
+/**
+ * For 'sampled' without `verifyEvery`: the most rows checked besides the
+ * longest. At 8 seeds a check is 5 to 16 seconds, so a sample of a 2,000 row
+ * batch stays at a few minutes however large the batch.
+ */
+export const MAX_SAMPLES = 10;
+/**
+ * With a verifier and no mode on the output, up to this many rows are
+ * checked in full and a larger batch is not checked. At 2 seeds a row
+ * measured 4 to 5 seconds on a laptop with little else running, so a small
+ * batch's check is done in under half a minute.
+ */
+export const SMALL_BATCH = 5;
+/** Seeded captures a level when every row is checked: enough to catch a design that fails outright. */
+export const SEEDS_ALL = 2;
+/** Seeded captures a level when a sample is checked: verify's full count, as for a single code. */
+export const SEEDS_SAMPLED = 8;
 
 const MM_PER_INCH = 25.4;
 
@@ -96,7 +111,8 @@ interface Plan {
 	readonly template: SheetTemplate | null;
 	readonly checked: ReadonlySet<number>;
 	readonly verifyRow: BatchVerifier | undefined;
-	readonly assets: (id: string) => RgbaImage | undefined;
+	readonly captureSeeds: number;
+	readonly assets: Readonly<Record<string, RgbaImage>>;
 	readonly fonts: FontRegistry | undefined;
 	readonly seed: number;
 	/** Made before the first step, so a bad date is refused when the batch is asked for. */
@@ -173,6 +189,7 @@ function checkOutput(output: BatchOutput): void {
 		throw new TypeError("runBatch: output.verify is 'off', 'sampled' or 'all'.");
 	}
 	optionalNumber(output.verifyEvery, 'verifyEvery', 1, Number.MAX_SAFE_INTEGER, true);
+	optionalNumber(output.verifySeeds, 'verifySeeds', 1, 8, true);
 }
 
 function sheetTemplate(output: BatchOutput): SheetTemplate | null {
@@ -189,37 +206,44 @@ function sheetTemplate(output: BatchOutput): SheetTemplate | null {
 	return template;
 }
 
-/** The design's embedded pictures, decoded once for every row. One that will not decode is left out, and the scene says so. */
-function decodeAssets(design: QrDesignV1): (id: string) => RgbaImage | undefined {
-	const decoded = new Map<string, RgbaImage>();
+/**
+ * The design's embedded pictures, decoded once for every row and for the
+ * scan check. One that will not decode is left out: the scene says so, and
+ * the check, which needs every picture the design names, refuses.
+ */
+function decodeAssets(design: QrDesignV1): Readonly<Record<string, RgbaImage>> {
+	const decoded: Record<string, RgbaImage> = {};
 	for (const [id, asset] of Object.entries(design.assets ?? {})) {
 		// validateDesign has checked the base64 and the PNG header, not the
 		// pixels, so only decoding can still fail.
 		const image = attempt(() => decodePng(base64Decode(asset.png) as Uint8Array));
-		if (image.ok) decoded.set(id, image.value);
+		if (image.ok) decoded[id] = image.value;
 	}
-	return (id) => decoded.get(id);
+	return decoded;
 }
 
-/** Which rows the scan check runs on, by their position in `rows`. */
+/** Which rows the scan check runs on, by their position in `rows`, and in which mode. */
 function chooseChecked(
 	rows: readonly BatchRow[],
 	output: BatchOutput,
 	verifyRow: BatchVerifier | undefined,
-): Set<number> {
+): { mode: BatchVerifyMode; checked: Set<number> } {
 	const candidates: number[] = [];
 	rows.forEach((row, position) => {
 		if (row.content !== null && !hasErrors(row.issues)) candidates.push(position);
 	});
-	let mode: BatchVerifyMode =
+	const mode: BatchVerifyMode =
 		output.verify ?? (verifyRow !== undefined && candidates.length <= SMALL_BATCH ? 'all' : 'off');
 	if (mode !== 'off' && verifyRow === undefined) {
-		throw new TypeError('runBatch: checking rows needs options.verifyRow.');
+		throw new TypeError(
+			'runBatch: checking rows needs options.verifyRow, such as scanCheckVerifier(registries).',
+		);
 	}
-	if (candidates.length === 0) mode = 'off';
-	if (mode === 'off') return new Set();
-	if (mode === 'all') return new Set(candidates);
-	const every = output.verifyEvery ?? DEFAULT_VERIFY_EVERY;
+	if (mode === 'off' || candidates.length === 0) return { mode, checked: new Set() };
+	if (mode === 'all') return { mode, checked: new Set(candidates) };
+	const every =
+		output.verifyEvery ??
+		Math.max(DEFAULT_VERIFY_EVERY, Math.ceil(candidates.length / MAX_SAMPLES));
 	const chosen = new Set(candidates.filter((_, k) => k % every === 0));
 	// The longest content makes the densest code, which is the one most likely
 	// to fail; the first of several equally long ones.
@@ -233,7 +257,7 @@ function chooseChecked(
 		}
 	}
 	chosen.add(longest);
-	return chosen;
+	return { mode, checked: chosen };
 }
 
 function prepare(
@@ -303,6 +327,8 @@ function prepare(
 	).map((unique) => unique.name);
 
 	const caption = valid.frame?.text?.content;
+	const { mode, checked } = chooseChecked(rows, output, options.verifyRow);
+	const assets = decodeAssets(valid);
 	return {
 		rows,
 		names,
@@ -312,9 +338,10 @@ function prepare(
 		dpi,
 		colourSpace,
 		template,
-		checked: chooseChecked(rows, output, options.verifyRow),
+		checked,
 		verifyRow: options.verifyRow,
-		assets: decodeAssets(valid),
+		captureSeeds: output.verifySeeds ?? (mode === 'all' ? SEEDS_ALL : SEEDS_SAMPLED),
+		assets,
 		fonts:
 			options.fonts ?? (caption !== undefined && caption !== '' ? createFontRegistry() : undefined),
 		seed,
@@ -439,10 +466,9 @@ function* checkRow(
 	sizeMm: number | null,
 	progress: BatchProgress,
 ): Generator<BatchProgress, { check: BatchOutcome['check']; issues: Issue[] }> {
-	const verifyRow = plan.verifyRow as BatchVerifier;
 	let result: BatchVerifyResult;
 	try {
-		const answer = verifyRow({
+		const answer = (plan.verifyRow as BatchVerifier)({
 			index: row.index,
 			rowNumber: row.rowNumber,
 			content: row.content as string,
@@ -451,6 +477,8 @@ function* checkRow(
 			sizeMm,
 			dpi: plan.dpi,
 			seed: plan.seed,
+			captureSeeds: plan.captureSeeds,
+			assets: plan.assets,
 		});
 		if (isIterator(answer)) {
 			for (;;) {
@@ -529,7 +557,7 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 			symbol,
 			built: buildScene(symbol, entry.design, {
 				registries: plan.registries.design,
-				assets: plan.assets,
+				assets: (id) => plan.assets[id],
 				...(plan.fonts === undefined ? {} : { fonts: plan.fonts }),
 				seed: plan.seed,
 				overlay: entry.overlay,
@@ -539,10 +567,6 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 	if (!made.ok) return skipped([...issues, errorIssue(made.error)]);
 	issues.push(...worthSaying(made.value.built.issues));
 	let scene = made.value.built.scene;
-	// The printed width of the symbol with its quiet zone, which the scan
-	// check needs: the design's, or on a sheet with no size, what filling the
-	// label makes it.
-	let sizeMm = entry.design.output.sizeMm ?? null;
 
 	let filename: string | null = null;
 	let sheet: BatchOutcome['sheet'] = null;
@@ -567,7 +591,6 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 			// row is placed by the same rule whatever its content type.
 			const unitsPerMm = Math.max(scene.width / tpl.cell.widthMm, scene.height / tpl.cell.heightMm);
 			scene = { ...scene, unitsPerMm };
-			sizeMm = (made.value.symbol.matrix.width + 2 * entry.design.quietZone) / unitsPerMm;
 		}
 		const perPage = tpl.columns * tpl.rows;
 		const slot =
@@ -582,11 +605,16 @@ function* makeRow(plan: Plan, run: Run, position: number): Generator<BatchProgre
 
 	let check: BatchOutcome['check'] = null;
 	if (plan.checked.has(position)) {
-		const design =
-			sizeMm === null || sizeMm === entry.design.output.sizeMm
-				? entry.design
-				: { ...entry.design, output: { ...entry.design.output, sizeMm } };
-		const checked = yield* checkRow(plan, row, design, entry.overlay, sizeMm, {
+		// The printed width of the symbol with its quiet zone, which is what the
+		// scan check measures modules against, read from the scene as drawn. The
+		// design's own size may measure the whole artwork, frame and all, and on
+		// a sheet with no size the scene was just sized to fill its label.
+		const units = scene.unitsPerMm;
+		const sizeMm =
+			units === undefined
+				? null
+				: (made.value.symbol.matrix.width + 2 * entry.design.quietZone) / units;
+		const checked = yield* checkRow(plan, row, entry.design, entry.overlay, sizeMm, {
 			done: position,
 			total: run.total,
 		});
