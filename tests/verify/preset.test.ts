@@ -3,13 +3,12 @@
  * as scanning at a size, and the verifier the conformance gate plugs in.
  *
  * The ordinary run drives the calibration with stand-in readers, which makes
- * it fast and exact about the bookkeeping. QRS_VERIFY_NIGHTLY=1 runs the
- * real calibration over every preset with the strict reader and checks it
- * reproduces the `minSizeMm` each preset records.
+ * it fast and exact about the bookkeeping. The real calibration of every
+ * preset at every level, with the strict reader, is the nightly run in
+ * tests/verify/sizes-*.test.ts.
  */
 
 import { describe, expect, it } from 'vitest';
-import { presetSizeMm } from '../../src/design/preset-size.js';
 import type { Preset } from '../../src/design/types.js';
 import { minModuleMm } from '../../src/verify/camera.js';
 import type { CaptureReader } from '../../src/verify/job.js';
@@ -27,12 +26,9 @@ import {
 	shortfalls,
 	withMargin,
 } from '../../src/verify/preset.js';
-import { LADDERS } from '../../src/verify/ladders.js';
-import { PRESET_SHORTFALLS } from './shortfalls.js';
 import type { VerifyReport } from '../../src/verify/types.js';
 import { alwaysReads, neverReads, registries } from './helpers.js';
 
-const NIGHTLY = process.env.QRS_VERIFY_NIGHTLY === '1';
 const classic = registries.design.presets.require('classic-black');
 
 describe('the calibration rules', () => {
@@ -239,39 +235,4 @@ describe('presetVerifier', () => {
 		// Level H fits the long link in a larger symbol, so its size is no smaller.
 		expect(high.minSizeMm as number).toBeGreaterThanOrEqual(own.minSizeMm as number);
 	});
-});
-
-describe.runIf(NIGHTLY)('the recorded sizes and shortfalls', () => {
-	for (const preset of registries.design.presets.list()) {
-		it(`${preset.id} calibrates to the size it records at every level it allows`, () => {
-			const found: Record<string, number | null> = {};
-			for (const level of preset.ecLevels) {
-				found[level] = calibratePreset(preset, registries, {
-					stopAtTypical: true,
-					seeds: 8,
-					known: PRESET_SHORTFALLS,
-					ecLevel: level,
-				}).minSizeMm;
-			}
-			expect(found).toEqual(
-				Object.fromEntries(preset.ecLevels.map((level) => [level, presetSizeMm(preset, level)])),
-			);
-		}, 3_600_000);
-
-		it(`${preset.id} still has exactly its recorded shortfalls`, () => {
-			const found = new Set<string>();
-			const level = preset.design.symbol.ecLevel ?? 'M';
-			for (const size of ['small', 'medium', 'large'] as const) {
-				const report = presetReport(preset, PRESET_CONTENT[size], 40, level, registries, {
-					stopAtTypical: true,
-					seeds: 8,
-				});
-				for (const shortfall of shortfalls(report)) found.add(shortfall);
-			}
-			const order = ['baseline', ...LADDERS.map((ladder) => ladder.axis)];
-			expect([...found].sort((a, b) => order.indexOf(a) - order.indexOf(b))).toEqual(
-				PRESET_SHORTFALLS[preset.id] ?? [],
-			);
-		}, 1_800_000);
-	}
 });
