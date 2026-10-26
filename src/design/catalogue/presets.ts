@@ -255,7 +255,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'midnight-dots',
 			category: 'dots',
-			minSizeMm: 25,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#10173a'),
@@ -285,7 +285,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'berry-dots',
 			category: 'dots',
-			minSizeMm: 25,
+			minSizeMm: 27,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#5b0e2d'),
@@ -321,7 +321,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-pro-blue',
 			category: 'hex',
-			minSizeMm: 29,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0a4f96'),
@@ -341,7 +341,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-honey',
 			category: 'hex',
-			minSizeMm: 28,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#3d2600'),
@@ -351,7 +351,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-night',
 			category: 'hex',
-			minSizeMm: 37,
+			minSizeMm: 33,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0d1b2a'),
@@ -499,12 +499,12 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-diamond',
 			category: 'minimal',
-			minSizeMm: 28,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'diamond' },
 			paint: solid('#2d2d2d'),
 			background: solid('#fbfbf8'),
-			eyes: eyes('squircle', 'octagon-centre'),
+			eyes: eyes('cushion', 'square-centre'),
 		},
 		{
 			id: 'minimal-brackets',
@@ -541,10 +541,16 @@ function specs(): readonly PresetSpec[] {
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: linear(45, '#5c1530', '#87300f'),
 			background: solid('#fff8f0'),
-			eyes: eyes('rounded', 'rounded-centre', undefined, { radius: 0.25 }, {
-				outer: solid('#4a0d24'),
-				inner: solid('#4a0d24'),
-			}),
+			eyes: eyes(
+				'rounded',
+				'rounded-centre',
+				undefined,
+				{ radius: 0.25 },
+				{
+					outer: solid('#4a0d24'),
+					inner: solid('#4a0d24'),
+				},
+			),
 		},
 		{
 			id: 'deep-sea-gradient',
