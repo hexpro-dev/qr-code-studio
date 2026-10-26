@@ -10,12 +10,9 @@ import { err, ok } from '../../src/core/result.js';
 import { createRegistries } from '../../src/registries.js';
 import { createStudio } from '../../src/studio/studio.js';
 import type { Fix, VerifyJob, VerifyProgress, VerifyReport } from '../../src/studio/seams.js';
-import {
-	UNAVAILABLE_RUNNER,
-	requiredEntries,
-	slicedVerifyRunner,
-} from '../../src/studio/verify.js';
+import { UNAVAILABLE_RUNNER, slicedVerifyRunner } from '../../src/studio/verify.js';
 import { defaultDesign } from '../../src/design/document.js';
+import { designRequirements } from '../../src/verify/prepare.js';
 import { logoPatches } from '../../src/studio/logo.js';
 import { assetOf, discImage } from '../design/helpers.js';
 import { FakeRunner, FakeTime, reportFor, settle, studioWith, studioWithCode } from './helpers.js';
@@ -37,13 +34,22 @@ describe('verify/request', () => {
 		time.advance(50);
 		expect(runner.runs).toHaveLength(1);
 		const running = studio.getSnapshot().verify;
-		expect(running).toEqual({ status: 'running', progress: 0, revision: 1, axis: null });
+		expect(running).toEqual({
+			status: 'running',
+			progress: 0,
+			revision: 1,
+			axis: null,
+			captureSeeds: 8,
+			full: true,
+		});
 		runner.last.progress({ done: 3, total: 12, axis: 'focus' });
 		expect(studio.getSnapshot().verify).toEqual({
 			status: 'running',
 			progress: 0.25,
 			revision: 1,
 			axis: 'focus',
+			captureSeeds: 8,
+			full: true,
 		});
 		runner.last.progress({ done: 0, total: 0, axis: 'static' });
 		expect(studio.getSnapshot().verify).toMatchObject({ progress: 0 });
@@ -215,8 +221,8 @@ describe('verify/request', () => {
 		expect(made.studio.getSnapshot().verify.status).toBe('failed');
 	});
 
-	it('says the check is not in this build when it has no runner and no generator', async () => {
-		const { studio, time } = studioWithCode();
+	it('says the check is not in this copy when the host leaves it out', async () => {
+		const { studio, time } = studioWithCode({ verifyGenerator: null });
 		studio.dispatch({ type: 'verify/request' });
 		time.advance(250);
 		await settle();
@@ -237,6 +243,7 @@ describe('fixes', () => {
 		id: 'raise-level',
 		labelKey: 'design.preset.classic-black',
 		patch: { path: ['symbol', 'ecLevel'], value: 'H' },
+		targets: 'logo-budget',
 	};
 
 	it('offers the fixes verify suggests, and applies one as an undoable change', async () => {
@@ -384,59 +391,6 @@ describe('the default runner: the generator in time slices', () => {
 });
 
 describe('the entries a job requires', () => {
-	it('names every registry entry the design draws with', () => {
-		const registries = createRegistries();
-		const design = {
-			...defaultDesign(),
-			background: { kind: 'entry' as const, ref: { id: 'two-tone-diagonal' } },
-			modules: {
-				shape: { id: 'dot' },
-				paint: { kind: 'entry' as const, ref: { id: 'palette-scatter' } },
-				light: { shape: { id: 'square' }, paint: { kind: 'solid' as const, ink: '#ffffff' } },
-			},
-			regions: {
-				finder: {
-					outer: { id: 'circle' },
-					inner: { id: 'circle-centre' },
-					outerPaint: { kind: 'entry' as const, ref: { id: 'palette-scatter' } },
-				},
-			},
-			logo: {
-				source: { kind: 'icon' as const, id: 'star' },
-				size: 0.2,
-				clear: 'box' as const,
-				padding: 1,
-				plate: null,
-			},
-			frame: {
-				ref: { id: 'banner-bottom' },
-				text: { content: 'Scan', fontId: 'plex-sans-regular' },
-			},
-		};
-		expect(requiredEntries(design, registries)).toEqual([
-			'fill:palette-scatter',
-			'fill:two-tone-diagonal',
-			'frame:banner-bottom',
-			'icon:star',
-			'module-shape:dot',
-			'module-shape:square',
-			'region-shape:circle',
-			'region-shape:circle-centre',
-			'symbology:qr',
-		]);
-		const picture = {
-			...defaultDesign(),
-			logo: {
-				source: { kind: 'asset' as const, id: 'logo' },
-				size: 0.2,
-				clear: 'box' as const,
-				padding: 1,
-				plate: null,
-			},
-		};
-		expect(requiredEntries(picture, registries)).toEqual(['module-shape:square', 'symbology:qr']);
-	});
-
 	it("names the overlay the content prints, so the worker draws the bill's cross too", async () => {
 		const runner = new FakeRunner();
 		const { studio, time } = studioWith({ verifyRunner: runner });
@@ -570,5 +524,107 @@ describe('the default clock', () => {
 			vi.unstubAllGlobals();
 			studio.dispose();
 		}
+	});
+});
+
+describe('the real scan check, by default', () => {
+	it('runs verify in slices, gives a real report with fixes, and is quicker when it follows typing', async () => {
+		const time = new FakeTime(8);
+		let now = 0;
+		const clock = (): number => (now += 4);
+		const studio = createStudio({ scheduler: time, clock });
+		studio.dispatch({ type: 'payload/field', key: 'url', value: 'https://example.com/' });
+		studio.dispatch({
+			type: 'design/patch',
+			patch: { path: ['modules', 'shape'], value: { id: 'tiny-square' } },
+		});
+		studio.dispatch({ type: 'verify/request' });
+		const fresh = (): boolean => {
+			const state = studio.getSnapshot().verify;
+			return state.status === 'done' && !state.stale;
+		};
+		const drain = async (): Promise<void> => {
+			for (let i = 0; i < 2000 && !fresh(); i += 1) {
+				time.advance(300);
+				await settle();
+			}
+		};
+		await drain();
+		const full = studio.getSnapshot().verify;
+		expect(full.status).toBe('done');
+		if (full.status !== 'done') return;
+		expect(full).toMatchObject({ captureSeeds: 8, full: true, stale: false });
+		expect(full.report.schema).toBe(1);
+		expect(full.report.baseline.seeds).toBe(8);
+		expect(full.report.captures.length).toBeGreaterThan(0);
+		// A change runs it again by itself, at the live count.
+		studio.dispatch({ type: 'payload/field', key: 'url', value: 'https://example.com/again' });
+		expect(fresh()).toBe(false);
+		await drain();
+		const live = studio.getSnapshot().verify;
+		expect(live).toMatchObject({ status: 'done', captureSeeds: 2, full: false });
+		studio.dispose();
+		expect(time.pending).toBe(0);
+	}, 60_000);
+
+	it('applies a fix that prints larger as a change of conditions, and a design fix as one step', () => {
+		const runner = new FakeRunner();
+		const larger: Fix = {
+			id: 'print-larger',
+			labelKey: 'verify.fix.print-larger',
+			patch: null,
+			conditions: { sizeMm: 40 },
+			targets: 'distance',
+		};
+		const whole: Fix = {
+			id: 'replace-design',
+			labelKey: 'verify.fix.print-larger',
+			patch: { path: [], value: { ...defaultDesign(), quietZone: 6 } },
+			targets: 'quiet-zone',
+		};
+		const broken: Fix = {
+			id: 'broken',
+			labelKey: 'verify.fix.print-larger',
+			patch: { path: ['nowhere', 'deep'], value: 1 },
+			targets: 'quiet-zone',
+		};
+		const { studio, time } = studioWithCode({
+			verifyRunner: runner,
+			suggestFixes: () => [larger, whole, broken],
+		});
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		runner.answer();
+		return settle().then(() => {
+			const before = studio.getSnapshot().document.design;
+			studio.dispatch({ type: 'fix/apply', fixId: 'print-larger' });
+			expect(studio.getSnapshot().document.conditions.sizeMm).toBe(40);
+			expect(studio.getSnapshot().document.design).toBe(before);
+			studio.dispatch({ type: 'fix/apply', fixId: 'replace-design' });
+			expect(studio.getSnapshot().document.design.quietZone).toBe(6);
+			studio.dispatch({ type: 'history/undo' });
+			expect(studio.getSnapshot().document.design).toBe(before);
+			expect(studio.getSnapshot().document.conditions.sizeMm).toBe(40);
+			studio.dispatch({ type: 'fix/apply', fixId: 'broken' });
+			expect(studio.getSnapshot().refusal?.issues[0]?.code).toBe('studio.issue.patch-path');
+		});
+	});
+
+	it('refuses a live capture count outside 1 to 8, and takes one inside', () => {
+		expect(() => createStudio({ liveCaptureSeeds: 0 })).toThrow(TypeError);
+		expect(() => createStudio({ liveCaptureSeeds: 9 })).toThrow(TypeError);
+		expect(() => createStudio({ liveCaptureSeeds: 1.5 })).toThrow(TypeError);
+		createStudio({ liveCaptureSeeds: 8 }).dispose();
+	});
+
+	it('names in each job the entries the design draws with, as verify writes them', () => {
+		const runner = new FakeRunner();
+		const { studio, time } = studioWithCode({ verifyRunner: runner });
+		studio.dispatch({ type: 'verify/request' });
+		time.advance(250);
+		expect(runner.last.job.requires).toEqual(
+			designRequirements(studio.getSnapshot().design.effective),
+		);
+		expect(runner.last.job.captureSeeds).toBe(8);
 	});
 });

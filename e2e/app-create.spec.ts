@@ -160,6 +160,30 @@ test('switches modes with the arrow keys', async ({ page }) => {
 	await expect(page.locator('#panel-create')).toBeVisible();
 });
 
+test('checks that the code scans, with a real report and the strip filled in', async ({ page }) => {
+	await open(page);
+	await makeLink(page);
+	await page.locator('#card-check > summary').click();
+	await page.getByRole('button', { name: 'Check it scans' }).click();
+	const check = page.locator('.check');
+	await expect(check).toHaveAttribute('data-status', 'running');
+	await expect(check).toHaveAttribute('data-status', 'done', { timeout: 120_000 });
+	await expect(check).toHaveAttribute('data-depth', 'full');
+	await expect(check).toHaveAttribute('data-verdict', /^(pass|warn|fail)$/);
+	await expect(page.locator('.check__status')).not.toHaveText(/cannot run/);
+	// Every tile of the strip has the check's own verdict, none still unknown.
+	const tiles = page.locator('.strip .capture');
+	expect(await tiles.count()).toBeGreaterThan(3);
+	for (const result of await tiles.evaluateAll((nodes) =>
+		nodes.map((node) => (node as HTMLElement).dataset.result),
+	)) {
+		expect(['pass', 'partial', 'fail']).toContain(result);
+	}
+	// A change runs a quicker check by itself, and the card says which it is.
+	await page.getByLabel('Web address').fill(`${CONTENT}/changed`);
+	await expect(check).toHaveAttribute('data-depth', 'quick', { timeout: 120_000 });
+});
+
 test('opens a panel and changes a slider as one undo step', async ({ page }) => {
 	await open(page);
 	await makeLink(page);

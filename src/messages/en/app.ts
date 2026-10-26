@@ -135,10 +135,12 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.check.idle-detail':
 		'The check prints the code in simulated captures (far, out of focus, at an angle, in poor light) and reads each one the way a strict phone would.',
 	'app.check.stale': 'The design has changed since this check.',
-	'app.check.unavailable': 'The scan check is not in this copy of the file yet.',
+	'app.check.quick':
+		'This was a quick check after your change. Check it scans again for the full result before you print.',
+	'app.check.unavailable': 'The scan check cannot run in this copy of the studio.',
 	'app.check.unavailable-detail':
 		'The code is still made to the standard. Before you print many, scan a test print with the phones you expect people to use.',
-	'app.check.meta-unavailable': 'Not in this copy',
+	'app.check.meta-unavailable': 'Not available',
 	'app.check.verdict-pass': 'Scans well',
 	'app.check.verdict-warn': 'Scans, with cautions',
 	'app.check.verdict-fail': 'Will not scan reliably',
@@ -365,7 +367,7 @@ export const APP_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 	'app.scan.safety-none': 'Nothing here looks unusual.',
 	'app.scan.text': 'Exactly what the code holds',
 	'app.scan.inspect-unavailable':
-		'The full reading, with the kind of content and any warnings, is not in this copy of the file yet. The text above is exactly what the code holds.',
+		'The full reading, with the kind of content and any warnings, cannot be shown in this copy of the studio. The text above is exactly what the code holds.',
 	'app.scan.remake': 'Remake as a static code',
 	'app.scan.remade': 'Made into a new code in Create. It holds the same content and never expires.',
 	'app.scan.copy-text': 'Copy the text',

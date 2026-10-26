@@ -1369,6 +1369,11 @@ p.note {
 	color: var(--fail);
 }
 
+/* A quick check after a change is provisional until the full one is asked for. */
+.check[data-depth='quick'] .check__status {
+	font-weight: 500;
+}
+
 .check:not([data-status='running']) .check__progress,
 .bulk:not([data-status='running']) .check__progress {
 	display: none;

@@ -71,7 +71,15 @@ import type { History, Work } from './history.js';
 import { applyKit } from './kit.js';
 import { STUDIO_KEYS, asStudioError, studioError } from './keys.js';
 import { applyPatch, pathProblem } from './patch.js';
-import type { DesignPatch, Fix, Printer, VerifyConditions, VerifyProgress } from './seams.js';
+import type {
+	DesignPatch,
+	Fix,
+	FixSuggester,
+	Inspector,
+	Printer,
+	VerifyConditions,
+	VerifyProgress,
+} from './seams.js';
 import { sameJson, share } from './share.js';
 import { driveInSlices } from './slices.js';
 import { trackedScheduler } from './timers.js';
@@ -104,7 +112,16 @@ import type {
 	SymbolView,
 	VerifyState,
 } from './types.js';
-import { UNAVAILABLE_RUNNER, slicedVerifyRunner, verifyJob } from './verify.js';
+import {
+	FULL_CAPTURE_SEEDS,
+	LIVE_CAPTURE_SEEDS,
+	UNAVAILABLE_RUNNER,
+	slicedVerifyRunner,
+	verifyJob,
+} from './verify.js';
+import { inspectImage, inspectText } from '../inspect/inspect.js';
+import { runVerifyJob } from '../verify/job.js';
+import { applyDesignPatch, suggestFixes as suggestVerifyFixes } from '../verify/fixes.js';
 
 const DEFAULT_HISTORY_LIMIT = 200;
 const DEFAULT_DEBOUNCE_MS = 250;
@@ -113,6 +130,9 @@ export const MAX_RAW_TEXT = 16384;
 /** A design file is a few kilobytes; one with four logos is a few hundred. */
 export const MAX_DESIGN_FILE = 4 * 1024 * 1024;
 const MODES: readonly StudioMode[] = ['create', 'scan', 'bulk'];
+
+/** The inspect layer's own reader. */
+const DEFAULT_INSPECTOR: Inspector = Object.freeze({ image: inspectImage, text: inspectText });
 
 /** render's own print writers. */
 const RENDER_PRINTER: Printer = Object.freeze({ pdf: sceneToPdf, eps: sceneToEps });
@@ -173,12 +193,21 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	if (typeof debounceMs !== 'number' || !Number.isFinite(debounceMs) || debounceMs < 0) {
 		throw new TypeError('createStudio: verifyDebounceMs is a number of milliseconds, 0 or more.');
 	}
+	const liveSeeds = options.liveCaptureSeeds ?? LIVE_CAPTURE_SEEDS;
+	if (!Number.isInteger(liveSeeds) || liveSeeds < 1 || liveSeeds > FULL_CAPTURE_SEEDS) {
+		throw new TypeError('createStudio: liveCaptureSeeds is a whole number from 1 to 8.');
+	}
 	const seed = options.seed ?? 1;
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
 		throw new TypeError('createStudio: seed is an integer from 0 to 2^32 - 1.');
 	}
 	const clock = options.clock ?? defaultClock;
-	const suggestFixes = options.suggestFixes ?? (() => []);
+	const suggestFixes: FixSuggester =
+		options.suggestFixes ??
+		((report, design) => suggestVerifyFixes(report, design, registries.design));
+	// The inspector by default; null leaves reading codes out of this copy.
+	const inspector: Inspector | null =
+		options.inspector === undefined ? DEFAULT_INSPECTOR : options.inspector;
 	const library = options.library ?? null;
 	const assets = new AssetCache();
 	// One registry for checking captions and for drawing them, so a font a
@@ -191,10 +220,10 @@ export function createStudio(options: StudioOptions = {}): Studio {
 
 	// The default runner steps verify's generator in slices on this thread,
 	// through the tracked timers above so dispose stops it too.
-	const generator = options.verifyGenerator;
+	const generator = options.verifyGenerator === undefined ? runVerifyJob : options.verifyGenerator;
 	const runner =
 		options.verifyRunner ??
-		(generator === undefined
+		(generator === null
 			? UNAVAILABLE_RUNNER
 			: slicedVerifyRunner(generator, {
 					registries,
@@ -464,7 +493,12 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		return lastDone === null ? IDLE : staleOf(lastDone);
 	}
 
-	function scheduleVerify(): void {
+	// How thorough the next check is: the full count when someone asks for it,
+	// the live count when it runs again by itself after a change.
+	let nextSeeds = FULL_CAPTURE_SEEDS;
+
+	function scheduleVerify(seeds: number): void {
+		nextSeeds = seeds;
 		verifyTimer?.();
 		verifyTimer = later(startVerify, debounceMs);
 	}
@@ -488,22 +522,38 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		verifyRun = { id, controller };
 		const at = revision;
 		const { overlay } = constrained(document.design, type);
-		const job = verifyJob(
-			content.text,
+		const captureSeeds = nextSeeds;
+		const full = captureSeeds === FULL_CAPTURE_SEEDS;
+		const job = verifyJob({
+			content: content.text,
 			design,
-			checkedConditions(encoded.symbol, design, overlay),
+			conditions: checkedConditions(encoded.symbol, design, overlay),
 			seed,
-			registries,
-			assets.all(design),
+			assets: assets.all(design),
 			overlay,
-		);
-		verify = frozen({ status: 'running', progress: 0, revision: at, axis: null });
+			captureSeeds,
+		});
+		verify = frozen({
+			status: 'running',
+			progress: 0,
+			revision: at,
+			axis: null,
+			captureSeeds,
+			full,
+		});
 		notify();
 		const current = (): boolean => !disposed && verifyRun?.id === id;
 		const progress = (p: VerifyProgress): void => {
 			if (!current()) return;
 			const fraction = p.total > 0 ? Math.min(1, Math.max(0, p.done / p.total)) : 0;
-			verify = frozen({ status: 'running', progress: fraction, revision: at, axis: p.axis });
+			verify = frozen({
+				status: 'running',
+				progress: fraction,
+				revision: at,
+				axis: p.axis,
+				captureSeeds,
+				full,
+			});
 			notify();
 		};
 		const settle = (result: Result<unknown>): void => {
@@ -523,6 +573,8 @@ export function createStudio(options: StudioOptions = {}): Studio {
 					fixes: frozen([...fixes]),
 					stale: false,
 					revision: at,
+					captureSeeds,
+					full,
 				});
 				verify = lastDone;
 			} else if (result.error.code === 'cancelled') {
@@ -579,7 +631,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 		} else if (verify.status === 'done' && !verify.stale) {
 			verify = idleVerify();
 		}
-		scheduleVerify();
+		scheduleVerify(liveSeeds);
 	}
 
 	// Changes.
@@ -929,7 +981,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 					design: constrained(document.design, type).effective,
 					conditions: document.conditions,
 				};
-				scheduleVerify();
+				scheduleVerify(FULL_CAPTURE_SEEDS);
 				return;
 			}
 			case 'verify/cancel': {
@@ -951,7 +1003,23 @@ export function createStudio(options: StudioOptions = {}): Studio {
 					refuse(action.type, [issue(STUDIO_KEYS.unknownFix, ['fixId'], 'error')]);
 					return;
 				}
-				patchDesign(action.type, fix.patch, null);
+				// A fix is one step: verify's patch read as verify reads it (an
+				// empty path is the whole design), and a size change beside it for
+				// 'print-larger', which as a condition is not undone with the design.
+				let design: unknown;
+				if (fix.patch !== null) {
+					try {
+						design = applyDesignPatch(document.design, fix.patch);
+					} catch {
+						refuse(action.type, [issue(STUDIO_KEYS.patchPath, [], 'error', { problem: 'shape' })]);
+						return;
+					}
+				}
+				const conditions =
+					fix.conditions === undefined
+						? null
+						: frozen(conditionsFrom(fix.conditions, document.conditions).conditions);
+				applyLook(action.type, design, conditions);
 				return;
 			}
 			default:
@@ -1144,12 +1212,12 @@ export function createStudio(options: StudioOptions = {}): Studio {
 	type LibraryCommand = Extract<StudioCommand, { type: `library/${string}` }>;
 
 	/** Applies a design from the library or a kit, with conditions beside it, as one change. */
-	function applyFromLibrary(
+	function applyLook(
 		action: Refusal['action'],
 		design: unknown,
 		conditions: VerifyConditions | null,
 	): void {
-		const prepared = prepareDesign(design, []);
+		const prepared: Prepared = design === undefined ? { kind: 'same' } : prepareDesign(design, []);
 		const next: { -readonly [K in keyof StudioDocument]?: StudioDocument[K] } = {};
 		if (prepared.kind === 'change') next.design = prepared.next;
 		if (conditions !== null && !sameJson(conditions, document.conditions)) {
@@ -1218,7 +1286,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				// person typed, and the kind of content it is, stay as they are.
 				const saved = loaded.value.document;
 				const { conditions } = conditionsFrom(saved.conditions, document.conditions);
-				applyFromLibrary(command.type, saved.design, frozen(conditions));
+				applyLook(command.type, saved.design, frozen(conditions));
 				const { document: _document, ...summary } = loaded.value;
 				return ok(frozen(summary));
 			}
@@ -1238,7 +1306,7 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				if (disposed) return cancelled();
 				if (!loaded.ok) return loaded;
 				activeKit = loaded.value;
-				applyFromLibrary(command.type, applyKit(document.design, loaded.value.kit), null);
+				applyLook(command.type, applyKit(document.design, loaded.value.kit), null);
 				await refreshLibrary();
 				return loaded;
 			}
@@ -1291,12 +1359,11 @@ export function createStudio(options: StudioOptions = {}): Studio {
 				}
 			case 'inspect/image':
 			case 'inspect/text': {
-				const inspector = options.inspector ?? null;
 				const source = command.type === 'inspect/image' ? 'image' : 'text';
 				if (inspector === null) {
 					const error = new QrStudioError(
 						'platform/unavailable',
-						'Reading codes is not part of this build yet.',
+						'Reading codes is not part of this copy.',
 						{
 							feature: 'inspect',
 						},

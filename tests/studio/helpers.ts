@@ -82,6 +82,7 @@ export function reportFor(job: VerifyJob, verdict: VerifyReport['verdict'] = 'pa
 		blocks: [],
 		captures: [],
 		limits: { maxDistanceMm: null, minModuleMm: null, inkFraction: 1 },
+		baseline: { passed: true, minMargin: null, seeds: job.captureSeeds ?? 8 },
 	};
 }
 

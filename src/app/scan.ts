@@ -6,11 +6,12 @@
  * that). A browser can refuse the camera to a file opened from disk; when it
  * does, the drop target is the way in and the page says so plainly.
  *
- * What a code says comes from the studio's inspector. Until the inspect layer
- * is part of the build the studio reports it unavailable, and this view reads
- * the code with the decoder directly and shows its exact text, with the
- * inspector's card saying what is still to come. "Remake as a static code"
- * works either way: it is the studio's `payload/raw` action.
+ * What a code says comes from the studio's inspector: the kind of content,
+ * what it would do, and anything a phone should warn about. A copy whose host
+ * left the inspector out has the studio report it unavailable; this view then
+ * reads the code with the decoder directly and shows its exact text, saying
+ * the rest cannot be shown. "Remake as a static code" works either way: it is
+ * the studio's `payload/raw` action.
  */
 
 import { QrStudioError } from '../core/errors.js';
@@ -427,7 +428,7 @@ export function createScan(ctx: AppContext): ScanView {
 		}));
 	}
 
-	/** Codes the camera read: explained by the inspector from their text when it is in the build. */
+	/** Codes the camera read: explained by the inspector from their text. */
 	async function showDecoded(symbols: readonly DecodedSymbol[]): Promise<void> {
 		const text = symbols.map((symbol) => symbol.read.bitstream.text).join('');
 		const result = await ctx.studio.run({ type: 'inspect/text', text });

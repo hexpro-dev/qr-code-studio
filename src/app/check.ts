@@ -3,7 +3,9 @@
  * found, the fixes it suggests, and the strip of simulated captures under the
  * proof, laid out like the colour bar along the edge of a press sheet.
  *
- * Until the verify layer is part of the build the studio reports the check as
+ * The check runs in time slices on this thread, a full one when the person
+ * asks and a quicker one by itself after each change, and the card says which
+ * it is showing. A copy whose host left the check out has the studio report it
  * unavailable (a 'failed' state whose error names the feature), and every part
  * of this view says so in words rather than showing an empty box. Each tile in
  * the strip is the proof itself, put through a stylesheet filter that stands
@@ -323,8 +325,11 @@ export function createCheck(ctx: AppContext): Panel {
 						status,
 						verify.stale
 							? `${verdictText(verify.report)}. ${t('app.check.stale')}`
-							: verdictText(verify.report),
+							: verify.full
+								? verdictText(verify.report)
+								: `${verdictText(verify.report)}. ${t('app.check.quick')}`,
 					);
+					root.dataset.depth = verify.full ? 'full' : 'quick';
 					root.dataset.verdict = verify.report.verdict;
 					drawReport(verify.report, verify.fixes);
 					return;

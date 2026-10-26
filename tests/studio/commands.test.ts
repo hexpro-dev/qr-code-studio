@@ -11,7 +11,10 @@ import { createPrng } from '../../src/core/prng.js';
 import { decodeDesignLink } from '../../src/design/link.js';
 import { defaultDesign } from '../../src/design/document.js';
 import type { InspectReport, Inspector } from '../../src/studio/seams.js';
+import { studioError } from '../../src/studio/keys.js';
 import { logoPatches } from '../../src/studio/logo.js';
+
+const studioErrorOf = (error: QrStudioError): string => studioError(error).messageKey;
 import { assetOf, discImage } from '../design/helpers.js';
 import { studioWith, studioWithCode } from './helpers.js';
 
@@ -136,8 +139,8 @@ describe('inspect', () => {
 		expect(!thrown.ok && thrown.error.code).toBe('decode/unreadable');
 	});
 
-	it('says reading is not in this build without an inspector', async () => {
-		const { studio } = studioWith();
+	it('says reading is not in this copy when the host leaves the inspector out', async () => {
+		const { studio } = studioWith({ inspector: null });
 		const result = await studio.run({ type: 'inspect/text', text: 'x' });
 		expect(!result.ok && result.error).toMatchObject({
 			code: 'platform/unavailable',
@@ -166,5 +169,37 @@ describe('run', () => {
 		const { studio } = studioWith();
 		await expect(studio.run(null as never)).rejects.toThrow(TypeError);
 		await expect(studio.run({ type: 'nope' } as never)).rejects.toThrow(TypeError);
+	});
+});
+
+describe('the real inspector, by default', () => {
+	it('reads a code from a picture and explains a text', async () => {
+		const { createDesignRegistries } = await import('../../src/design/registries.js');
+		const { buildScene } = await import('../../src/design/scene.js');
+		const { encode } = await import('../../src/encode/encode.js');
+		const { rasterise } = await import('../../src/render/raster.js');
+		const scene = buildScene(
+			encode('WIFI:T:WPA;S:Example Network;P:example-pass;;'),
+			defaultDesign(),
+			{
+				registries: createDesignRegistries(),
+			},
+		).scene;
+		const { studio } = studioWith();
+		const read = await studio.run({
+			type: 'inspect/image',
+			image: rasterise(scene, { width: 300 }),
+		});
+		if (!read.ok) throw read.error;
+		expect(read.value.symbols).toHaveLength(1);
+		expect(read.value.payload?.typeId).toBe('wifi');
+		expect(studio.getSnapshot().inspect).toMatchObject({ status: 'done', source: 'image' });
+		const text = await studio.run({ type: 'inspect/text', text: 'https://example.com/' });
+		expect(text.ok && text.value.payload?.typeId).toBe('url');
+		const blank = await studio.run({
+			type: 'inspect/image',
+			image: { width: 40, height: 40, data: new Uint8ClampedArray(6400).fill(255) },
+		});
+		expect(!blank.ok && studioErrorOf(blank.error)).toMatch(/^decode\.not-found/);
 	});
 });

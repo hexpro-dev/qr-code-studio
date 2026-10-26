@@ -2,7 +2,8 @@
  * Applying a path-addressed patch to a plain value.
  *
  * `{ path: ['modules', 'shape'], value: { id: 'dot' } }` replaces one part of
- * a design and copies only the objects on the way down to it, so everything
+ * a design, and an empty path the whole of it, as verify's `applyDesignPatch`
+ * reads a patch. It copies only the objects on the way down, so everything
  * beside the path keeps its identity. A missing step on the way is created,
  * an object for a string key and an array for a number, and a value of
  * `undefined` removes the key. Whether the result is a good design is the
@@ -16,7 +17,8 @@ const MAX_DEPTH = 16;
 
 /** Why a path cannot be applied, or null when it can. */
 export function pathProblem(path: unknown): 'shape' | 'key' | null {
-	if (!Array.isArray(path) || path.length === 0 || path.length > MAX_DEPTH) return 'shape';
+	// An empty path is the whole design, as verify's applyDesignPatch reads one.
+	if (!Array.isArray(path) || path.length > MAX_DEPTH) return 'shape';
 	for (const step of path) {
 		if (typeof step === 'number') {
 			if (!Number.isInteger(step) || step < 0 || step > 1024) return 'shape';
@@ -63,5 +65,5 @@ export function applyPatch(
 	path: readonly (string | number)[],
 	value: unknown,
 ): unknown {
-	return setAt(target, path, 0, value);
+	return path.length === 0 ? value : setAt(target, path, 0, value);
 }
