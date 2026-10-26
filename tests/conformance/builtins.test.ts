@@ -71,6 +71,9 @@ describe('frames', () => {
 	}
 });
 
+// The strict scan check is plugged into the same `checkPreset` hook in
+// tests/verify/gate-*.test.ts, split four ways so the presets are checked in
+// parallel; here the presets meet the design layer's own rules.
 describe('presets', () => {
 	for (const preset of registries.presets.list()) {
 		it(preset.id, () => {

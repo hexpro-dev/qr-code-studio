@@ -7,9 +7,17 @@
  * finder pairs all make a finder the strict reader finds, and those with a
  * logo ask for a level that can pay for it.
  *
- * `minSizeMm` is a first, cautious estimate of the smallest printed width,
- * quiet zone included, at which each scans: larger for shapes that ink less
- * of each module. The scan check calibrates these later.
+ * `minSizeMm` is the smallest printed width of the symbol with its quiet
+ * zone, in whole millimetres, at which the scan check passes the preset at
+ * everyday conditions with a short, a medium and a long link at its own
+ * level (src/verify/preset.ts, `calibratePreset`): the strict reader, all
+ * eight seeds of every capture axis up to its everyday level, climbing 1 mm
+ * at a time. The largest of the three, plus a tenth and at least 2 mm
+ * (`withMargin`), is the value here. Shortfalls a preset has at every size
+ * (tests/verify/shortfalls.ts) are left out of the climb, and a recorded
+ * distance shortfall leaves the distance axis out too, so a reader's refusal
+ * never turns into a larger size. Measured 2026-10-26; the nightly run
+ * (QRS_VERIFY_NIGHTLY=1) checks each value reproduces.
  *
  * Built by a function so that importing the catalogue builds nothing.
  */
@@ -117,7 +125,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-black',
 			category: 'classic',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#000000'),
@@ -127,7 +135,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-navy',
 			category: 'classic',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#0b1f3a'),
@@ -137,7 +145,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-soft-corners',
 			category: 'classic',
-			minSizeMm: 16,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.15 } },
 			paint: solid('#111111'),
@@ -147,7 +155,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-ink-blue',
 			category: 'classic',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#0b3d91'),
@@ -157,7 +165,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classic-octagon',
 			category: 'classic',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#1c2430'),
@@ -168,7 +176,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-graphite',
 			category: 'rounded',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: solid('#222831'),
@@ -178,7 +186,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-ocean',
 			category: 'rounded',
-			minSizeMm: 18,
+			minSizeMm: 29,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.35 } },
 			paint: solid('#0a3d62'),
@@ -188,7 +196,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-forest',
 			category: 'rounded',
-			minSizeMm: 18,
+			minSizeMm: 26,
 			ecLevels: ALL,
 			shape: { id: 'squircle' },
 			paint: solid('#1b4332'),
@@ -198,7 +206,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-plum',
 			category: 'rounded',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.4 } },
 			paint: solid('#3c1642'),
@@ -214,7 +222,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-terracotta',
 			category: 'rounded',
-			minSizeMm: 18,
+			minSizeMm: 30,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.25 } },
 			paint: solid('#6e2a12'),
@@ -224,7 +232,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'rounded-link',
 			category: 'rounded',
-			minSizeMm: 22,
+			minSizeMm: 32,
 			// A logo with a plate hides every codeword under the plate's box, and
 			// at Q a short link's blocks run out of correction before any print
 			// size can help. H keeps a margin for every length of content.
@@ -247,7 +255,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'midnight-dots',
 			category: 'dots',
-			minSizeMm: 22,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#10173a'),
@@ -257,7 +265,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'charcoal-dots',
 			category: 'dots',
-			minSizeMm: 22,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#262626'),
@@ -267,7 +275,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'teal-dots',
 			category: 'dots',
-			minSizeMm: 22,
+			minSizeMm: 28,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: solid('#064e57'),
@@ -277,7 +285,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'berry-dots',
 			category: 'dots',
-			minSizeMm: 22,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.94 } },
 			paint: solid('#5b0e2d'),
@@ -287,7 +295,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'confetti-dots',
 			category: 'dots',
-			minSizeMm: 22,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: {
@@ -313,7 +321,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-pro-blue',
 			category: 'hex',
-			minSizeMm: 20,
+			minSizeMm: 29,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex' },
 			paint: solid('#0a4f96'),
@@ -323,7 +331,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-graphite',
 			category: 'hex',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { orientation: 'flat' } },
 			paint: solid('#1f2933'),
@@ -333,7 +341,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-honey',
 			category: 'hex',
-			minSizeMm: 20,
+			minSizeMm: 28,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex' },
 			paint: solid('#3d2600'),
@@ -343,7 +351,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'hex-night',
 			category: 'hex',
-			minSizeMm: 20,
+			minSizeMm: 37,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'hex', params: { size: 1 } },
 			paint: solid('#0d1b2a'),
@@ -354,7 +362,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-ink',
 			category: 'fluid',
-			minSizeMm: 18,
+			minSizeMm: 37,
 			ecLevels: ALL,
 			shape: { id: 'fluid' },
 			paint: solid('#111827'),
@@ -364,7 +372,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-lagoon',
 			category: 'fluid',
-			minSizeMm: 18,
+			minSizeMm: 28,
 			ecLevels: ALL,
 			shape: { id: 'fluid', params: { radius: 0.4 } },
 			paint: linear(45, '#0b3954', '#055c5e'),
@@ -376,7 +384,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'fluid-aubergine',
 			category: 'fluid',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'fluid' },
 			paint: solid('#3b0d3b'),
@@ -386,7 +394,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'classy-slate',
 			category: 'fluid',
-			minSizeMm: 18,
+			minSizeMm: 38,
 			ecLevels: ALL,
 			shape: { id: 'classy' },
 			paint: solid('#263238'),
@@ -396,7 +404,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'cobalt-bars',
 			category: 'fluid',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'bars-vertical' },
 			paint: solid('#0d2c6c'),
@@ -407,7 +415,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'poster-yellow',
 			category: 'bold',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#000000'),
@@ -418,7 +426,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'bold-tomato',
 			category: 'bold',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid('#1a1a1a'),
@@ -429,7 +437,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'bold-crosses',
 			category: 'bold',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'cross', params: { thickness: 0.6 } },
 			paint: solid('#101010'),
@@ -439,7 +447,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'slate-bars',
 			category: 'bold',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'bars-horizontal', params: { thickness: 0.85 } },
 			paint: solid('#0f172a'),
@@ -449,7 +457,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'red-badge',
 			category: 'bold',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#111111'),
@@ -460,7 +468,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'chat-bubble',
 			category: 'bold',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.35 } },
 			paint: solid('#1e1b4b'),
@@ -472,7 +480,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-tiny',
 			category: 'minimal',
-			minSizeMm: 25,
+			minSizeMm: 32,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'tiny-square', params: { scale: 0.7 } },
 			paint: solid('#222222'),
@@ -482,7 +490,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-diamond',
 			category: 'minimal',
-			minSizeMm: 22,
+			minSizeMm: 28,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'diamond' },
 			paint: solid('#2d2d2d'),
@@ -492,7 +500,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'minimal-brackets',
 			category: 'minimal',
-			minSizeMm: 16,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid('#1c1c1c'),
@@ -519,7 +527,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'sunset-gradient',
 			category: 'colour',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.3 } },
 			paint: linear(45, '#5c1530', '#87300f'),
@@ -532,7 +540,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'deep-sea-gradient',
 			category: 'colour',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'squircle' },
 			paint: linear(90, '#0b3c5d', '#1b4d3e'),
@@ -542,7 +550,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'two-tone',
 			category: 'colour',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: {
@@ -558,7 +566,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'violet-glow',
 			category: 'colour',
-			minSizeMm: 20,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'dot', params: { size: 0.95 } },
 			paint: {
@@ -578,7 +586,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'mosaic-tiles',
 			category: 'colour',
-			minSizeMm: 22,
+			minSizeMm: 26,
 			ecLevels: MEDIUM_UP,
 			shape: { id: 'mosaic' },
 			paint: {
@@ -597,7 +605,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'teal-and-rust',
 			category: 'colour',
-			minSizeMm: 18,
+			minSizeMm: 34,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid('#064e57'),
@@ -610,7 +618,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'shop-tag',
 			category: 'colour',
-			minSizeMm: 24,
+			minSizeMm: 33,
 			// The same reason as rounded-link: the circular plate costs its whole
 			// box in codewords, so a logo preset is held at H.
 			ecLevels: LOGO,
@@ -633,7 +641,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-black',
 			category: 'print',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#000000', cmyk: [0, 0, 0, 1] }),
@@ -644,7 +652,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-navy',
 			category: 'print',
-			minSizeMm: 15,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#13294b', cmyk: [1, 0.75, 0.2, 0.55] }),
@@ -655,7 +663,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-ticket',
 			category: 'print',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'rounded', params: { radius: 0.2 } },
 			paint: solid({ srgb: '#1a1a1a', cmyk: [0, 0, 0, 0.9] }),
@@ -667,7 +675,7 @@ function specs(): readonly PresetSpec[] {
 		{
 			id: 'print-stamp',
 			category: 'print',
-			minSizeMm: 18,
+			minSizeMm: 25,
 			ecLevels: ALL,
 			shape: { id: 'square' },
 			paint: solid({ srgb: '#1f2a44', cmyk: [0.9, 0.7, 0.3, 0.6] }),
