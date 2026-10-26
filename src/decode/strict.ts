@@ -26,13 +26,12 @@
  *   read is not read, and from version 7 its version information has to
  *   agree with its size;
  *
- * and then asks six things of a symbol that did read, all about the picture
+ * and then asks these things of a symbol that did read, all about the picture
  * rather than the symbol:
  *
  * - Its modules must be at least 2.25 pixels across
- *   (`STRICT_MIN_MODULE_PIXELS`), and from version 7 three
- *   (`STRICT_MIN_TILED_MODULE_PIXELS`), and drawn out no more than 1.8 times
- *   one way over the other, a tilt of about 56 degrees
+ *   (`STRICT_MIN_MODULE_PIXELS`), and drawn out no more than 1.8 times one
+ *   way over the other, a tilt of about 56 degrees
  *   (`STRICT_MAX_FORESHORTENING`).
  * - The thresholded picture must not break up into speckle. Noise that leaves
  *   the symbol itself readable turns a flat background into isolated dark
@@ -42,17 +41,20 @@
  *   More than one in fifty is refused.
  * - The grid a plain reader would lay must read to the same bytes (see
  *   `plain.ts`).
- * - The fixed patterns (finders, separators, timing and alignment patterns)
- *   must read the same under both of the thresholds the common readers use,
- *   the block mean jsQR and ZXing take and the middle of the block's range
- *   zxing-cpp and this package's scanner take, wherever the picture around
- *   them keeps its contrast. Where they differ on a module whose
- *   neighbourhood has gone pale, the picture has lost the pattern, nearly
- *   always to glare, and a reader that finds its way by it is lost too.
- *   Where they differ on a module whose neighbourhood keeps its contrast,
- *   the centre sits on a drawn edge, which styled designs do on purpose.
+ * - For Micro QR and rMQR, the fixed patterns (finders, separators, timing
+ *   and alignment patterns) must read the same under both of the thresholds
+ *   the common readers use, the block mean jsQR and ZXing take and zxing-cpp's
+ *   (`binariseLocalAverage`), wherever the picture around them keeps its
+ *   contrast. Where they differ on a module whose neighbourhood has gone
+ *   pale, the picture has lost the pattern, nearly always to glare, and a
+ *   reader that finds its way by it is lost too. Where they differ on a
+ *   module whose neighbourhood keeps its contrast, the centre sits on a drawn
+ *   edge, which styled designs do on purpose. QR leaves this out: the rules
+ *   below model what zxing-cpp makes of its own threshold, and over verify's
+ *   captures and the plain corpus they caught everything this did.
  * - The finders' rings must be ones zxing-cpp can trace: no ring of dots,
- *   and at a slant or under a smear no circle (see `finderRingsTraceable`);
+ *   at a slant or under a smear no circle, and on a steep tilt no ring
+ *   nearly round at its corners (see `finderRingsTraceable`);
  *   and their centres ones it can settle on (see `finderCentresClosed`).
  * - From version 7, the grid zxing-cpp lays in tiles, cornered on the
  *   finders' rings, must read as well (see `tiled.ts`).
@@ -82,17 +84,6 @@ import type { Point } from './types.js';
  * design nothing.
  */
 export const STRICT_MIN_MODULE_PIXELS = 2.25;
-
-/**
- * The fewest pixels a module from version 7, where zxing-cpp samples in tiles
- * cornered on the finders' rings (see tiled.ts). Below three a ring is two or
- * three pixels thick and the corners zxing-cpp fits to it fall where the
- * pixels happen to: over verify's captures of every preset, at 2.5 pixels a
- * module zxing-cpp missed one version 7 symbol in fifteen that jsQR read, and
- * the tiled grid laid here let some of those through. From three it let none
- * through.
- */
-export const STRICT_MIN_TILED_MODULE_PIXELS = 3;
 
 /**
  * The most a module may be drawn out one way over the other at the middle of
@@ -127,21 +118,21 @@ export function foreshortening(transform: Homography, u: number, v: number): num
 }
 
 /**
- * Whether the strict profile samples a grid at all: modules wide enough, from
- * version 7 (`tiled`) wider still, and not drawn out past
- * `STRICT_MAX_FORESHORTENING`, all at the middle of the symbol.
+ * Whether the strict profile samples a grid at all: modules wide enough, and
+ * not drawn out past `STRICT_MAX_FORESHORTENING`, at the middle of the symbol.
+ *
+ * Version 7 and up once had a floor of three pixels a module of their own:
+ * below it the tiled grid (see tiled.ts), laid on a midrange threshold, let
+ * through symbols zxing-cpp missed. Laid on zxing-cpp's own threshold and
+ * from each centre zxing-cpp could take, it catches them: over verify's
+ * captures at 2.5 pixels a module it let none through, so the one floor
+ * serves every version.
  */
-export function strictSamples(
-	transform: Homography,
-	width: number,
-	height: number,
-	tiled: boolean,
-): boolean {
+export function strictSamples(transform: Homography, width: number, height: number): boolean {
 	const u = width / 2;
 	const v = height / 2;
-	const floor = tiled ? STRICT_MIN_TILED_MODULE_PIXELS : STRICT_MIN_MODULE_PIXELS;
 	return (
-		moduleWidth(transform, u, v) >= floor &&
+		moduleWidth(transform, u, v) >= STRICT_MIN_MODULE_PIXELS &&
 		foreshortening(transform, u, v) <= STRICT_MAX_FORESHORTENING
 	);
 }
@@ -523,13 +514,15 @@ function ringClosed(bits: Binarised, transform: Homography, u: number, v: number
  * zxing-cpp, having found a finder by its runs, settles its centre by walking
  * the edge of the dark centre and taking the middle of the walk, and drops the
  * finder when the walk does not close round the centre or its middle is
- * light. Glare that leaves a light hole in the centre does that: a two-tone design under glare that jsQR and
- * the strict reader read was one zxing-cpp found no symbol in at all, with
- * its bottom left finder's centre holed in this threshold and solid in the
- * strict reader's own. Over verify's captures of every preset the rule
- * refuses 7 in 1,000 symbols the strict reader would otherwise read, every
- * one of them read by zxing-cpp too: this threshold is a model of zxing-cpp's
- * and not its own, and where they differ this errs towards refusing.
+ * light. Glare that leaves a light hole in the centre does that: a two-tone
+ * design under glare that jsQR and the strict reader read was one zxing-cpp
+ * found no symbol in at all, with its bottom left finder's centre holed in
+ * zxing-cpp's threshold and solid in the strict reader's own.
+ *
+ * Asked first of a midrange threshold, this refused 7 in 1,000 symbols over
+ * verify's captures that zxing-cpp read, most of them two-tone designs whose
+ * finder centres that threshold holed and zxing-cpp's does not; asked of
+ * `binariseLocalAverage`, the two-tone shortfalls went with it.
  */
 export function finderCentresClosed(bits: Binarised, transform: Homography, size: number): boolean {
 	return [
@@ -581,7 +574,9 @@ export function finderCentresClosed(bits: Binarised, transform: Homography, size
  * along it and leaving them apart across it, so that the ring measures
  * straight and zxing-cpp still misses it. Smeared past `STRICT_MAX_SMEAR`,
  * then, every ring has to be straight, cornered and, in zxing-cpp's own
- * threshold `bits`, one closed ring.
+ * threshold `bits`, one closed ring. And tilted steeply, past
+ * `STRICT_STEEP_FORESHORTENING`, a ring's corners have to be well short of
+ * round (`STEEP_CORNER_RATIO`).
  */
 export function finderRingsTraceable(
 	grey: GreyImage,
@@ -597,14 +592,39 @@ export function finderRingsTraceable(
 	const widths = centres.map(([u, v]) => moduleWidthAt(transform, u, v));
 	const slanted = Math.max(...widths) > Math.min(...widths) * STRICT_SLANT;
 	const smeared = centres.some(([u, v]) => finderSmear(grey, transform, u, v) > STRICT_MAX_SMEAR);
+	const steep = foreshortening(transform, size / 2, size / 2) > STRICT_STEEP_FORESHORTENING;
 	for (const [u, v] of centres) {
-		const kind = ringKind(grey, transform, u, v);
+		const ring = ringShape(grey, transform, u, v);
 		// A ring that cannot be measured is not one a reader can trace either.
-		if (kind === null || kind === 'dotted') return false;
+		if (ring === null) return false;
+		const kind = kindOf(ring);
+		if (kind === 'dotted') return false;
 		if ((slanted || smeared) && kind === 'round') return false;
+		if (steep && ring.corner < STEEP_CORNER_RATIO) return false;
 		if (smeared && !ringClosed(bits, transform, u, v)) return false;
 	}
 	return true;
+}
+
+/**
+ * Past this foreshortening, a tilt of about 37 degrees, zxing-cpp's traced
+ * finder sides need corners well short of round (`STEEP_CORNER_RATIO`).
+ */
+export const STRICT_STEEP_FORESHORTENING = 1.25;
+
+/**
+ * The least a ring's diagonal reach may be over its axial reach on a steep
+ * tilt. Measured, not chosen: over 7,395 symbols the strict reader read
+ * from verify's captures of every preset tilted 25 to 50 degrees, the 16
+ * zxing-cpp missed were all extra-rounded rings (1.12) at 40 degrees and
+ * more; squircles, octagons and scooped rings (1.17 to 1.20) and everything
+ * squarer it read.
+ */
+const STEEP_CORNER_RATIO = 1.15;
+
+function kindOf(ring: RingShape): RingKind {
+	if (ring.corner < MIN_CORNER_RATIO) return 'round';
+	return ring.wander <= MAX_SIDE_WANDER ? 'cornered' : 'dotted';
 }
 
 /**
@@ -625,9 +645,7 @@ export function ringKind(
 	v: number,
 ): RingKind | null {
 	const ring = ringShape(grey, transform, u, v);
-	if (ring === null) return null;
-	if (ring.corner < MIN_CORNER_RATIO) return 'round';
-	return ring.wander <= MAX_SIDE_WANDER ? 'cornered' : 'dotted';
+	return ring === null ? null : kindOf(ring);
 }
 
 export type RingKind = 'cornered' | 'round' | 'dotted';

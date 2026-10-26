@@ -13,6 +13,7 @@ import { decodeImage } from '../../src/decode/decoder.js';
 import type { Homography } from '../../src/decode/transform.js';
 import {
 	TILED_NUDGES,
+	finderCentre,
 	finderCorners,
 	fitQuadrilateral,
 	ringPoints,
@@ -253,6 +254,44 @@ function drawn(m: number, cut = 0) {
 	return { matrix, size, image, transform };
 }
 
+describe("zxing-cpp's finder centre", () => {
+	it('settles on the middle of the walks round the centre and the ring', () => {
+		const m = 6;
+		const o = 10;
+		const image = bits(80, 80, finder(m, o));
+		const truth = { x: o + 3.5 * m, y: o + 3.5 * m };
+		const settled = finderCentre(image, { x: truth.x + 1.3, y: truth.y - 0.8 }, 7 * m);
+		expect(hypot(settled.x - truth.x, settled.y - truth.y)).toBeLessThan(0.1);
+	});
+
+	it('keeps the starting point where the centre does not close, and stops at a ring that does not', () => {
+		const m = 6;
+		const o = 10;
+		const near = { x: o + 3.5 * m + 0.4, y: o + 3.5 * m };
+		// No dark centre: the first walk finds nothing round the point.
+		const hollow = bits(80, 80, (x, y) => finder(m, o)(x, y) && Math.abs(x + 0.5 - near.x) > 9);
+		expect(finderCentre(hollow, near, 7 * m)).toEqual(near);
+		// A centre with no ring round it: the centre's own middle.
+		const lone = bits(80, 80, (x, y) => {
+			const u = (x + 0.5 - o) / m;
+			const v = (y + 0.5 - o) / m;
+			return u >= 2 && u < 5 && v >= 2 && v < 5;
+		});
+		const settled = finderCentre(lone, near, 7 * m);
+		expect(hypot(settled.x - (o + 3.5 * m), settled.y - (o + 3.5 * m))).toBeLessThan(0.1);
+		// A ring a module and a half off to one side of its centre: its middle
+		// strays too far, and the centre's own middle is kept.
+		const offset = bits(100, 100, (x, y) => {
+			const u = (x + 0.5 - o) / m;
+			const v = (y + 0.5 - o) / m;
+			const ring = u >= 0 && u < 10 && v >= 0 && v < 7 && !(u >= 1 && u < 9 && v >= 1 && v < 6);
+			return ring || (u >= 2.5 && u < 4.5 && v >= 2.5 && v < 4.5);
+		});
+		const kept = finderCentre(offset, { x: o + 3.5 * m, y: o + 3.5 * m }, 7 * m);
+		expect(hypot(kept.x - (o + 3.5 * m), kept.y - (o + 3.5 * m))).toBeLessThan(0.1);
+	});
+});
+
 describe("zxing-cpp's tiled grid", () => {
 	it('samples a square-finder symbol exactly, its corners where the grid has them', () => {
 		const { matrix, size, image, transform } = drawn(5);
@@ -321,8 +360,8 @@ describe('the strict profile and the tiled grid', () => {
 
 	it('refuses where the tiled grid does not read, reads otherwise, or reads worse', () => {
 		const image = drawGrid(v7(), { scale: 6 });
-		const stage = (registry: Registry<SymbologyEntry>, picture = image): string => {
-			const result = decodeImage(picture, { profile: 'strict-v1' }, registry);
+		const stage = (registry: Registry<SymbologyEntry>): string => {
+			const result = decodeImage(image, { profile: 'strict-v1' }, registry);
 			return result.ok ? 'read' : String(result.error.params.stage);
 		};
 		expect(
@@ -351,16 +390,6 @@ describe('the strict profile and the tiled grid', () => {
 				}),
 			),
 		).toBe('read');
-		// Below six pixels a module, not even one.
-		expect(
-			stage(
-				second((matrix, options) => {
-					const read = qr.read(matrix, options);
-					return { ...read, errorsPerBlock: read.errorsPerBlock.map((errors) => errors + 1) };
-				}),
-				drawGrid(v7(), { scale: 4 }),
-			),
-		).toBe('margin');
 		expect(() =>
 			stage(
 				second(() => {

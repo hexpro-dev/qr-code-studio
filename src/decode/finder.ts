@@ -58,11 +58,29 @@ export const LENIENT_FINDER_TOLERANCE: FinderTolerance = Object.freeze({
  * squircle finders the design layer draws, on some sub-pixel phases and not
  * others, with every reader that matters reading them; measured over the
  * styled corpus, 0.5 refuses none of them and the conservativeness property
- * holds.
+ * holds. 0.6 also finds octagonal finders at 4 pixels a module, but as the
+ * first look it let a patch of data through as a fourth finder on a version
+ * 30 symbol tilted 20 degrees, and the strict reader, which commits to one
+ * triple, chose the triple with it in: so 0.6 is the second look's alone
+ * (`STRICT_WIDE_FINDER_TOLERANCE`).
  */
 export const STRICT_FINDER_TOLERANCE: FinderTolerance = Object.freeze({
 	runs: 0.35,
 	diagonals: 0.5,
+});
+
+/**
+ * The strict profile's second look, taken only when the first finds fewer
+ * than three finders: 0.6 of a module on the diagonals, still short of the
+ * three quarters and half a pixel zxing-cpp allows on each run. It finds the
+ * octagonal finders at 4 pixels a module and the rounded ring round a round
+ * centre with its ink starved by a twentieth of a module that the first look
+ * misses and zxing-cpp and jsQR read every time; taken only then, it cannot
+ * add a decoy finder to a picture the first look already found three in.
+ */
+export const STRICT_WIDE_FINDER_TOLERANCE: FinderTolerance = Object.freeze({
+	runs: 0.35,
+	diagonals: 0.6,
 });
 
 function isDark(image: Binarised, x: number, y: number): boolean {

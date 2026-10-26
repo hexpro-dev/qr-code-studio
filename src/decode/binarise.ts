@@ -8,8 +8,9 @@
  *
  * Three strategies, lifted from the authenticator package's reader
  * (google-auth-secret-retriever, `src/qr/decode/binarise.ts`), tried in order
- * by the lenient ladder rather than chosen cleverly. The strict profile uses
- * the first alone, which is the one phone readers use.
+ * by the lenient ladder rather than chosen cleverly. The strict profile reads
+ * with the block-mean hybrid alone, the one jsQR and ZXing use, and models
+ * zxing-cpp with that reader's own (`binariseLocalAverage`).
  *
  * Each keeps its thresholds as well as its decisions. A sampled module is
  * soft: how far its grey sits from the local threshold, as well as which side,
@@ -250,6 +251,96 @@ export function binariseHybridMean(image: GreyImage): Binarised {
 		bits,
 		threshold: (x, y) => thresholds[(y >> 3) * blocksX + (x >> 3)] as number,
 	};
+}
+
+/** zxing-cpp's local thresholds need a picture this many pixels on a side, and fall back to a global one below it. */
+const LOCAL_AVERAGE_MINIMUM = 40;
+/** Blocks either side of a block that its threshold is smoothed over: five by five. */
+const LOCAL_AVERAGE_RADIUS = 2;
+
+/**
+ * zxing-cpp's hybrid binariser as it stands, the "LocalAverage" one zxing-wasm
+ * reads with by default, written from its description: the strict profile's
+ * model of how zxing-cpp sees a picture, where it has to predict what zxing-cpp
+ * will make of a finder or a grid.
+ *
+ * It is neither `binariseHybrid` nor `binariseHybridMean`, and the differences
+ * decide what a flat patch becomes. A block's threshold is the middle of its
+ * range, or none at all when the range is 24 or less; each is then averaged
+ * over the five by five blocks round it, its own counted three times and the
+ * blocks with none not at all; and a block left with none after that takes
+ * the next block's that has one, in reading order. So a dark patch wider than
+ * a block, the centre of a finder at ten pixels a module, takes its threshold
+ * from its surroundings and stays dark, where `binariseHybrid` can leave a
+ * light hole in it. Edge blocks are moved back inside the picture, and the
+ * last one decides the pixels it shares with the one before.
+ */
+export function binariseLocalAverage(image: GreyImage): Binarised {
+	const { width, height, data } = image;
+	if (width < LOCAL_AVERAGE_MINIMUM || height < LOCAL_AVERAGE_MINIMUM) return binariseOtsu(image);
+	const blocksX = Math.ceil(width / BLOCK);
+	const blocksY = Math.ceil(height / BLOCK);
+	const origin = (block: number, size: number): number => Math.min(block * BLOCK, size - BLOCK);
+	const raw = new Uint8Array(blocksX * blocksY);
+	for (let by = 0; by < blocksY; by += 1) {
+		const y0 = origin(by, height);
+		for (let bx = 0; bx < blocksX; bx += 1) {
+			const x0 = origin(bx, width);
+			let min = 255;
+			let max = 0;
+			for (let y = y0; y < y0 + BLOCK; y += 1) {
+				for (let x = x0; x < x0 + BLOCK; x += 1) {
+					const level = data[y * width + x] as number;
+					if (level < min) min = level;
+					if (level > max) max = level;
+				}
+			}
+			raw[by * blocksX + bx] = max - min > MIN_DYNAMIC_RANGE ? (max + min) >> 1 : 0;
+		}
+	}
+	const smooth = new Uint8Array(raw.length);
+	const r = LOCAL_AVERAGE_RADIUS;
+	for (let by = 0; by < blocksY; by += 1) {
+		const top = Math.min(Math.max(by, r), blocksY - r - 1);
+		for (let bx = 0; bx < blocksX; bx += 1) {
+			const left = Math.min(Math.max(bx, r), blocksX - r - 1);
+			const own = raw[by * blocksX + bx] as number;
+			let sum = own > 0 ? 2 * own : 0;
+			let count = own > 0 ? 2 : 0;
+			for (let dy = -r; dy <= r; dy += 1) {
+				for (let dx = -r; dx <= r; dx += 1) {
+					const value = raw[(top + dy) * blocksX + left + dx] as number;
+					sum += value;
+					if (value > 0) count += 1;
+				}
+			}
+			smooth[by * blocksX + bx] = count > 0 ? Math.floor(sum / count) : 0;
+		}
+	}
+	// Blocks still without a threshold take the next one's, in reading order,
+	// and the last ones the last there is.
+	let next = 0;
+	for (let i = smooth.length - 1; i >= 0; i -= 1) {
+		if ((smooth[i] as number) > 0) next = smooth[i] as number;
+		else smooth[i] = next;
+	}
+	let previous = 0;
+	for (let i = 0; i < smooth.length; i += 1) {
+		if ((smooth[i] as number) > 0) previous = smooth[i] as number;
+		else smooth[i] = previous;
+	}
+	if (previous === 0) return binariseOtsu(image);
+	const blockOf = (pixel: number, size: number, blocks: number): number =>
+		pixel >= size - BLOCK ? blocks - 1 : Math.floor(pixel / BLOCK);
+	const at = (x: number, y: number): number =>
+		smooth[blockOf(y, height, blocksY) * blocksX + blockOf(x, width, blocksX)] as number;
+	const bits = new Uint8Array(width * height);
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			bits[y * width + x] = (data[y * width + x] as number) <= at(x, y) ? 1 : 0;
+		}
+	}
+	return { width, height, bits, threshold: at };
 }
 
 /**

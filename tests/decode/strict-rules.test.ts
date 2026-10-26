@@ -12,12 +12,20 @@ import { describe, expect, it } from 'vitest';
 import type { RgbaImage } from '../../src/core/image.js';
 import { cos, sin } from '../../src/core/math.js';
 import type { Binarised } from '../../src/decode/binarise.js';
-import { binariseHybrid, binariseHybridMean } from '../../src/decode/binarise.js';
-import { STRICT_MAX_PIXELS, decodeImage } from '../../src/decode/decoder.js';
+import {
+	binariseHybrid,
+	binariseHybridMean,
+	binariseLocalAverage,
+} from '../../src/decode/binarise.js';
+import { PLAIN_RESERVE, STRICT_MAX_PIXELS, decodeImage } from '../../src/decode/decoder.js';
+import { Registry } from '../../src/core/registry.js';
+import type { SymbologyEntry } from '../../src/symbology/types.js';
 import type { FinderPattern } from '../../src/decode/finder.js';
 import {
 	LENIENT_FINDER_TOLERANCE,
 	STRICT_FINDER_TOLERANCE,
+	STRICT_WIDE_FINDER_TOLERANCE,
+	findFinderPatterns,
 	moduleSizeAcross,
 	orderFinders,
 } from '../../src/decode/finder.js';
@@ -30,12 +38,12 @@ import {
 	STRICT_MAX_FORESHORTENING,
 	STRICT_MAX_SMEAR,
 	STRICT_MIN_MODULE_PIXELS,
-	STRICT_MIN_TILED_MODULE_PIXELS,
 	finderCentresClosed,
 	finderRingsTraceable,
 	finderSmear,
 	fixedPatternsAgree,
 	foreshortening,
+	ringKind,
 	ringShape,
 	strictSamples,
 } from '../../src/decode/strict.js';
@@ -44,14 +52,24 @@ import { apply, fitHomography, moduleWidth, quadToQuad } from '../../src/decode/
 import type { DecodeFrame, DecodeOptions } from '../../src/decode/types.js';
 import { encode } from '../../src/encode/encode.js';
 import { createSymbologyRegistry } from '../../src/symbology/registry.js';
+import { createDesignRegistries } from '../../src/design/registries.js';
+import { renderCapture } from '../../src/verify/capture.js';
+import { masterResolution } from '../../src/verify/job.js';
+import { framingPxPerModule } from '../../src/verify/ladders.js';
+import { prepare, renderMaster } from '../../src/verify/prepare.js';
+import { PRESET_CONTENT } from '../../src/verify/preset.js';
 import { blur, motionBlur, shrink, warpInto } from '../helpers/damage.js';
 import { drawGrid } from '../helpers/draw.js';
 import { presets, styledCapture } from '../helpers/styled.js';
 
 const STRICT: DecodeOptions = { profile: 'strict-v1' };
 
-function outcome(image: RgbaImage, options: DecodeOptions = STRICT): string {
-	const result = decodeImage(image, options);
+function outcome(
+	image: RgbaImage,
+	options: DecodeOptions = STRICT,
+	symbologies?: Registry<SymbologyEntry>,
+): string {
+	const result = decodeImage(image, options, symbologies);
 	if (result.ok) return result.value.map((found) => found.read.bitstream.text).join('|');
 	return `${result.error.code} ${result.error.params.stage}`;
 }
@@ -139,16 +157,14 @@ describe("the strict profile's geometry", () => {
 		expect(foreshortening(turned, 5, 5)).toBeCloseTo(2, 9);
 	});
 
-	it('samples only modules wide enough, wider from version 7, and not drawn out too far', () => {
+	it('samples only modules wide enough and not drawn out too far', () => {
 		const at = (width: number): Homography => [width, 0, 0, 0, width, 0, 0, 0, 1];
-		expect(strictSamples(at(STRICT_MIN_MODULE_PIXELS), 21, 21, false)).toBe(true);
-		expect(strictSamples(at(STRICT_MIN_MODULE_PIXELS - 0.01), 21, 21, false)).toBe(false);
-		expect(strictSamples(at(2.8), 45, 45, false)).toBe(true);
-		expect(strictSamples(at(2.8), 45, 45, true)).toBe(false);
-		expect(strictSamples(at(STRICT_MIN_TILED_MODULE_PIXELS), 45, 45, true)).toBe(true);
+		expect(strictSamples(at(STRICT_MIN_MODULE_PIXELS), 21, 21)).toBe(true);
+		expect(strictSamples(at(STRICT_MIN_MODULE_PIXELS - 0.01), 21, 21)).toBe(false);
+		expect(strictSamples(at(2.5), 45, 45)).toBe(true);
 		const drawnOut = STRICT_MAX_FORESHORTENING + 0.01;
-		expect(strictSamples([5 * drawnOut, 0, 0, 0, 5, 0, 0, 0, 1], 21, 21, false)).toBe(false);
-		expect(strictSamples([5 * 1.7, 0, 0, 0, 5, 0, 0, 0, 1], 21, 21, false)).toBe(true);
+		expect(strictSamples([5 * drawnOut, 0, 0, 0, 5, 0, 0, 0, 1], 21, 21)).toBe(false);
+		expect(strictSamples([5 * 1.7, 0, 0, 0, 5, 0, 0, 0, 1], 21, 21)).toBe(true);
 	});
 
 	it('refuses a symbol at two pixels a module that the scanner reads', () => {
@@ -158,10 +174,10 @@ describe("the strict profile's geometry", () => {
 		expect(outcome(image)).toBe('decode/unreadable margin');
 	});
 
-	it('reads version 6 at 2.5 pixels a module, and refuses version 7 there', () => {
+	it('reads version 6 and version 7 alike at 2.5 pixels a module: one floor for every version', () => {
 		for (const [version, verdict] of [
 			['6', 'read'],
-			['7', 'decode/unreadable margin'],
+			['7', 'read'],
 		] as const) {
 			const text = `https://example.com/v${version}`;
 			const matrix = encode(text, {
@@ -309,6 +325,19 @@ describe('finder rings under a smear', () => {
 		return finderRingsTraceable(grey, threshold ?? binariseHybrid(grey), grid, size);
 	}
 
+	it('refuses an extra-rounded ring tilted 45 degrees, and keeps squircles and squares there', () => {
+		const at = (id: string, tilt: number): string => {
+			const preset = presets().find((candidate) => candidate.id === id)!;
+			const capture = styledCapture({ preset, modulePixels: 10, version: 3, seed: 1, tilt });
+			const result = decodeImage(capture.image, STRICT);
+			return result.ok ? 'read' : String(result.error.params.stage);
+		};
+		expect(at('rounded-ocean', 30)).toBe('read');
+		expect(at('rounded-ocean', 45)).toBe('margin');
+		expect(at('rounded-forest', 45)).toBe('read');
+		expect(at('classic-black', 45)).toBe('read');
+	});
+
 	it('measures a lens blur as even and a moving camera as uneven', () => {
 		const image = shot(classic);
 		expect(smearOf(image, 25)).toBeLessThan(0.15);
@@ -336,6 +365,7 @@ describe('finder rings under a smear', () => {
 
 	it('cannot measure a smear with no edge in reach, nor a ring cut off along its diagonals', () => {
 		const blank = greyOf(40, 40, () => 255);
+		expect(ringKind(blank, [4, 0, 6, 0, 4, 6, 0, 0, 1], 3.5, 3.5)).toBeNull();
 		expect(finderSmear(blank, [4, 0, 6, 0, 4, 6, 0, 0, 1], 3.5, 3.5)).toBe(
 			Number.POSITIVE_INFINITY,
 		);
@@ -352,6 +382,77 @@ describe('finder rings under a smear', () => {
 		});
 		expect(apply(turnedGrid, 3.5, 3.5)).toEqual({ x: 20, y: 20 });
 		expect(ringShape(turned, turnedGrid, 3.5, 3.5)).toBeNull();
+	});
+});
+
+describe("the plain reader's reserve", () => {
+	it("refuses a symbol whose plain grid reads with less than a quarter of a block's corrections to spare", () => {
+		const text = 'https://example.com/plain';
+		const image = drawGrid(
+			encode(text, { ecLevel: 'M', minVersion: '2', maxVersion: '2' }).matrix,
+			{
+				scale: 6,
+			},
+		);
+		const qr = createSymbologyRegistry().require('qr');
+		const withPlainErrors = (extra: (t: number) => number): string => {
+			let calls = 0;
+			const entry: SymbologyEntry = {
+				...qr,
+				read: (matrix, options) => {
+					calls += 1;
+					const read = qr.read(matrix, options);
+					// Every reading after the strict reader's own is a plain reader's grid.
+					return calls > 1
+						? { ...read, errorsPerBlock: read.capacityPerBlock.map((t) => extra(t)) }
+						: read;
+				},
+			};
+			return outcome(image, STRICT, new Registry('symbology', [entry]));
+		};
+		const reserve = (t: number): number => Math.ceil(PLAIN_RESERVE * t);
+		expect(withPlainErrors((t) => t - reserve(t))).toBe(text);
+		expect(withPlainErrors((t) => t - reserve(t) + 1)).toBe('decode/unreadable margin');
+	});
+});
+
+describe("zxing-cpp's threshold", () => {
+	it('keeps a dark patch wider than a block dark, where the midrange one holes it', () => {
+		// A 40-pixel dark square of two near tones on light paper: its middle blocks
+		// have no range of their own and take their surroundings' threshold.
+		const picture = greyOf(96, 96, (x, y) => {
+			const inside = x >= 28 && x < 68 && y >= 28 && y < 68;
+			return inside ? ((x + y) % 16 < 8 ? 30 : 48) : 230;
+		});
+		const local = binariseLocalAverage(picture);
+		expect(local.bits[48 * 96 + 48]).toBe(1);
+		expect(local.bits[10 * 96 + 10]).toBe(0);
+		expect(local.threshold(48, 48)).toBeGreaterThan(48);
+		// The edge blocks are moved back inside the picture; the last decides.
+		expect(local.threshold(95, 95)).toBe(local.threshold(90, 90));
+	});
+
+	it('falls back to one threshold for a small picture or one with no contrast anywhere', () => {
+		const small = greyOf(30, 30, (x) => (x < 15 ? 20 : 220));
+		expect(Array.from(binariseLocalAverage(small).bits.slice(0, 30))).toEqual(
+			Array.from({ length: 30 }, (_, x) => (x < 15 ? 1 : 0)),
+		);
+		const flat = greyOf(48, 48, (x) => 100 + (x % 3));
+		const result = binariseLocalAverage(flat);
+		expect(result.threshold(0, 0)).toBe(result.threshold(47, 47));
+	});
+
+	it('fills a block with no threshold from the next one that has one, then the last', () => {
+		// Contrast only in the bottom right corner block: every other block takes
+		// its threshold after smoothing, the ones before it in reading order by
+		// filling forward and none left after it.
+		const corner = greyOf(48, 48, (x, y) => (x >= 40 && y >= 40 ? (x % 2 === 0 ? 0 : 200) : 150));
+		const result = binariseLocalAverage(corner);
+		expect(result.threshold(0, 0)).toBeGreaterThan(0);
+		expect(result.threshold(0, 0)).toBe(result.threshold(20, 20));
+		// And contrast only in the top left: the blocks after it are filled from the last.
+		const first = greyOf(48, 48, (x, y) => (x < 8 && y < 8 ? (x % 2 === 0 ? 0 : 200) : 150));
+		expect(binariseLocalAverage(first).threshold(47, 47)).toBeGreaterThan(0);
 	});
 });
 
@@ -379,6 +480,48 @@ describe('the strict finder search', () => {
 		expect(STRICT_FINDER_TOLERANCE).toEqual({ runs: 0.35, diagonals: 0.5 });
 		expect(LENIENT_FINDER_TOLERANCE).toEqual({ runs: 0.5, diagonals: 0.5 });
 		expect(Object.isFrozen(STRICT_FINDER_TOLERANCE)).toBe(true);
+	});
+
+	it('looks again with wider diagonals only when the first look finds fewer than three', () => {
+		expect(STRICT_WIDE_FINDER_TOLERANCE).toEqual({ runs: 0.35, diagonals: 0.6 });
+		// verify's capture of teal-and-rust (a rounded ring round a round centre)
+		// with its ink starved by a twentieth of a module: the first look finds
+		// two of its finders, the second all three, and the strict reader reads it.
+		const registries = { symbologies: createSymbologyRegistry(), design: createDesignRegistries() };
+		const preset = registries.design.presets.require('teal-and-rust');
+		const text = PRESET_CONTENT.small;
+		const prepared = prepare(
+			{
+				content: text,
+				design: preset.design,
+				conditions: { sizeMm: 40, dpi: null, distanceMm: null },
+				seed: 1,
+				requires: [],
+				captureSeeds: 8,
+			},
+			registries,
+		);
+		const framing = framingPxPerModule(
+			prepared.symbol.matrix.width + 2 * prepared.quietZone,
+			prepared.moduleMm,
+		);
+		const master = renderMaster(prepared, masterResolution(framing));
+		const { image } = renderCapture(
+			master,
+			prepared.built.scene.width,
+			prepared.built.scene.height,
+			1,
+			{
+				axis: 'ink',
+				level: 0.05,
+				seed: 1,
+				pxPerModule: framing,
+			},
+		);
+		const threshold = binariseHybridMean(toGrey(image));
+		expect(findFinderPatterns(threshold, STRICT_FINDER_TOLERANCE).length).toBe(2);
+		expect(findFinderPatterns(threshold, STRICT_WIDE_FINDER_TOLERANCE).length).toBe(3);
+		expect(outcome(image)).toBe(text);
 	});
 
 	it('takes the geometric mean of the module sizes at the two ends of a line', () => {
