@@ -5,7 +5,7 @@
  * under everyday conditions. The English is src/messages/en/verify.ts.
  */
 
-import type { CaptureAxis, CheckId, CheckStatus } from './types.js';
+import type { CaptureAxis, CheckId, CheckStatus, VerifyCheck } from './types.js';
 
 export const VERIFY_MESSAGE_KEYS = Object.freeze({
 	checkNames: Object.freeze({
@@ -19,6 +19,14 @@ export const VERIFY_MESSAGE_KEYS = Object.freeze({
 		'colour-red-channel': 'verify.check-name.colour-red-channel',
 		'reader-support': 'verify.check-name.reader-support',
 	} satisfies Record<CheckId, string>),
+	/**
+	 * Names for the checks that share an id with another and differ by their
+	 * ISO/IEC 15415 parameter: contrast is measured twice, as symbol contrast
+	 * (the id's own name) and as modulation, square by square.
+	 */
+	gradeNames: Object.freeze({
+		MOD: 'verify.check-name.modulation',
+	}),
 	statuses: Object.freeze({
 		pass: 'verify.status.pass',
 		warn: 'verify.status.warn',
@@ -81,3 +89,12 @@ export const VERIFY_MESSAGE_KEYS = Object.freeze({
 		}),
 	} satisfies Record<CaptureAxis, { name: string; ok: string; short: string }>),
 });
+
+/** What a check is called: its grade's own name where it has one, else its id's. */
+export function checkNameKey(check: Pick<VerifyCheck, 'id' | 'grade'>): string {
+	const byGrade = VERIFY_MESSAGE_KEYS.gradeNames as Readonly<Record<string, string>>;
+	return (
+		(check.grade === undefined ? undefined : byGrade[check.grade]) ??
+		VERIFY_MESSAGE_KEYS.checkNames[check.id]
+	);
+}

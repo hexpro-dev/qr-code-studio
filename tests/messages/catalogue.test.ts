@@ -236,7 +236,8 @@ function codeKeys(): string[] {
 		...ERROR_CODES.map(errorMessageKey),
 		...SAFETY_CODES.map(safetyMessageKey),
 		...Object.values(FIELD_ISSUES),
-		...CHECK_IDS.map(checkKey),
+		...CHECK_IDS.map((id) => checkKey(id)),
+		checkKey('contrast', 'MOD'),
 		...CAPTURE_AXES.map(axisKey),
 		axisKey('static'),
 	];

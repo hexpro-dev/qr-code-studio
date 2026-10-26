@@ -209,7 +209,7 @@ export function createCheck(ctx: AppContext): Panel {
 							: t('app.check.status-fail');
 				const row = h('li', { className: 'checks__row' }, [
 					icon(check.status === 'pass' ? 'pass' : check.status === 'warn' ? 'warn' : 'fail'),
-					h('span', { className: 'checks__name', text: t(checkKey(check.id)) }),
+					h('span', { className: 'checks__name', text: t(checkKey(check.id, check.grade)) }),
 					h('span', { className: 'checks__word', text: word }),
 					h('span', {
 						className: 'checks__sentence',

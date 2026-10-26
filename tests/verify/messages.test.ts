@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { DesignPaint, QrDesignV1 } from '../../src/design/types.js';
 import { VERIFY_MESSAGES } from '../../src/messages/en/verify.js';
 import { suggestFixes } from '../../src/verify/fixes.js';
-import { VERIFY_MESSAGE_KEYS } from '../../src/verify/keys.js';
+import { VERIFY_MESSAGE_KEYS, checkNameKey } from '../../src/verify/keys.js';
 import type { VerifyJob, VerifyReport } from '../../src/verify/types.js';
 import { alwaysReads, design, run } from './helpers.js';
 import { checkHouseStyle } from './style.js';
@@ -134,6 +134,18 @@ describe('the verify message catalogue', () => {
 			.filter(([, sentence]) => /\{\w+\}/.test(sentence))
 			.map(([key]) => key);
 		expect(withPlaceholders.filter((key) => !reached.has(key))).toEqual([]);
+	});
+
+	it('names each check apart, the two contrast checks included', () => {
+		const report = run({ design: design({}) }, { reader: alwaysReads, axes: [] });
+		const names = report.checks.map((check) => VERIFY_MESSAGES[checkNameKey(check)]);
+		expect(names.every((name) => typeof name === 'string')).toBe(true);
+		expect(new Set(names).size).toBe(names.length);
+		const contrast = report.checks.filter((check) => check.id === 'contrast');
+		expect(contrast.map(checkNameKey)).toEqual([
+			'verify.check-name.contrast',
+			'verify.check-name.modulation',
+		]);
 	});
 
 	it('keeps the house register', () => {

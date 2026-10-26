@@ -20,7 +20,7 @@ export type { AxisLadder } from './ladders.js';
 export { RESERVE_SHARE, codewordCoverage, reserveFor } from './coverage.js';
 export type { BlockCoverage, Coverage } from './coverage.js';
 export { MOD_GRADES, RED_CONTRAST_WARN, SC_GRADES } from './static.js';
-export { VERIFY_MESSAGE_KEYS } from './keys.js';
+export { VERIFY_MESSAGE_KEYS, checkNameKey } from './keys.js';
 export {
 	CALIBRATION_LIMIT_MM,
 	PRESET_CONTENT,
