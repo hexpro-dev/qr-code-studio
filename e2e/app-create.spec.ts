@@ -179,6 +179,10 @@ test('checks that the code scans, with a real report and the strip filled in', a
 	)) {
 		expect(['pass', 'partial', 'fail']).toContain(result);
 	}
+	// Every line on the card is a sentence, never a message key with no sentence.
+	await expect(check).not.toHaveText(
+		/(?:verify|inspect|app|studio|design|payload)\.[a-z0-9-]+\.[a-z0-9.-]+/,
+	);
 	// A change runs a quicker check by itself, and the card says which it is.
 	await page.getByLabel('Web address').fill(`${CONTENT}/changed`);
 	await expect(check).toHaveAttribute('data-depth', 'quick', { timeout: 120_000 });

@@ -27,6 +27,8 @@ import { ERROR_CODES, QrStudioError } from '../../src/core/errors.js';
 import type { Issue } from '../../src/core/issue.js';
 import { BATCH_ISSUES } from '../../src/batch/issues.js';
 import { decodeFailureKey } from '../../src/decode/failure.js';
+import { GS1_AIS } from '../../src/inspect/gs1.js';
+import { INSPECT_MESSAGE_KEYS, gs1MessageKey } from '../../src/inspect/keys.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import { encode } from '../../src/encode/encode.js';
 import { encodeStructuredAppend } from '../../src/encode/structured-append.js';
@@ -41,6 +43,7 @@ import { createSymbologyRegistry } from '../../src/symbology/registry.js';
 import { MICRO_MESSAGE_KEYS } from '../../src/symbology/micro/entry.js';
 import { RMQR_MESSAGE_KEYS } from '../../src/symbology/rmqr/entry.js';
 import { createFontRegistry } from '../../src/text/registry.js';
+import { VERIFY_MESSAGE_KEYS } from '../../src/verify/keys.js';
 import {
 	axisKey,
 	categoryKey,
@@ -83,6 +86,8 @@ const AREAS = [
 	'sheet',
 	'studio',
 	'dom',
+	'verify',
+	'inspect',
 	'error',
 ];
 
@@ -242,6 +247,22 @@ const LIGHTNING = ['format', 'checksum', 'prefix', 'amount', 'testnet'].map(
 	(problem) => `payload.lightning.issue.${problem}`,
 );
 
+/** Every string in a nested table of keys, as the scan check and the inspector keep theirs. */
+function tableKeys(value: unknown): string[] {
+	if (typeof value === 'string') return [value];
+	if (typeof value === 'object' && value !== null) return Object.values(value).flatMap(tableKeys);
+	return [];
+}
+
+/** The scan check's and the inspector's keys: their tables, and each GS1 application identifier's. */
+function verifyAndInspectKeys(): string[] {
+	return [
+		...tableKeys(VERIFY_MESSAGE_KEYS),
+		...tableKeys(INSPECT_MESSAGE_KEYS),
+		...Object.keys(GS1_AIS).map(gs1MessageKey),
+	];
+}
+
 const emitted = payloadIssues();
 const used = new Set([
 	...registryKeys(),
@@ -253,6 +274,7 @@ const used = new Set([
 	...emitted.map((found) => found.code),
 	...ownLinkNotes(),
 	...LIGHTNING,
+	...verifyAndInspectKeys(),
 ]);
 
 describe('the English catalogue', () => {
@@ -266,6 +288,16 @@ describe('the English catalogue', () => {
 				.filter((key) => !used.has(key))
 				.sort(),
 		).toEqual([]);
+	});
+
+	it('gathers every area file in src/messages/en', () => {
+		// An area file left out of MESSAGE_AREAS has no sentence in the offline
+		// file, which shows its keys as they are, and the website never mirrors it.
+		const files = readdirSync(join(root, 'src/messages/en'))
+			.filter((name) => name.endsWith('.ts') && name !== 'index.ts')
+			.map((name) => name.slice(0, -3))
+			.sort();
+		expect(Object.keys(MESSAGE_AREAS).sort()).toEqual(files);
 	});
 
 	it('lets no two areas claim one key', () => {

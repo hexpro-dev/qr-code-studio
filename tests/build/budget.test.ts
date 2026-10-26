@@ -25,7 +25,7 @@ import type { StandaloneBuildResult } from '../../scripts/build-html.js';
 const BUDGETS: Readonly<Record<string, number>> = {
 	'src/app': 100_000, // 91.1 kB
 	'src/design': 89_500, // 81.4 kB
-	'src/messages': 80_000, // 72.8 kB
+	'src/messages': 95_500, // 86.6 kB, with the scan check's and the inspector's sentences
 	'src/payload': 79_500, // 72.1 kB
 	'src/fonts': 66_500, // 60.5 kB: the compiled caption faces, under their licence
 	'src/render': 65_000, // 59.2 kB

@@ -72,6 +72,9 @@ test('reads a code from a chosen picture, and remakes it as a static code', asyn
 	// The inspector is part of the file: the card names the kind of content.
 	await expect(page.locator('.results__card').getByText('Kind of content')).toBeVisible();
 	await expect(page.locator('.results__card').getByText(/cannot be shown/)).toHaveCount(0);
+	await expect(page.locator('.results__card')).not.toHaveText(
+		/(?:verify|inspect|app|studio|design|payload)\.[a-z0-9-]+\.[a-z0-9.-]+/,
+	);
 	await page.getByRole('button', { name: 'Remake as a static code' }).click();
 	await expect(page.getByRole('tab', { name: /Create/ })).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByLabel('Web address')).toHaveValue(SCANNED);

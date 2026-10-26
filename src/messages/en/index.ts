@@ -16,6 +16,7 @@ import { DECODE_MESSAGES } from './decode.js';
 import { DESIGN_MESSAGES } from './design.js';
 import { DOM_MESSAGES } from './dom.js';
 import { ENCODE_MESSAGES } from './encode.js';
+import { INSPECT_MESSAGES } from './inspect.js';
 import { LIBRARY_MESSAGES } from './library.js';
 import { MICRO_MESSAGES } from './micro.js';
 import { OWN_LINK_MESSAGES } from './own-link.js';
@@ -24,6 +25,7 @@ import { RMQR_MESSAGES } from './rmqr.js';
 import { STUDIO_MESSAGES } from './studio.js';
 import { SYMBOLOGY_MESSAGES } from './symbology.js';
 import { TEXT_MESSAGES } from './text.js';
+import { VERIFY_MESSAGES } from './verify.js';
 
 /** Every area's catalogue, by area, for a check that no two claim one key. */
 export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, string>>>> =
@@ -34,6 +36,7 @@ export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, stri
 		design: DESIGN_MESSAGES,
 		dom: DOM_MESSAGES,
 		encode: ENCODE_MESSAGES,
+		inspect: INSPECT_MESSAGES,
 		library: LIBRARY_MESSAGES,
 		micro: MICRO_MESSAGES,
 		'own-link': OWN_LINK_MESSAGES,
@@ -42,6 +45,7 @@ export const MESSAGE_AREAS: Readonly<Record<string, Readonly<Record<string, stri
 		studio: STUDIO_MESSAGES,
 		symbology: SYMBOLOGY_MESSAGES,
 		text: TEXT_MESSAGES,
+		verify: VERIFY_MESSAGES,
 	});
 
 /**
@@ -84,6 +88,7 @@ export {
 	DESIGN_MESSAGES,
 	DOM_MESSAGES,
 	ENCODE_MESSAGES,
+	INSPECT_MESSAGES,
 	LIBRARY_MESSAGES,
 	MICRO_MESSAGES,
 	OWN_LINK_MESSAGES,
@@ -92,4 +97,5 @@ export {
 	STUDIO_MESSAGES,
 	SYMBOLOGY_MESSAGES,
 	TEXT_MESSAGES,
+	VERIFY_MESSAGES,
 };
