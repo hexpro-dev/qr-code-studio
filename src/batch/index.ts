@@ -23,6 +23,7 @@ export {
 	runBatch,
 } from './run.js';
 export { reportResult, scanCheckJob, scanCheckVerifier } from './verify.js';
+export type { ScanCheckGenerator } from './verify.js';
 export type {
 	BatchMapping,
 	BatchOutcome,

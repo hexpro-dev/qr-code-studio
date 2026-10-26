@@ -17,7 +17,7 @@ import type { QrDesignV1 } from '../../src/design/types.js';
 import { encode } from '../../src/encode/encode.js';
 import { verify } from '../../src/verify/job.js';
 import { designRequirements } from '../../src/verify/prepare.js';
-import type { VerifyReport } from '../../src/verify/types.js';
+import type { VerifyJob, VerifyProgress, VerifyReport } from '../../src/verify/types.js';
 import { assetOf, designWith, discImage } from '../design/helpers.js';
 import { drain, registries } from './helpers.js';
 
@@ -135,6 +135,33 @@ describe('reportResult', () => {
 				checks: [],
 			}).issues,
 		).toEqual([]);
+	});
+});
+
+describe('scanCheckVerifier', () => {
+	it('runs each job with the generator it is given, over the registries it is given', () => {
+		const seen: { job: VerifyJob; registries: unknown }[] = [];
+		function* stand(
+			job: VerifyJob,
+			registries: typeof reg,
+		): Generator<VerifyProgress, VerifyReport> {
+			seen.push({ job, registries });
+			yield { done: 0, total: 1, axis: 'static' };
+			return {
+				verdict: 'fail',
+				baseline: { passed: true, minMargin: 1, seeds: 1 },
+				checks: [],
+			} as unknown as VerifyReport;
+		}
+		const { outcomes } = drain(
+			runBatch(rows(1), defaultDesign(), { kind: 'zip', format: 'svg' }, reg, {
+				verifyRow: scanCheckVerifier(reg, stand),
+			}),
+		);
+		expect(seen).toHaveLength(1);
+		expect(seen[0]?.registries).toBe(reg);
+		expect(seen[0]?.job.captureSeeds).toBe(SEEDS_ALL);
+		expect(outcomes[0]?.check).toBe('fail');
 	});
 });
 
