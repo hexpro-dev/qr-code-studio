@@ -27,9 +27,10 @@ export {
 	calibratePreset,
 	presetVerifier,
 	scansAtSize,
+	shortfalls,
 	withMargin,
 } from './preset.js';
-export type { Calibration, PresetVerifierOptions, PresetViolation } from './preset.js';
+export type { Calibration, PresetVerifierOptions, PresetViolation, Shortfall } from './preset.js';
 export type {
 	Baseline,
 	CaptureAxis,

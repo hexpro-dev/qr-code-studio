@@ -144,6 +144,7 @@
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"test:e2e": "playwright test",
+		"verify:shortfalls": "tsx tests/verify/measure-shortfalls.ts",
 		"prepublishOnly": "pnpm run clean && pnpm run build:all && pnpm run typecheck && pnpm run test"
 	},
 	"dependencies": {},

@@ -16,11 +16,11 @@ import type { Preset, DesignRegistries } from '../design/types.js';
 import type { EcLevel } from '../segment/types.js';
 import { createSymbologyRegistry } from '../symbology/registry.js';
 import { CAMERA, minModuleMm, pxPerModuleAt } from './camera.js';
-import { framingPxPerModule } from './ladders.js';
+import { LADDERS, framingPxPerModule } from './ladders.js';
 import type { RunOptions } from './job.js';
 import { runPrepared } from './job.js';
 import { prepare } from './prepare.js';
-import type { VerifyRegistries, VerifyReport } from './types.js';
+import type { CaptureAxis, VerifyRegistries, VerifyReport } from './types.js';
 
 /** The contents every preset is calibrated and gated with: synthetic, as every test content is. */
 export const PRESET_CONTENT = Object.freeze({
@@ -43,17 +43,38 @@ export function withMargin(passedMm: number): number {
 }
 
 /** Whether a report counts as scanning at its size, in the sense above. */
-export function scansAtSize(report: VerifyReport): boolean {
-	// A failed check or a failed clean capture already makes the verdict fail.
-	if (report.verdict === 'fail') return false;
+/**
+ * A shortfall a preset is known to have at every size: an axis that gives
+ * out before its everyday level, or the clean capture itself, measured and
+ * recorded (tests/verify/shortfalls.ts) so the gate holds the preset to
+ * everything else and notices the day it is no longer true.
+ */
+export type Shortfall = CaptureAxis | 'baseline';
+
+export function scansAtSize(report: VerifyReport, allowed: readonly Shortfall[] = []): boolean {
+	if (report.checks.some((check) => check.status === 'fail')) return false;
+	if (!report.baseline.passed && !allowed.includes('baseline')) return false;
 	if (report.checks.some((check) => check.id === 'module-size' && check.status !== 'pass')) {
 		return false;
 	}
 	// Levels grow with severity on every axis (distance in millimetres from
 	// the camera), so failing at or before the typical level is <=.
 	return report.captures.every(
-		(capture) => capture.firstFailed === null || capture.firstFailed > capture.typical,
+		(capture) =>
+			allowed.includes(capture.axis) ||
+			capture.firstFailed === null ||
+			capture.firstFailed > capture.typical,
 	);
+}
+
+/** What a report falls short on at its everyday levels: the axes, and the clean capture. */
+export function shortfalls(report: VerifyReport): Shortfall[] {
+	const out: Shortfall[] = report.baseline.passed ? [] : ['baseline'];
+	for (const capture of report.captures) {
+		if (capture.firstFailed !== null && capture.firstFailed <= capture.typical)
+			out.push(capture.axis);
+	}
+	return out;
 }
 
 export interface PresetRunOptions extends RunOptions {
@@ -61,6 +82,24 @@ export interface PresetRunOptions extends RunOptions {
 	readonly seeds?: number;
 	/** Seed for the job: the same for every size, so sizes differ only in size. */
 	readonly seed?: number;
+	/** Shortfalls each preset is known to have at every size, by preset id. */
+	readonly known?: Readonly<Record<string, readonly Shortfall[]>>;
+}
+
+/**
+ * The options a preset's runs take: with a recorded distance shortfall, the
+ * distance axis is left out. Its refusal would otherwise feed the print size
+ * check (a design that seems to need ten pixels a module asks for a print
+ * large enough to hold ten comfortably), so the size would grow to cover the
+ * very shortfall the record exists to keep visible. Without the axis, the
+ * size check assumes what any reader needs.
+ */
+export function presetOptions(preset: Preset, options: PresetRunOptions): PresetRunOptions {
+	if (!(options.known?.[preset.id] ?? []).includes('distance')) return options;
+	const axes = (options.axes ?? LADDERS.map((ladder) => ladder.axis)).filter(
+		(axis) => axis !== 'distance',
+	);
+	return { ...options, axes };
 }
 
 /** The report for one preset, content and level at one size. */
@@ -84,7 +123,7 @@ export function presetReport(
 		},
 		registries,
 	);
-	const run = runPrepared(prepared, options);
+	const run = runPrepared(prepared, presetOptions(preset, options));
 	for (;;) {
 		const step = run.next();
 		if (step.done === true) return step.value;
@@ -147,8 +186,10 @@ export function calibratePreset(
 		);
 		const across = probe.symbol.matrix.width + 2 * probe.quietZone;
 		const last = Math.min(CALIBRATION_LIMIT_MM, saturationMm(across) + 1);
+		const known = options.known?.[preset.id] ?? [];
 		for (let mm = Math.max(from, floorMm(across)); mm <= last; mm += 1) {
-			if (scansAtSize(presetReport(preset, PRESET_CONTENT[size], mm, level, registries, options))) {
+			const report = presetReport(preset, PRESET_CONTENT[size], mm, level, registries, options);
+			if (scansAtSize(report, known)) {
 				passed[size] = mm;
 				from = mm;
 				break;
@@ -157,13 +198,28 @@ export function calibratePreset(
 		if (passed[size] === null) break;
 	}
 	const values = Object.values(passed);
-	return {
-		id: preset.id,
-		passedMm: passed,
-		minSizeMm: values.some((value) => value === null)
-			? null
-			: withMargin(Math.max(...(values as number[]))),
-	};
+	if (values.some((value) => value === null)) {
+		return { id: preset.id, passedMm: passed, minSizeMm: null };
+	}
+	// The reader is not monotonic in size below saturation (a capture at a
+	// few more pixels a module can read worse), so the size with its margin is
+	// confirmed with every content, and raised a millimetre at a time until it
+	// passes: the preset must pass at the size it records.
+	for (
+		let mm = withMargin(Math.max(...(values as number[])));
+		mm <= CALIBRATION_LIMIT_MM;
+		mm += 1
+	) {
+		const known = options.known?.[preset.id] ?? [];
+		const all = (['small', 'medium', 'large'] as const).every((size) =>
+			scansAtSize(
+				presetReport(preset, PRESET_CONTENT[size], mm, level, registries, options),
+				known,
+			),
+		);
+		if (all) return { id: preset.id, passedMm: passed, minSizeMm: mm };
+	}
+	return { id: preset.id, passedMm: passed, minSizeMm: null };
 }
 
 /** What the conformance gate collects: the same shape as its own `Violation`. */
@@ -200,7 +256,7 @@ export function presetVerifier(
 					registries,
 					options,
 				);
-				if (!scansAtSize(report)) {
+				if (!scansAtSize(report, options.known?.[preset.id])) {
 					out.push({
 						entry: preset.id,
 						rule: 'scan-check',

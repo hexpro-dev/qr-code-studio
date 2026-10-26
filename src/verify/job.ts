@@ -204,7 +204,7 @@ function* climb(
 }
 
 /** The master's resolution: half as fine again as the finest capture, within bounds. */
-function masterResolution(framing: number): number {
+export function masterResolution(framing: number): number {
 	return Math.min(
 		MAX_MASTER_PX_PER_MODULE,
 		Math.max(MASTER_PX_PER_MODULE, Math.ceil(1.5 * framing)),

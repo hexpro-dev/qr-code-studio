@@ -20,9 +20,13 @@ import {
 	presetReport,
 	presetVerifier,
 	saturationMm,
+	presetOptions,
 	scansAtSize,
+	shortfalls,
 	withMargin,
 } from '../../src/verify/preset.js';
+import { LADDERS } from '../../src/verify/ladders.js';
+import { PRESET_SHORTFALLS } from './shortfalls.js';
 import type { VerifyReport } from '../../src/verify/types.js';
 import { alwaysReads, neverReads, registries } from './helpers.js';
 
@@ -140,6 +144,38 @@ const PRESET_LARGE_VERSION = presetReport(classic, PRESET_CONTENT.large, 30, 'M'
 	axes: [],
 }).symbol.version;
 
+describe('the climb past saturation and the confirmation', () => {
+	it('names the shortfalls of a report, the clean capture first', () => {
+		const report = presetReport(classic, PRESET_CONTENT.small, 30, 'M', registries, {
+			reader: (_c, _p, spec) => ({
+				read: spec.axis !== 'baseline' && spec.axis !== 'glare',
+				margin: 1,
+			}),
+			axes: ['focus', 'glare'],
+		});
+		expect(shortfalls(report)).toEqual(['baseline', 'glare']);
+	});
+
+	it('leaves distance out for a preset with a recorded distance shortfall', () => {
+		const known = { 'classic-black': ['distance'] as const };
+		expect(presetOptions(classic, { known }).axes).not.toContain('distance');
+		expect(presetOptions(classic, { known, axes: ['glare'] }).axes).toEqual(['glare']);
+		expect(presetOptions(classic, {}).axes).toBeUndefined();
+	});
+
+	it('records no size when the preset fails at its own size, however far it climbs', () => {
+		// Reads only small prints: the climb finds each content a size, and the
+		// size with its margin never passes.
+		const reader: CaptureReader = (_c, prepared) => ({
+			read: (prepared.conditions.sizeMm as number) <= 23,
+			margin: 1,
+		});
+		const calibration = calibratePreset(classic, registries, { reader, axes: [] });
+		expect(calibration.passedMm.large).not.toBeNull();
+		expect(calibration.minSizeMm).toBeNull();
+	});
+});
+
 describe('a preset that names no level', () => {
 	it('is calibrated and checked at M', () => {
 		const unnamed = { ...classic, design: { ...classic.design, symbol: { symbology: 'qr' } } };
@@ -168,11 +204,31 @@ describe('presetVerifier', () => {
 	});
 });
 
-describe.runIf(NIGHTLY)('the recorded sizes', () => {
+describe.runIf(NIGHTLY)('the recorded sizes and shortfalls', () => {
 	for (const preset of registries.design.presets.list()) {
 		it(`${preset.id} calibrates to its minSizeMm`, () => {
-			const calibration = calibratePreset(preset, registries, { stopAtTypical: true, seeds: 8 });
+			const calibration = calibratePreset(preset, registries, {
+				stopAtTypical: true,
+				seeds: 8,
+				known: PRESET_SHORTFALLS,
+			});
 			expect(calibration.minSizeMm).toBe(preset.minSizeMm);
+		}, 1_800_000);
+
+		it(`${preset.id} still has exactly its recorded shortfalls`, () => {
+			const found = new Set<string>();
+			const level = preset.design.symbol.ecLevel ?? 'M';
+			for (const size of ['small', 'medium', 'large'] as const) {
+				const report = presetReport(preset, PRESET_CONTENT[size], 40, level, registries, {
+					stopAtTypical: true,
+					seeds: 8,
+				});
+				for (const shortfall of shortfalls(report)) found.add(shortfall);
+			}
+			const order = ['baseline', ...LADDERS.map((ladder) => ladder.axis)];
+			expect([...found].sort((a, b) => order.indexOf(a) - order.indexOf(b))).toEqual(
+				PRESET_SHORTFALLS[preset.id] ?? [],
+			);
 		}, 1_800_000);
 	}
 });
