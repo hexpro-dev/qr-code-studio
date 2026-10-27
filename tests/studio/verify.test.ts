@@ -571,7 +571,9 @@ describe('the real scan check, by default', () => {
 		expect(live).toMatchObject({ status: 'done', captureSeeds: 2, full: false });
 		studio.dispose();
 		expect(time.pending).toBe(0);
-	}, 300_000);
+		// About 14 seconds here, and close to five minutes on a GitHub runner with
+		// coverage on, so the limit leaves room for a slower one.
+	}, 900_000);
 
 	it('applies a fix that prints larger as a change of conditions, and a design fix as one step', () => {
 		const runner = new FakeRunner();

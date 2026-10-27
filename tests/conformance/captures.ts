@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { checkRegionCaptures, familyPairs } from '../../src/conformance/region-captures.js';
+import type { RegionCaptureCheck } from '../../src/conformance/region-captures.js';
 import { createDesignRegistries } from '../../src/design/registries.js';
 import type { ModuleFamily } from '../../src/design/types.js';
 import { regionCaptureReader } from '../../src/verify/region.js';
@@ -24,12 +25,24 @@ export function capturesFor(family: ModuleFamily): void {
 			expect(pairs.length).toBeGreaterThan(15);
 		});
 		for (const [ring] of pairs.filter(([r], i, all) => all.findIndex(([o]) => o === r) === i)) {
-			it(`read with the ${ring.id} ring and every centre it is offered with`, () => {
-				expect(
-					checkRegionCaptures(registries, read, { families: [family], only: ring.id }).filter(
-						(violation) => violation.entry === ring.id,
-					),
-				).toEqual([]);
+			it(`read with the ${ring.id} ring and every centre it is offered with`, async () => {
+				const violations = [];
+				// One centre per call, with a turn of the event loop between calls. The
+				// whole ring in one call holds the worker for over a minute on a CI
+				// runner, past vitest's worker channel timeout.
+				for (const [, centre] of pairs.filter(([r]) => r === ring)) {
+					const one: RegionCaptureCheck = (module, r, c, regs) =>
+						r.id === ring.id && c.id === centre.id
+							? read(module, r, c, regs)
+							: { captures: 0, missed: [] };
+					violations.push(
+						...checkRegionCaptures(registries, one, { families: [family], only: ring.id }).filter(
+							(violation) => violation.entry === ring.id,
+						),
+					);
+					await new Promise<void>((resolve) => setImmediate(resolve));
+				}
+				expect(violations).toEqual([]);
 			}, 600_000);
 		}
 	});

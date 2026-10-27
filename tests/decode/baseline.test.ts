@@ -94,5 +94,6 @@ describe('the lenient decode rates', () => {
 			});
 		}
 		expect(regressions).toEqual([]);
-	}, 600_000);
+		// About 30 seconds here and nine minutes on a GitHub runner with coverage.
+	}, 1_800_000);
 });
