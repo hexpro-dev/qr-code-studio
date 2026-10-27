@@ -794,6 +794,10 @@ fieldset {
 
 .field {
 	display: grid;
+	/* One column the width of the card. Left to size itself, the column grows
+	   to the longest option of a select inside it, which WebKit on Linux does
+	   at phone width even with the select's own text clipped. */
+	grid-template-columns: minmax(0, 1fr);
 	gap: 0.3rem;
 	margin-top: 0.9rem;
 }
@@ -854,6 +858,8 @@ fieldset {
 
 .input {
 	width: 100%;
+	min-width: 0;
+	max-width: 100%;
 	min-height: 2.6rem;
 	padding: 0.5rem 0.7rem;
 	border: 1px solid var(--edge-strong);
@@ -2628,11 +2634,13 @@ p.note {
 
 .mapping {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap: 0.15rem;
 }
 
 .mapping__row {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap: 0.3rem;
 	margin-top: 0.7rem;
 }
@@ -2695,6 +2703,7 @@ p.note {
 
 .bulk__output {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 }
 
 .bulk__run {
