@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.1
+
+The first release with the offline app attached on GitHub. 0.1.0 is on npm,
+but its release job ran out of time on GitHub's runners before it wrote the
+release, so its tag has none.
+
+- The offline app's Bulk tab no longer scrolls sideways at 320 pixels in
+  WebKit on Linux. Each field was a grid whose one column sized itself to its
+  content, so a select widened it to its longest option even with the select's
+  own text clipped. The columns are held to the card's width now, and inputs
+  can shrink below their natural width.
+- CI and the publish job allow 45 and 60 minutes, which covers the whole
+  coverage run on a GitHub runner.
+
 ## 0.1.0
 
 The first published release: the library, the DOM adapters and the single-file
