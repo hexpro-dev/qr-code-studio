@@ -53,6 +53,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The print tests render every PDF and EPS in Poppler and Ghostscript, and
+      # skip those cases without them, which would leave the gate below weaker
+      # here than in ci.yml.
+      - run: sudo apt-get update && sudo apt-get install -y ghostscript poppler-utils
+
       # Repeated from ci.yml on purpose: a tag ref does not match that
       # workflow's branch filter, so this is the only gate that runs here.
       - name: Assert zero runtime dependencies
