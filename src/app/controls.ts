@@ -217,7 +217,14 @@ export function field(labelText: string, control: HTMLElement, hintText?: string
 	issues.hidden = true;
 	const describedBy = `${hintId} ${issuesId}`;
 	control.setAttribute('aria-describedby', describedBy);
-	const root = h('div', { className: 'field' }, [label, control, hint, issues]);
+	// A select draws its chosen option's text past its own box when the text is
+	// longer than the field, and WebKit on Linux lets that widen the page even
+	// with the select's overflow hidden, so a box around it does the clipping.
+	const shown =
+		control instanceof HTMLSelectElement
+			? h('div', { className: 'field__select' }, [control])
+			: control;
+	const root = h('div', { className: 'field' }, [label, shown, hint, issues]);
 	return { root, label, hint, issues, describedBy };
 }
 

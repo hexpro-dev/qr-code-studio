@@ -802,6 +802,13 @@ fieldset {
 	margin-top: 0.9rem;
 }
 
+/* Clips a select's text to the field, with room left for its focus ring. */
+.field__select {
+	overflow: hidden;
+	margin: -3px;
+	padding: 3px;
+}
+
 .field__label {
 	display: flex;
 	flex-wrap: wrap;

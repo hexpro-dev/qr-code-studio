@@ -177,9 +177,24 @@ async function widerThanTheWindow(page: Page): Promise<string> {
 				);
 			}
 		}
-		return (
-			found.slice(0, 8).join(', ') || `nothing found; body scrollWidth ${document.body.scrollWidth}`
+		if (found.length > 0) return found.slice(0, 8).join(', ');
+		// Nothing in the tree reaches past the edge, so it is a pseudo-element or a
+		// control's own rendering: hide each element in turn and name the innermost
+		// ones whose hiding ends the sideways scroll.
+		const culprits: Element[] = [];
+		for (const element of document.querySelectorAll<HTMLElement>('body *')) {
+			const before = element.style.display;
+			element.style.display = 'none';
+			if (document.documentElement.scrollWidth <= edge) culprits.push(element);
+			element.style.display = before;
+		}
+		const innermost = culprits.filter(
+			(element) => !culprits.some((other) => other !== element && element.contains(other)),
 		);
+		return `no box or text past the edge; hiding any of these ends it: ${innermost
+			.slice(0, 6)
+			.map(describe)
+			.join(', ')}`;
 	});
 }
 
