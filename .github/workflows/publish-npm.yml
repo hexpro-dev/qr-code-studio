@@ -30,7 +30,7 @@ permissions: {}
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     permissions:
       contents: read
       # Mints the OIDC token, which npm's trusted publishing and the build
