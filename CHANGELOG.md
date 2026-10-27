@@ -7,12 +7,14 @@ but its release job ran out of time on GitHub's runners before it wrote the
 release, so its tag has none.
 
 - The offline app's Bulk tab no longer scrolls sideways at 320 pixels in
-  WebKit on Linux. Each field was a grid whose one column sized itself to its
-  content, so a select widened it to its longest option even with the select's
-  own text clipped. The columns are held to the card's width now, and inputs
-  can shrink below their natural width.
-- CI and the publish job allow 45 and 60 minutes, which covers the whole
-  coverage run on a GitHub runner.
+  WebKit on Linux. A select there draws its chosen option past its own box
+  when the text is longer than the field, and that engine lets the drawing
+  widen the page even with the select's overflow hidden. Each field now puts
+  its select in a box that clips, with room for the focus ring, and the field
+  grids hold their column to the card's width. The 320 pixel check now names
+  what reaches past the window when it fails.
+- CI allows 90 minutes for the gate and 40 for the browsers, and the publish
+  job 120, which covers the whole coverage run on a GitHub runner.
 
 ## 0.1.0
 
