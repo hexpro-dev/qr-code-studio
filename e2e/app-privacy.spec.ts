@@ -140,6 +140,36 @@ test('leaves nothing stored after a whole session', async ({ page, context }) =>
 	expect(await context.cookies()).toEqual([]);
 });
 
+/**
+ * The innermost elements that reach past the window's right edge, so a sideways
+ * scroll names what causes it. Only engines on CI have shown one, where nobody
+ * can look at the page.
+ */
+async function widerThanTheWindow(page: Page): Promise<string> {
+	return page.evaluate(() => {
+		const edge = document.documentElement.clientWidth;
+		const reaching = [...document.querySelectorAll('body *')].filter((element) => {
+			const box = element.getBoundingClientRect();
+			return box.width > 0 && box.right > edge + 1;
+		});
+		const innermost = reaching.filter(
+			(element) => !reaching.some((other) => other !== element && element.contains(other)),
+		);
+		return innermost
+			.slice(0, 6)
+			.map((element) => {
+				const box = element.getBoundingClientRect();
+				const name = [
+					element.tagName.toLowerCase(),
+					element.id ? `#${element.id}` : '',
+					...[...element.classList].map((c) => `.${c}`),
+				].join('');
+				return `${name} (${Math.round(box.left)} to ${Math.round(box.right)})`;
+			})
+			.join(', ');
+	});
+}
+
 test.describe('accessibility', () => {
 	async function axe(page: Page, label: string): Promise<void> {
 		const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
@@ -221,7 +251,10 @@ test.describe('accessibility', () => {
 		for (const tab of [/Create/, /Scan/, /Bulk/]) {
 			await page.getByRole('tab', { name: tab }).click();
 			const width = await page.evaluate(() => document.documentElement.scrollWidth);
-			expect(width, `${String(tab)} scrolls sideways at 320 pixels`).toBeLessThanOrEqual(320);
+			const wide = width > 320 ? await widerThanTheWindow(page) : '';
+			expect(width, `${String(tab)} scrolls sideways at 320 pixels: ${wide}`).toBeLessThanOrEqual(
+				320,
+			);
 		}
 		await context.close();
 	});
