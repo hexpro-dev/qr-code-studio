@@ -66,9 +66,19 @@ function rate(row: (typeof ROWS)[number], levelIndex: number): number {
 }
 
 describe('the lenient decode rates', () => {
-	it(`stay within ${TOLERANCE} points of the committed baseline at every level`, () => {
+	it(`stay within ${TOLERANCE} points of the committed baseline at every level`, async () => {
 		const rates: Record<string, number[]> = {};
-		for (const row of ROWS) rates[row] = LEVELS.map((_, index) => rate(row, index));
+		for (const row of ROWS) {
+			const cells: number[] = [];
+			for (let index = 0; index < LEVELS.length; index += 1) {
+				cells.push(rate(row, index));
+				// Hand the event loop a turn between cells. Run as one block, the
+				// test holds its worker for minutes on a CI runner and vitest's
+				// worker channel times out.
+				await new Promise<void>((resolve) => setImmediate(resolve));
+			}
+			rates[row] = cells;
+		}
 		if (process.env.UPDATE_DECODE_BASELINE === '1') writeFileSync(FILE, format(rates));
 		const baseline = JSON.parse(readFileSync(FILE, 'utf8')) as Baseline;
 		expect(baseline.capturesPerCell).toBe(PER_CELL);

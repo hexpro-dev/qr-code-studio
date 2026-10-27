@@ -70,6 +70,10 @@ export async function runShard(first: number, count: number): Promise<ShardResul
 			: [];
 		const zxing = await zxingTexts(shot.image);
 		const jsqr = jsqrText(shot.image);
+		// Hand the event loop a turn between captures. The await above settles as
+		// a microtask, so without this a chunk runs as one block, which on a CI
+		// runner outlasts vitest's worker channel timeout.
+		await new Promise<void>((resolve) => setImmediate(resolve));
 		const tally = (byKind[shot.kind as DamageKind] ??= {
 			captures: 0,
 			strict: 0,
