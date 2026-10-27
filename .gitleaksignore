@@ -4,3 +4,10 @@
 # A synthetic 26 digit hex WEP key in a Wi-Fi validation test, written as a
 # literal in this commit and assembled in code since. Not a real network.
 5ae1ce33af98e7ed6d907ba7a563c3aa84bbdaa1:tests/payload/content-cards.test.ts:generic-api-key:78
+#
+# The library tests' made-up Wi-Fi password, "Synthetic-Passphrase-4f1c9e",
+# which they type into a design and then look for in everything the browser
+# stored. It belongs to no network. The first is where the harness had it, the
+# second where it lives now, in the shared helpers.
+9c1064d249d267a8ed29dbfaba051116903c5381:tests/dom/library/harness.ts:generic-api-key:18
+daa69062f0e379597b60af91b21484049d089e34:tests/dom/library/helpers.ts:generic-api-key:22
