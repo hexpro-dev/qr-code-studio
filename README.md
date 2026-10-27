@@ -5,8 +5,7 @@ uploaded, nothing is stored unless you ask for it, and there is no server in
 the path between a printed code and where it goes, so nothing can switch it
 off.
 
-Zero runtime dependencies. Under construction: see CHANGELOG.md for what has
-landed.
+Zero runtime dependencies. CHANGELOG.md records what each release changed.
 
 ## The offline app
 

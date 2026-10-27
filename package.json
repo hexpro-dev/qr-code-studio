@@ -1,6 +1,6 @@
 {
 	"name": "@hexpro/qr-code-studio",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Make, design, check and read QR codes entirely in the browser, with no server, no upload and no runtime dependencies",
 	"keywords": [
 		"qr",
