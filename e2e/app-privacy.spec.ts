@@ -148,25 +148,38 @@ test('leaves nothing stored after a whole session', async ({ page, context }) =>
 async function widerThanTheWindow(page: Page): Promise<string> {
 	return page.evaluate(() => {
 		const edge = document.documentElement.clientWidth;
-		const reaching = [...document.querySelectorAll('body *')].filter((element) => {
-			const box = element.getBoundingClientRect();
-			return box.width > 0 && box.right > edge + 1;
-		});
-		const innermost = reaching.filter(
-			(element) => !reaching.some((other) => other !== element && element.contains(other)),
+		const describe = (element: Element): string =>
+			[
+				element.tagName.toLowerCase(),
+				element.id ? `#${element.id}` : '',
+				...[...element.classList].map((c) => `.${c}`),
+			].join('');
+		const found: string[] = [];
+		// Boxes, including empty ones, which still add to the scrollable area.
+		const reaching = [...document.querySelectorAll('body *')].filter(
+			(element) => element.getBoundingClientRect().right > edge + 1,
 		);
-		return innermost
-			.slice(0, 6)
-			.map((element) => {
-				const box = element.getBoundingClientRect();
-				const name = [
-					element.tagName.toLowerCase(),
-					element.id ? `#${element.id}` : '',
-					...[...element.classList].map((c) => `.${c}`),
-				].join('');
-				return `${name} (${Math.round(box.left)} to ${Math.round(box.right)})`;
-			})
-			.join(', ');
+		for (const element of reaching) {
+			if (reaching.some((other) => other !== element && element.contains(other))) continue;
+			const box = element.getBoundingClientRect();
+			found.push(`${describe(element)} (${Math.round(box.left)} to ${Math.round(box.right)})`);
+		}
+		// Text that runs past its own box, which no element's box shows.
+		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+		const range = document.createRange();
+		for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+			if ((node.textContent ?? '').trim() === '') continue;
+			range.selectNodeContents(node);
+			const box = range.getBoundingClientRect();
+			if (box.width > 0 && box.right > edge + 1 && node.parentElement !== null) {
+				found.push(
+					`text in ${describe(node.parentElement)} "${(node.textContent ?? '').trim().slice(0, 30)}" (to ${Math.round(box.right)})`,
+				);
+			}
+		}
+		return (
+			found.slice(0, 8).join(', ') || `nothing found; body scrollWidth ${document.body.scrollWidth}`
+		);
 	});
 }
 
