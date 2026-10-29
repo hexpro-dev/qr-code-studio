@@ -1,9 +1,29 @@
-# qr-code-studio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/hexpro-dev/.github/main/profile/assets/banner-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/hexpro-dev/.github/main/profile/assets/banner-light.png">
+  <img alt="Hex Pro: Software for People" src="https://raw.githubusercontent.com/hexpro-dev/.github/main/profile/assets/banner-light.png" width="100%">
+</picture>
+
+<p align="center">
+  <a href="https://hex.pro"><img alt="hex.pro" src="https://img.shields.io/badge/hex.pro-the%20company-0B76D9?style=flat-square&labelColor=1b2530"></a>
+  <a href="https://apps.hex.pro"><img alt="apps.hex.pro" src="https://img.shields.io/badge/apps.hex.pro-apps%20%26%20tools-0B76D9?style=flat-square&labelColor=1b2530"></a>
+  <a href="https://citadel.hex.pro"><img alt="citadel.hex.pro" src="https://img.shields.io/badge/citadel.hex.pro-file%20sync-0B76D9?style=flat-square&labelColor=1b2530"></a>
+  <a href="https://games.hex.pro"><img alt="Hex Games" src="https://img.shields.io/badge/Hex%20Games-the%20game%20studio-9F9F9F?style=flat-square&logo=github&logoColor=white&labelColor=1b2530"></a>
+  <img alt="Australian owned and operated" src="https://img.shields.io/badge/Australian-owned%20%26%20operated-9F9F9F?style=flat-square&labelColor=1b2530">
+</p>
+
+# QR Code Studio: Free QR Code Generator with Codes That Never Expire
 
 Make, design, check and read QR codes entirely in the browser. Nothing is
 uploaded, nothing is stored unless you ask for it, and there is no server in
 the path between a printed code and where it goes, so nothing can switch it
 off.
+
+[![npm: @hexpro/qr-code-studio](https://img.shields.io/npm/v/@hexpro/qr-code-studio?style=flat-square&logo=npm&label=%40hexpro%2Fqr-code-studio&color=7cdf3a)](https://www.npmjs.com/package/@hexpro/qr-code-studio)
+[![Use it online](https://img.shields.io/badge/apps.hex.pro-Use_it_online-7cdf3a?style=flat-square)](https://apps.hex.pro/tools/qr-code-generator)
+[![Offline app](https://img.shields.io/github/v/release/hexpro-dev/qr-code-studio?style=flat-square&label=offline%20app&color=5ba3f5)](https://github.com/hexpro-dev/qr-code-studio/releases/latest)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-5ba3f5?style=flat-square)](LICENSE)
+[![No runtime dependencies](https://img.shields.io/badge/runtime_dependencies-none-9b958c?style=flat-square)](package.json)
 
 Zero runtime dependencies. CHANGELOG.md records what each release changed.
 
