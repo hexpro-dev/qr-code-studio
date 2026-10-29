@@ -1,0 +1,17 @@
+diff --git a/dist/chunks/rpc.C3q9uwRX.js b/dist/chunks/rpc.C3q9uwRX.js
+index 28760b0bdb659953df78bc156faecde45fa9a7aa..04c859f0eeac34a018d05e3d2ffb64d9244617f5 100644
+--- a/dist/chunks/rpc.C3q9uwRX.js
++++ b/dist/chunks/rpc.C3q9uwRX.js
+@@ -58,6 +58,12 @@ function createRuntimeRpc(options) {
+           "onCollected",
+           "onCancel"
+         ],
++        // qr-code-studio: ten minutes instead of birpc's sixty seconds. On a
++        // GitHub runner with coverage on, a property sweep can keep a worker
++        // or the main process from answering for longer than a minute, and
++        // the run then fails with "Timeout calling onTaskUpdate" although
++        // every test passed. Vitest 2 has no option for this.
++        timeout: 6e5,
+         onTimeoutError(functionName, args) {
+           let message = `[vitest-worker]: Timeout calling "${functionName}"`;
+           if (functionName === "fetch" || functionName === "transform" || functionName === "resolveId") {

@@ -187,6 +187,9 @@
 	"pnpm": {
 		"onlyBuiltDependencies": [
 			"esbuild"
-		]
+		],
+		"patchedDependencies": {
+			"vitest@2.1.9": "patches/vitest@2.1.9.patch"
+		}
 	}
 }

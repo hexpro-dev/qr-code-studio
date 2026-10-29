@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  vitest@2.1.9:
+    hash: cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230
+    path: patches/vitest@2.1.9.patch
+
 importers:
 
   .:
@@ -34,7 +39,7 @@ importers:
         version: 3.4.0
       '@vitest/coverage-v8':
         specifier: ^2.1.8
-        version: 2.1.9(vitest@2.1.9(@types/node@22.20.5))
+        version: 2.1.9(vitest@2.1.9(patch_hash=cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230)(@types/node@22.20.5))
       '@xmldom/xmldom':
         specifier: ^0.9.12
         version: 0.9.12
@@ -88,7 +93,7 @@ importers:
         version: 8.72.0(eslint@9.39.5)(typescript@5.9.3)
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.20.5)
+        version: 2.1.9(patch_hash=cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230)(@types/node@22.20.5)
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
@@ -2394,7 +2399,7 @@ snapshots:
       '@typescript-eslint/types': 8.72.0
       eslint-visitor-keys: 5.0.1
 
-  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.20.5))':
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(patch_hash=cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230)(@types/node@22.20.5))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -2408,7 +2413,7 @@ snapshots:
       std-env: 3.10.0
       test-exclude: 7.0.2
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@22.20.5)
+      vitest: 2.1.9(patch_hash=cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230)(@types/node@22.20.5)
     transitivePeerDependencies:
       - supports-color
 
@@ -3186,7 +3191,7 @@ snapshots:
       '@types/node': 22.20.5
       fsevents: 2.3.3
 
-  vitest@2.1.9(@types/node@22.20.5):
+  vitest@2.1.9(patch_hash=cd4a0d53c57df1b696bdd9315760a21c0afc7d77ea41dbce7c95fa2db10fb230)(@types/node@22.20.5):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.5))
