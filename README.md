@@ -12,7 +12,9 @@
   <img alt="Australian owned and operated" src="https://img.shields.io/badge/Australian-owned%20%26%20operated-9F9F9F?style=flat-square&labelColor=1b2530">
 </p>
 
-# QR Code Studio: Free QR Code Generator with Codes That Never Expire
+# QR Code Studio
+
+> _Free QR Code Generator with Codes That Never Expire_
 
 Make, design, check and read QR codes entirely in the browser. Nothing is
 uploaded, nothing is stored unless you ask for it, and there is no server in
